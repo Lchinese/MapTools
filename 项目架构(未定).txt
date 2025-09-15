@@ -3,12 +3,12 @@
 ├── 📁 BackendService/            # 后端服务（FastAPI）
 │   ├── 📁 ApiEndpoints/          # API 路由
 │   ├── 📁 CoreConfig/            # 核心配置
-│   ├── 📁 DataModels/            # 数据库模型（SQLAlchemy）
+│   ├── 📁 DataModels/            # 数据库模型（SQLAlchemy + MySQL）
 │   ├── 📁 DataSchemas/           # 请求/响应模型（Pydantic）
 │   ├── 📁 BusinessServices/      # 业务逻辑层
 │   ├── 📁 AsyncTasks/            # 异步任务（Celery）
 │   ├── 📁 UtilityTools/          # 工具函数
-│   ├── 📁 MatchingAlgorithms/    # 路径匹配算法
+│   ├── 📁 MatchingAlgorithms/    # 路径匹配算法（GoTrackIt HMM）
 │   ├── 📁 LoggingSystem/         # 日志系统
 │   ├── 📄 dockerfile
 │   └── 📄 main.py                # FastAPI 入口
