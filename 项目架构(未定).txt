@@ -1,0 +1,17 @@
+📁 TrajectoryMatcher/
+├── 📁 FrontendApp/               # 前端应用（React）
+├── 📁 BackendService/            # 后端服务（FastAPI）
+│   ├── 📁 ApiEndpoints/          # API 路由
+│   ├── 📁 CoreConfig/            # 核心配置
+│   ├── 📁 DataModels/            # 数据库模型（SQLAlchemy）
+│   ├── 📁 DataSchemas/           # 请求/响应模型（Pydantic）
+│   ├── 📁 BusinessServices/      # 业务逻辑层
+│   ├── 📁 AsyncTasks/            # 异步任务（Celery）
+│   ├── 📁 UtilityTools/          # 工具函数
+│   ├── 📁 MatchingAlgorithms/    # 路径匹配算法
+│   ├── 📄 dockerfile
+│   └── 📄 main.py                # FastAPI 入口
+├── 📁 ExternalData/              # 外部数据（天地图 Shapefile）
+├── 📁 UserUploads/               # 用户上传的轨迹文件
+├── 📄 dockercompose.yml
+└── 📄 readme.md
