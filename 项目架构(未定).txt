@@ -45,9 +45,6 @@
 │   │   ├── 📄 file_utils.py      # 文件处理工具
 │   │   ├── 📄 geo_utils.py       # 地理计算工具
 │   │   └── 📄 validators.py      # 数据验证工具
-│   ├── 📁 LoggingSystem/         # 日志系统模块
-│   │   ├── 📄 logger.py          # 日志配置
-│   │   └── 📄 handlers.py        # 日志处理器
 │   ├── 📄 dockerfile             # Docker 配置文件
 │   └── 📄 main.py                # FastAPI 入口
 ├── 📁 ExternalData/              # 外部数据（天地图 Shapefile）
