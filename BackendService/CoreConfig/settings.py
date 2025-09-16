@@ -5,7 +5,8 @@
 
 import os
 from typing import Optional, Dict, Any
-from pydantic import BaseSettings, validator
+from pydantic_settings import BaseSettings
+from pydantic import field_validator
 from functools import lru_cache
 
 
@@ -18,7 +19,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     
     # 数据库配置
-    DATABASE_URL: str = "mysql://gisuser:mysecretpassword@localhost:3306/gisdb"
+    DATABASE_URL: str = "mysql+pymysql://root:123456@localhost:3306/maptools"
     DATABASE_POOL_SIZE: int = 10
     DATABASE_MAX_OVERFLOW: int = 20
     
@@ -63,29 +64,32 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "your-secret-key-change-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
-    @validator('DATABASE_URL')
+    @field_validator('DATABASE_URL')
+    @classmethod
     def validate_database_url(cls, v):
-        if not v.startswith('mysql://'):
+        if not v.startswith('mysql://') and not v.startswith('mysql+pymysql://'):
             raise ValueError('Database URL must be MySQL')
         return v
     
-    @validator('TIANDITU_API_KEY')
+    @field_validator('TIANDITU_API_KEY')
+    @classmethod
     def validate_tianditu_key(cls, v):
-        if v is None:
-            raise ValueError('TIANDITU_API_KEY is required')
+        # TIANDITU_API_KEY是可选的，不需要验证
         return v
     
-    @validator('LOG_LEVEL')
+    @field_validator('LOG_LEVEL')
+    @classmethod
     def validate_log_level(cls, v):
         valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
         if v.upper() not in valid_levels:
             raise ValueError(f'LOG_LEVEL must be one of {valid_levels}')
         return v.upper()
     
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": True
+    }
 
 
 @lru_cache()

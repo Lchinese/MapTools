@@ -55,8 +55,8 @@ class Trajectory(BaseModel, TimestampMixin, SoftDeleteMixin, AuditMixin):
     """轨迹模型"""
     __tablename__ = "trajectories"
     
-    # 主键
-    trajectory_id = Column(String(36), primary_key=True, comment="轨迹ID")
+    # 业务主键
+    trajectory_id = Column(String(36), unique=True, nullable=False, comment="轨迹ID")
     
     # 基本信息
     user_id = Column(String(36), nullable=False, comment="用户ID")
@@ -98,6 +98,7 @@ class Trajectory(BaseModel, TimestampMixin, SoftDeleteMixin, AuditMixin):
     
     # 索引
     __table_args__ = (
+        Index('idx_trajectory_id', 'trajectory_id'),
         Index('idx_trajectory_status', 'status'),
         Index('idx_trajectory_created_at', 'created_at'),
         Index('idx_trajectory_vehicle_id', 'vehicle_id'),
@@ -112,8 +113,8 @@ class TrajectoryPoint(BaseModel, TimestampMixin):
     """轨迹点模型"""
     __tablename__ = "trajectory_points"
     
-    # 主键
-    point_id = Column(String(36), primary_key=True, comment="点ID")
+    # 业务主键
+    point_id = Column(String(36), unique=True, nullable=False, comment="点ID")
     
     # 关联信息
     trajectory_id = Column(String(36), ForeignKey("trajectories.trajectory_id"), nullable=False, comment="轨迹ID")
@@ -155,8 +156,8 @@ class MatchingTask(BaseModel, TimestampMixin, SoftDeleteMixin):
     """地图匹配任务模型"""
     __tablename__ = "matching_tasks"
     
-    # 主键
-    task_id = Column(String(36), primary_key=True, comment="任务ID")
+    # 业务主键
+    task_id = Column(String(36), unique=True, nullable=False, comment="任务ID")
     
     # 关联信息
     trajectory_id = Column(String(36), ForeignKey("trajectories.trajectory_id"), nullable=False, comment="轨迹ID")
@@ -186,6 +187,7 @@ class MatchingTask(BaseModel, TimestampMixin, SoftDeleteMixin):
     
     # 索引
     __table_args__ = (
+        Index('idx_task_id', 'task_id'),
         Index('idx_task_trajectory_id', 'trajectory_id'),
         Index('idx_task_status', 'status'),
         Index('idx_task_created_at', 'created_at'),
@@ -199,8 +201,8 @@ class MatchedPoint(BaseModel, TimestampMixin):
     """匹配点模型"""
     __tablename__ = "matched_points"
     
-    # 主键
-    matched_point_id = Column(String(36), primary_key=True, comment="匹配点ID")
+    # 业务主键
+    matched_point_id = Column(String(36), unique=True, nullable=False, comment="匹配点ID")
     
     # 关联信息
     trajectory_id = Column(String(36), ForeignKey("trajectories.trajectory_id"), nullable=False, comment="轨迹ID")
@@ -234,6 +236,7 @@ class MatchedPoint(BaseModel, TimestampMixin):
     
     # 索引
     __table_args__ = (
+        Index('idx_matched_point_id', 'matched_point_id'),
         Index('idx_matched_trajectory_id', 'trajectory_id'),
         Index('idx_matched_task_id', 'matching_task_id'),
         Index('idx_matched_original_point_id', 'original_point_id'),
@@ -263,6 +266,7 @@ class User(BaseModel, TimestampMixin, SoftDeleteMixin):
     
     # 索引
     __table_args__ = (
+        Index('idx_user_id', 'user_id'),
         Index('idx_user_username', 'username'),
         Index('idx_user_email', 'email'),
         Index('idx_user_created_at', 'created_at'),
@@ -322,7 +326,7 @@ class RoadSegment(BaseModel, TimestampMixin):
     network_id = Column(String(100), ForeignKey("road_networks.network_id"), nullable=False, comment="路网ID")
     
     # 基本信息
-    segment_id = Column(String(100), nullable=False, comment="道路段ID")
+    segment_id = Column(String(100), unique=True, nullable=False, comment="道路段ID")
     road_name = Column(String(255), nullable=True, comment="道路名称")
     road_type = Column(String(50), nullable=True, comment="道路类型")
     
@@ -346,8 +350,8 @@ class RoadSegment(BaseModel, TimestampMixin):
     
     # 索引
     __table_args__ = (
-        Index('idx_road_segment_network_id', 'network_id'),
         Index('idx_road_segment_id', 'segment_id'),
+        Index('idx_road_segment_network_id', 'network_id'),
         Index('idx_road_segment_type', 'road_type'),
         Index('idx_road_segment_geom', 'geom', mysql_length={'geom': 32}),
     )
@@ -377,13 +381,14 @@ class File(BaseModel, TimestampMixin, SoftDeleteMixin):
     trajectory_id = Column(Integer, ForeignKey("trajectories.id"), nullable=True, comment="关联轨迹ID")
     
     # 元数据
-    metadata = Column(LONGTEXT, nullable=True, comment="文件元数据")
+    file_metadata = Column(LONGTEXT, nullable=True, comment="文件元数据")
     
     # 关联关系
     trajectory = relationship("Trajectory", back_populates="files")
     
     # 索引
     __table_args__ = (
+        Index('idx_file_id', 'file_id'),
         Index('idx_file_user_id', 'user_id'),
         Index('idx_file_trajectory_id', 'trajectory_id'),
         Index('idx_file_type', 'file_type'),
@@ -418,6 +423,7 @@ class SystemLog(BaseModel, TimestampMixin):
     
     # 索引
     __table_args__ = (
+        Index('idx_log_id', 'log_id'),
         Index('idx_log_user_id', 'user_id'),
         Index('idx_log_level', 'level'),
         Index('idx_log_module', 'module'),
