@@ -16,6 +16,12 @@ dependencies = [
     "pydantic>=2.5.0",
     "python-multipart>=0.0.6",
     "requests>=2.31.0",
+    "python-dotenv>=1.1.1",
+    "aiofiles>=24.1.0",
+    "gpxpy>=1.6.2",
+    "folium>=0.20.0",
+    "scikit-learn>=1.7.2",
+    "httpx>=0.28.1",
 ]
 
 [build-system]
@@ -29,4 +35,6 @@ dev-dependencies = [
     "black>=23.0.0",
     "flake8>=6.1.0",
     "mypy>=1.7.0",
+    "pre-commit>=4.3.0",
+    "isort>=6.0.1",
 ]
