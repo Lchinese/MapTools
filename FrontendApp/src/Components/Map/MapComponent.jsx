@@ -1,1 +1,195 @@
-// 地图组件
+import React, { useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import { useMapStore } from '../../Store/mapStore';
+import 'leaflet/dist/leaflet.css';
+
+// 修复Leaflet默认图标问题
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+  iconUrl: require('leaflet/dist/images/marker-icon.png'),
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+});
+
+// 地图更新组件
+const MapUpdater = ({ center, zoom, bounds }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (bounds) {
+      map.fitBounds(bounds);
+    } else if (center) {
+      map.setView(center, zoom);
+    }
+  }, [map, center, zoom, bounds]);
+
+  return null;
+};
+
+// 轨迹线组件
+const TrajectoryLine = ({ trajectory, color = '#1890ff', weight = 3 }) => {
+  if (!trajectory || !trajectory.points || trajectory.points.length === 0) {
+    return null;
+  }
+
+  const positions = trajectory.points
+    .sort((a, b) => a.sequence_number - b.sequence_number)
+    .map(point => [point.latitude, point.longitude]);
+
+  return (
+    <Polyline
+      positions={positions}
+      color={color}
+      weight={weight}
+      opacity={0.8}
+    />
+  );
+};
+
+// 轨迹点组件
+const TrajectoryPoints = ({ trajectory, color = '#1890ff' }) => {
+  if (!trajectory || !trajectory.points || trajectory.points.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      {trajectory.points.map((point, index) => (
+        <Marker
+          key={point.point_id || index}
+          position={[point.latitude, point.longitude]}
+        >
+          <Popup>
+            <div>
+              <p><strong>序列:</strong> {point.sequence_number}</p>
+              <p><strong>时间:</strong> {new Date(point.timestamp).toLocaleString()}</p>
+              <p><strong>坐标:</strong> {point.latitude.toFixed(6)}, {point.longitude.toFixed(6)}</p>
+              {point.speed && <p><strong>速度:</strong> {point.speed.toFixed(2)} km/h</p>}
+              {point.accuracy && <p><strong>精度:</strong> {point.accuracy.toFixed(2)} m</p>}
+            </div>
+          </Popup>
+        </Marker>
+      ))}
+    </>
+  );
+};
+
+const MapComponent = ({ height = 400, showControls = true }) => {
+  const mapRef = useRef();
+  const {
+    center,
+    zoom,
+    bounds,
+    originalTrajectory,
+    matchedTrajectory,
+    showOriginal,
+    showMatched,
+    showRoadNetwork,
+    roadNetwork
+  } = useMapStore();
+
+  // 计算地图边界
+  const calculateBounds = () => {
+    const allPoints = [];
+    
+    if (showOriginal && originalTrajectory?.points) {
+      allPoints.push(...originalTrajectory.points.map(p => [p.latitude, p.longitude]));
+    }
+    
+    if (showMatched && matchedTrajectory?.points) {
+      allPoints.push(...matchedTrajectory.points.map(p => [p.matched_latitude, p.matched_longitude]));
+    }
+
+    if (allPoints.length > 0) {
+      const lats = allPoints.map(p => p[0]);
+      const lngs = allPoints.map(p => p[1]);
+      
+      return [
+        [Math.min(...lats), Math.min(...lngs)],
+        [Math.max(...lats), Math.max(...lngs)]
+      ];
+    }
+    
+    return null;
+  };
+
+  const mapBounds = calculateBounds();
+
+  return (
+    <div style={{ height, width: '100%', position: 'relative' }}>
+      <MapContainer
+        ref={mapRef}
+        center={center}
+        zoom={zoom}
+        style={{ height: '100%', width: '100%' }}
+        scrollWheelZoom={true}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        
+        <MapUpdater 
+          center={mapBounds ? null : center} 
+          zoom={zoom} 
+          bounds={mapBounds} 
+        />
+
+        {/* 原始轨迹 */}
+        {showOriginal && originalTrajectory && (
+          <TrajectoryLine 
+            trajectory={originalTrajectory} 
+            color="#ff4d4f" 
+            weight={3}
+          />
+        )}
+
+        {/* 匹配轨迹 */}
+        {showMatched && matchedTrajectory && (
+          <TrajectoryLine 
+            trajectory={matchedTrajectory} 
+            color="#52c41a" 
+            weight={4}
+          />
+        )}
+
+        {/* 轨迹点 */}
+        {showOriginal && originalTrajectory && (
+          <TrajectoryPoints 
+            trajectory={originalTrajectory} 
+            color="#ff4d4f"
+          />
+        )}
+
+        {showMatched && matchedTrajectory && (
+          <TrajectoryPoints 
+            trajectory={matchedTrajectory} 
+            color="#52c41a"
+          />
+        )}
+      </MapContainer>
+
+      {/* 地图控制面板 */}
+      {showControls && (
+        <div style={{
+          position: 'absolute',
+          top: 10,
+          right: 10,
+          background: 'white',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          zIndex: 1000,
+        }}>
+          <div style={{ fontSize: '12px', marginBottom: '4px' }}>
+            <div style={{ color: '#ff4d4f' }}>● 原始轨迹</div>
+            <div style={{ color: '#52c41a' }}>● 匹配轨迹</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default MapComponent;

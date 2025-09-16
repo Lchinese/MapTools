@@ -1,1 +1,62 @@
-// 地图状态管理
+import { create } from 'zustand';
+
+const useMapStore = create((set, get) => ({
+  // 地图状态
+  center: [39.9042, 116.4074], // 北京
+  zoom: 10,
+  bounds: null,
+  
+  // 轨迹数据
+  originalTrajectory: null,
+  matchedTrajectory: null,
+  roadNetwork: null,
+  
+  // 显示选项
+  showOriginal: true,
+  showMatched: true,
+  showRoadNetwork: false,
+  
+  // 地图操作
+  setCenter: (center) => set({ center }),
+  setZoom: (zoom) => set({ zoom }),
+  setBounds: (bounds) => set({ bounds }),
+  
+  // 轨迹数据操作
+  setOriginalTrajectory: (trajectory) => set({ originalTrajectory: trajectory }),
+  setMatchedTrajectory: (trajectory) => set({ matchedTrajectory: trajectory }),
+  setRoadNetwork: (network) => set({ roadNetwork: network }),
+  
+  // 显示选项操作
+  toggleOriginal: () => set(state => ({ showOriginal: !state.showOriginal })),
+  toggleMatched: () => set(state => ({ showMatched: !state.showMatched })),
+  toggleRoadNetwork: () => set(state => ({ showRoadNetwork: !state.showRoadNetwork })),
+  
+  // 重置地图
+  resetMap: () => set({
+    center: [39.9042, 116.4074],
+    zoom: 10,
+    bounds: null,
+  }),
+  
+  // 重置数据
+  resetData: () => set({
+    originalTrajectory: null,
+    matchedTrajectory: null,
+    roadNetwork: null,
+  }),
+  
+  // 重置所有
+  reset: () => set({
+    center: [39.9042, 116.4074],
+    zoom: 10,
+    bounds: null,
+    originalTrajectory: null,
+    matchedTrajectory: null,
+    roadNetwork: null,
+    showOriginal: true,
+    showMatched: true,
+    showRoadNetwork: false,
+  }),
+}));
+
+export default useMapStore;

@@ -1,0 +1,97 @@
+import React from 'react';
+import { Layout, Typography, Space, Button, Dropdown, Avatar } from 'antd';
+import { UserOutlined, SettingOutlined, LogoutOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
+
+const { Header: AntHeader } = Layout;
+const { Title } = Typography;
+
+const Header = () => {
+  const navigate = useNavigate();
+
+  const userMenuItems = [
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: '个人资料',
+    },
+    {
+      key: 'settings',
+      icon: <SettingOutlined />,
+      label: '设置',
+    },
+    {
+      type: 'divider',
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: '退出登录',
+    },
+  ];
+
+  const handleMenuClick = ({ key }) => {
+    switch (key) {
+      case 'profile':
+        // 处理个人资料
+        break;
+      case 'settings':
+        // 处理设置
+        break;
+      case 'logout':
+        // 处理退出登录
+        break;
+      default:
+        break;
+    }
+  };
+
+  return (
+    <AntHeader style={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'space-between',
+      padding: '0 24px',
+      background: '#001529'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <Title 
+          level={3} 
+          style={{ 
+            color: '#fff', 
+            margin: 0, 
+            marginRight: 24,
+            cursor: 'pointer'
+          }}
+          onClick={() => navigate('/')}
+        >
+          MapTools
+        </Title>
+      </div>
+      
+      <Space>
+        <Button 
+          type="primary" 
+          onClick={() => navigate('/upload')}
+        >
+          上传轨迹
+        </Button>
+        
+        <Dropdown
+          menu={{
+            items: userMenuItems,
+            onClick: handleMenuClick,
+          }}
+          placement="bottomRight"
+        >
+          <Avatar 
+            icon={<UserOutlined />} 
+            style={{ cursor: 'pointer' }}
+          />
+        </Dropdown>
+      </Space>
+    </AntHeader>
+  );
+};
+
+export default Header;
