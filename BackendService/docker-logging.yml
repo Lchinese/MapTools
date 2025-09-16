@@ -1,0 +1,137 @@
+# Docker 日志配置
+# 根据日志系统设计文档配置Docker环境下的日志设置
+
+version: '3.8'
+
+services:
+  # 后端服务日志配置
+  backend:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "service=backend,environment=production"
+    
+    environment:
+      # 日志环境变量
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      - LOG_TO_FILE=true
+      - LOG_TO_CONSOLE=false
+      - LOG_TO_DATABASE=true
+      - LOG_ASYNC=true
+      - LOG_BUFFER_SIZE=10MB
+      - LOG_FLUSH_INTERVAL=5
+      - LOG_MASK_SENSITIVE=true
+      - LOG_AUDIT_ENABLED=true
+      - LOG_METRICS_ENABLED=true
+      - LOG_ALERT_ENABLED=true
+    
+    volumes:
+      # 日志目录挂载
+      - ./logs:/app/logs
+      - ./BackendService/logging.conf:/app/logging.conf
+      - ./BackendService/logging.env:/app/logging.env
+
+  # Celery Worker 日志配置
+  celery_worker:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        labels: "service=celery-worker,environment=production"
+    
+    environment:
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      - LOG_TO_FILE=true
+      - LOG_TO_CONSOLE=false
+      - LOG_ASYNC=true
+    
+    volumes:
+      - ./logs:/app/logs
+
+  # Celery Beat 日志配置
+  celery_beat:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        labels: "service=celery-beat,environment=production"
+    
+    environment:
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      - LOG_TO_FILE=true
+      - LOG_TO_CONSOLE=false
+      - LOG_ASYNC=true
+    
+    volumes:
+      - ./logs:/app/logs
+
+  # Flower 监控日志配置
+  flower:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "2"
+        labels: "service=flower,environment=production"
+    
+    environment:
+      - LOG_LEVEL=WARNING
+      - LOG_FORMAT=simple
+      - LOG_TO_FILE=true
+      - LOG_TO_CONSOLE=false
+    
+    volumes:
+      - ./logs:/app/logs
+
+  # MySQL 数据库日志配置
+  db:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "3"
+        labels: "service=mysql,environment=production"
+    
+    command: >
+      --general-log=1
+      --general-log-file=/var/log/mysql/general.log
+      --slow-query-log=1
+      --slow-query-log-file=/var/log/mysql/slow.log
+      --long-query-time=2
+      --log-error=/var/log/mysql/error.log
+    
+    volumes:
+      - mysql_logs:/var/log/mysql
+
+  # Redis 日志配置
+  redis:
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "2"
+        labels: "service=redis,environment=production"
+    
+    command: redis-server --loglevel warning --logfile /var/log/redis/redis.log
+    
+    volumes:
+      - redis_logs:/var/log/redis
+
+# 日志卷定义
+volumes:
+  mysql_logs:
+    driver: local
+  redis_logs:
+    driver: local
+
+# 网络配置
+networks:
+  default:
+    driver: bridge
