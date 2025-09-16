@@ -1,1 +1,131 @@
-# 容器编排配置
+version: '3.8'
+
+services:
+  # MySQL 数据库
+  db:
+    image: mysql:8.0
+    container_name: maptools_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: maptools
+      MYSQL_USER: maptools_user
+      MYSQL_PASSWORD: maptools_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./BackendService/scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - maptools_network
+    restart: unless-stopped
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: maptools_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - maptools_network
+    restart: unless-stopped
+
+  # 后端服务
+  backend:
+    build:
+      context: ./BackendService
+      dockerfile: dockerfile
+    container_name: maptools_backend
+    environment:
+      - DATABASE_URL=mysql+pymysql://maptools_user:maptools_password@db:3306/maptools
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./BackendService:/app
+      - ./ExternalData:/app/external_data
+      - ./UserUploads:/app/user_uploads
+      - ./Logs:/app/logs
+    depends_on:
+      - db
+      - redis
+    networks:
+      - maptools_network
+    restart: unless-stopped
+
+  # Celery Worker
+  celery_worker:
+    build:
+      context: ./BackendService
+      dockerfile: dockerfile
+    container_name: maptools_celery_worker
+    command: ["uv", "run", "celery", "-A", "AsyncTasks.celery_app", "worker", "--loglevel=info"]
+    environment:
+      - DATABASE_URL=mysql+pymysql://maptools_user:maptools_password@db:3306/maptools
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - ./BackendService:/app
+      - ./ExternalData:/app/external_data
+      - ./UserUploads:/app/user_uploads
+      - ./Logs:/app/logs
+    depends_on:
+      - db
+      - redis
+    networks:
+      - maptools_network
+    restart: unless-stopped
+
+  # Celery Beat (定时任务调度器)
+  celery_beat:
+    build:
+      context: ./BackendService
+      dockerfile: dockerfile
+    container_name: maptools_celery_beat
+    command: ["uv", "run", "celery", "-A", "AsyncTasks.celery_app", "beat", "--loglevel=info"]
+    environment:
+      - DATABASE_URL=mysql+pymysql://maptools_user:maptools_password@db:3306/maptools
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - ./BackendService:/app
+      - ./ExternalData:/app/external_data
+      - ./UserUploads:/app/user_uploads
+      - ./Logs:/app/logs
+    depends_on:
+      - db
+      - redis
+    networks:
+      - maptools_network
+    restart: unless-stopped
+
+  # Flower (Celery 监控)
+  flower:
+    build:
+      context: ./BackendService
+      dockerfile: dockerfile
+    container_name: maptools_flower
+    command: ["uv", "run", "celery", "-A", "AsyncTasks.celery_app", "flower", "--port=5555"]
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    networks:
+      - maptools_network
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  maptools_network:
+    driver: bridge
