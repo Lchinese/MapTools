@@ -51,6 +51,10 @@ tags:
     description: 文件管理相关接口
   - name: System
     description: 系统管理相关接口
+  - name: DataSources
+    description: 数据源管理相关接口
+  - name: OriginDestination
+    description: 起始终止数据管理相关接口
 
 paths:
   /health:
@@ -102,6 +106,11 @@ paths:
                   type: string
                   description: 轨迹描述
                   example: "这是一个测试轨迹"
+                data_type:
+                  type: string
+                  enum: [auto, taxi_gps, bus_card, metro_card, taxi_transaction, bus_gps, gpx, csv]
+                  description: 数据类型
+                  example: "taxi_gps"
       responses:
         '201':
           description: 文件上传成功
@@ -521,6 +530,135 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/QueueStatusResponse'
+
+  /api/v1/datasources/supported:
+    get:
+      tags:
+        - DataSources
+      summary: 获取支持的数据源
+      description: 获取系统支持的数据源类型和格式
+      operationId: getSupportedDataSources
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataSourcesResponse'
+
+  /api/v1/datasources/parse:
+    post:
+      tags:
+        - DataSources
+      summary: 解析数据文件
+      description: 解析上传的数据文件并返回预览信息
+      operationId: parseDataFile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 数据文件
+                data_type:
+                  type: string
+                  enum: [auto, taxi_gps, bus_card, metro_card, taxi_transaction, bus_gps, gpx, csv]
+                  description: 数据类型
+                  example: "auto"
+      responses:
+        '200':
+          description: 解析成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataParseResponse'
+
+  /api/v1/origin-destination/records:
+    get:
+      tags:
+        - OriginDestination
+      summary: 获取起始终止记录
+      description: 获取起始终止记录列表
+      operationId: getOriginDestinationRecords
+      parameters:
+        - name: page
+          in: query
+          description: 页码
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          description: 每页数量
+          required: false
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: record_type
+          in: query
+          description: 记录类型
+          required: false
+          schema:
+            type: string
+            enum: [bus_card, metro_card, taxi_transaction]
+        - name: status
+          in: query
+          description: 配对状态
+          required: false
+          schema:
+            type: string
+            enum: [paired, unpaired, processed]
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OriginDestinationRecordsResponse'
+
+  /api/v1/origin-destination/pair:
+    post:
+      tags:
+        - OriginDestination
+      summary: 配对起始终止记录
+      description: 配对起始终止记录（进出站配对）
+      operationId: pairOriginDestinationRecords
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PairingRequest'
+      responses:
+        '200':
+          description: 配对成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingResponse'
+
+  /api/v1/origin-destination/pairing-status:
+    get:
+      tags:
+        - OriginDestination
+      summary: 获取数据配对状态
+      description: 获取数据配对状态统计
+      operationId: getPairingStatus
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PairingStatusResponse'
 
 components:
   securitySchemes:
@@ -1155,8 +1293,16 @@ components:
           example: "example.gpx"
         file_type:
           type: string
-          enum: [gpx, kml, csv]
-          example: "gpx"
+          enum: [gpx, kml, csv, txt]
+          example: "txt"
+        data_source:
+          type: string
+          enum: [gpx, taxi_gps, bus_card, metro_card, taxi_transaction, bus_gps, csv]
+          example: "taxi_gps"
+        data_category:
+          type: string
+          enum: [continuous_trajectory, origin_destination, time_range]
+          example: "continuous_trajectory"
         file_size:
           type: integer
           example: 1024
@@ -1323,6 +1469,279 @@ components:
                       processed_tasks:
                         type: integer
                         example: 150
+
+    # 数据源相关模型
+    DataSourceInfo:
+      type: object
+      properties:
+        type:
+          type: string
+          example: "taxi_gps"
+        name:
+          type: string
+          example: "出租车GPS数据"
+        description:
+          type: string
+          example: "出租车GPS轨迹数据"
+        format:
+          type: string
+          example: "日期,时间,类型,车牌号,经度,纬度,速度,方向,状态,未知"
+        example:
+          type: string
+          example: "20160831,235926,H,粤BL3F79,113.823601,22.614317,84.0,243,0,1"
+        supported_extensions:
+          type: array
+          items:
+            type: string
+          example: [".txt", ".csv"]
+
+    DataSourcesResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            data:
+              type: object
+              properties:
+                data_sources:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/DataSourceInfo'
+
+    DataParseResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            data:
+              type: object
+              properties:
+                detected_type:
+                  type: string
+                  example: "taxi_gps"
+                total_records:
+                  type: integer
+                  example: 100
+                sample_data:
+                  type: array
+                  items:
+                    type: object
+                  example:
+                    - date: "20160831"
+                      time: "235926"
+                      type: "H"
+                      vehicle_id: "粤BL3F79"
+                      longitude: 113.823601
+                      latitude: 22.614317
+                      speed: 84.0
+                      direction: 243
+                      status: 0
+                fields:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      type:
+                        type: string
+                      description:
+                        type: string
+                  example:
+                    - name: "date"
+                      type: "string"
+                      description: "日期 (YYYYMMDD)"
+                    - name: "time"
+                      type: "string"
+                      description: "时间 (HHMMSS)"
+                    - name: "vehicle_id"
+                      type: "string"
+                      description: "车牌号"
+
+    # 起始终止数据相关模型
+    OriginDestinationRecord:
+      type: object
+      properties:
+        record_id:
+          type: string
+          example: "od_123456"
+        trajectory_id:
+          type: string
+          example: "traj_123456"
+        record_type:
+          type: string
+          enum: [bus_card, metro_card, taxi_transaction]
+          example: "bus_card"
+        passenger_id:
+          type: string
+          example: "291403498"
+        origin_station:
+          type: string
+          example: "东湖客运站"
+        destination_station:
+          type: string
+          example: "世界之窗"
+        origin_time:
+          type: string
+          format: date-time
+          example: "2025-09-16T07:00:51Z"
+        destination_time:
+          type: string
+          format: date-time
+          example: "2025-09-16T07:30:15Z"
+        line_id:
+          type: string
+          example: "605路31"
+        vehicle_id:
+          type: string
+          example: "粤B72366"
+        fare:
+          type: number
+          example: 200
+        distance:
+          type: number
+          example: 15000
+        duration:
+          type: integer
+          example: 1764
+        status:
+          type: string
+          enum: [paired, unpaired, processed]
+          example: "paired"
+
+    OriginDestinationRecordsResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            data:
+              type: object
+              properties:
+                records:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OriginDestinationRecord'
+                pagination:
+                  $ref: '#/components/schemas/PaginationInfo'
+
+    PairingRequest:
+      type: object
+      required:
+        - record_type
+      properties:
+        record_type:
+          type: string
+          enum: [bus_card, metro_card, taxi_transaction]
+          example: "metro_card"
+        pairing_criteria:
+          type: object
+          properties:
+            time_window:
+              type: integer
+              description: 时间窗口（秒）
+              example: 3600
+            max_distance:
+              type: number
+              description: 最大距离（米）
+              example: 1000
+
+    PairingResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            data:
+              type: object
+              properties:
+                paired_count:
+                  type: integer
+                  example: 150
+                unpaired_count:
+                  type: integer
+                  example: 25
+                pairing_results:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      record_id:
+                        type: string
+                      status:
+                        type: string
+                        enum: [paired, unpaired, failed]
+                      confidence:
+                        type: number
+                        format: float
+
+    PairingStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
+          properties:
+            success:
+              type: boolean
+              example: true
+            data:
+              type: object
+              properties:
+                total_records:
+                  type: integer
+                  example: 1000
+                paired_records:
+                  type: integer
+                  example: 850
+                unpaired_records:
+                  type: integer
+                  example: 150
+                pairing_rate:
+                  type: number
+                  format: float
+                  example: 85.0
+                by_type:
+                  type: object
+                  properties:
+                    bus_card:
+                      type: object
+                      properties:
+                        total:
+                          type: integer
+                        paired:
+                          type: integer
+                        rate:
+                          type: number
+                          format: float
+                    metro_card:
+                      type: object
+                      properties:
+                        total:
+                          type: integer
+                        paired:
+                          type: integer
+                        rate:
+                          type: number
+                          format: float
+                    taxi_transaction:
+                      type: object
+                      properties:
+                        total:
+                          type: integer
+                        paired:
+                          type: integer
+                        rate:
+                          type: number
+                          format: float
 
 security:
   - BearerAuth: []
