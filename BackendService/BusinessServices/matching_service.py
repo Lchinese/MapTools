@@ -53,6 +53,62 @@ class MatchingService:
     
     def match_trajectory(self, gps_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
+        匹配GPS轨迹到道路网络
+        
+        Args:
+            gps_data: GPS轨迹数据列表
+            
+        Returns:
+            Dict[str, Any]: 匹配结果
+        """
+        if not self.road_network_loaded:
+            raise ValueError("道路网络未加载，请先调用 load_road_network()")
+        
+        # 转换GPS数据格式
+        gps_points = []
+        for point_data in gps_data:
+            from ..MatchingAlgorithms.base import GPSPoint
+            gps_point = GPSPoint(
+                latitude=point_data['latitude'],
+                longitude=point_data['longitude'],
+                timestamp=point_data.get('timestamp', 0),
+                speed=point_data.get('speed'),
+                direction=point_data.get('direction'),
+                accuracy=point_data.get('accuracy')
+            )
+            gps_points.append(gps_point)
+        
+        # 执行匹配
+        start_time = time.time()
+        results = self.algorithm.match_trajectory(gps_points)
+        processing_time = time.time() - start_time
+        
+        # 计算统计信息
+        statistics = self.algorithm.get_statistics(results)
+        statistics['processing_time'] = processing_time
+        
+        # 转换结果格式
+        matched_points = []
+        for result in results:
+            if result:
+                matched_points.append({
+                    'original_lat': result.gps_point.latitude,
+                    'original_lng': result.gps_point.longitude,
+                    'matched_lat': result.matched_lat,
+                    'matched_lng': result.matched_lon,
+                    'road_id': result.matched_segment.segment_id,
+                    'road_name': result.matched_segment.road_name,
+                    'confidence': result.confidence,
+                    'distance': result.distance
+                })
+        
+        return {
+            'matched_points': matched_points,
+            'statistics': statistics,
+            'algorithm': self.algorithm_type,
+            'parameters': self.config
+        }
+        """
         匹配GPS轨迹
         
         Args:

@@ -1,12 +1,15 @@
 """
-地理计算工具函数
-提供各种地理空间计算功能
+地理计算工具模块
+提供地理坐标计算、距离测量、投影转换等地理计算功能
 """
 
 import math
-from typing import List, Tuple, Dict, Any
+from typing import Tuple, List, Optional, Dict, Any
 import numpy as np
 from dataclasses import dataclass
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -14,9 +17,46 @@ class Point:
     """地理点数据结构"""
     latitude: float
     longitude: float
+    elevation: Optional[float] = None
     
-    def __str__(self):
-        return f"Point({self.latitude:.6f}, {self.longitude:.6f})"
+    def __post_init__(self):
+        """验证坐标范围"""
+        if not -90 <= self.latitude <= 90:
+            raise ValueError(f"纬度必须在-90到90之间，当前值: {self.latitude}")
+        if not -180 <= self.longitude <= 180:
+            raise ValueError(f"经度必须在-180到180之间，当前值: {self.longitude}")
+
+
+@dataclass
+class BoundingBox:
+    """边界框数据结构"""
+    min_lat: float
+    max_lat: float
+    min_lng: float
+    max_lng: float
+    
+    def __post_init__(self):
+        """验证边界框有效性"""
+        if self.min_lat >= self.max_lat:
+            raise ValueError("最小纬度必须小于最大纬度")
+        if self.min_lng >= self.max_lng:
+            raise ValueError("最小经度必须小于最大经度")
+        if not -90 <= self.min_lat <= 90 or not -90 <= self.max_lat <= 90:
+            raise ValueError("纬度必须在-90到90之间")
+        if not -180 <= self.min_lng <= 180 or not -180 <= self.max_lng <= 180:
+            raise ValueError("经度必须在-180到180之间")
+    
+    def contains(self, point: Point) -> bool:
+        """检查点是否在边界框内"""
+        return (self.min_lat <= point.latitude <= self.max_lat and
+                self.min_lng <= point.longitude <= self.max_lng)
+    
+    def center(self) -> Point:
+        """获取边界框中心点"""
+        return Point(
+            latitude=(self.min_lat + self.max_lat) / 2,
+            longitude=(self.min_lng + self.max_lng) / 2
+        )
 
 
 class GeoUtils:
@@ -35,7 +75,7 @@ class GeoUtils:
             lat2, lon2: 第二个点的纬度和经度
             
         Returns:
-            距离（米）
+            float: 距离（米）
         """
         # 将十进制度数转化为弧度
         lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
@@ -61,35 +101,30 @@ class GeoUtils:
             line_end_lat, line_end_lon: 线段终点坐标
             
         Returns:
-            (最短距离, 投影点纬度, 投影点经度)
+            Tuple[float, float, float]: (最短距离, 投影点纬度, 投影点经度)
         """
-        # 将线段端点坐标
-        A_lat, A_lon = line_start_lat, line_start_lon
-        B_lat, B_lon = line_end_lat, line_end_lon
-        P_lat, P_lon = point_lat, point_lon
-        
         # 计算向量
-        AB_lat = B_lat - A_lat
-        AB_lon = B_lon - A_lon
-        AP_lat = P_lat - A_lat
-        AP_lon = P_lon - A_lon
+        AB_lat = line_end_lat - line_start_lat
+        AB_lon = line_end_lon - line_start_lon
+        AP_lat = point_lat - line_start_lat
+        AP_lon = point_lon - line_start_lon
         
         # 计算投影参数t
         AB_dot_AB = AB_lat * AB_lat + AB_lon * AB_lon
         if AB_dot_AB == 0:
             # 线段退化为点
-            distance = GeoUtils.haversine_distance(P_lat, P_lon, A_lat, A_lon)
-            return distance, A_lat, A_lon
+            distance = GeoUtils.haversine_distance(point_lat, point_lon, line_start_lat, line_start_lon)
+            return distance, line_start_lat, line_start_lon
         
         AB_dot_AP = AB_lat * AP_lat + AB_lon * AP_lon
         t = max(0, min(1, AB_dot_AP / AB_dot_AB))
         
         # 计算投影点坐标
-        proj_lat = A_lat + t * AB_lat
-        proj_lon = A_lon + t * AB_lon
+        proj_lat = line_start_lat + t * AB_lat
+        proj_lon = line_start_lon + t * AB_lon
         
         # 计算距离
-        distance = GeoUtils.haversine_distance(P_lat, P_lon, proj_lat, proj_lon)
+        distance = GeoUtils.haversine_distance(point_lat, point_lon, proj_lat, proj_lon)
         
         return distance, proj_lat, proj_lon
     
@@ -103,7 +138,7 @@ class GeoUtils:
             lat2, lon2: 终点坐标
             
         Returns:
-            方位角（度，0-360）
+            float: 方位角（度，0-360）
         """
         lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
         
@@ -120,14 +155,14 @@ class GeoUtils:
     @staticmethod
     def midpoint(lat1: float, lon1: float, lat2: float, lon2: float) -> Tuple[float, float]:
         """
-        计算两点的中点
+        计算两点的中点坐标
         
         Args:
             lat1, lon1: 第一个点坐标
             lat2, lon2: 第二个点坐标
             
         Returns:
-            (中点纬度, 中点经度)
+            Tuple[float, float]: 中点坐标 (纬度, 经度)
         """
         lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
         
@@ -135,30 +170,14 @@ class GeoUtils:
         Bx = math.cos(lat2) * math.cos(dlon)
         By = math.cos(lat2) * math.sin(dlon)
         
-        lat3 = math.atan2(math.sin(lat1) + math.sin(lat2),
-                         math.sqrt((math.cos(lat1) + Bx)**2 + By**2))
-        lon3 = lon1 + math.atan2(By, math.cos(lat1) + Bx)
+        mid_lat = math.atan2(math.sin(lat1) + math.sin(lat2),
+                            math.sqrt((math.cos(lat1) + Bx) ** 2 + By ** 2))
+        mid_lon = lon1 + math.atan2(By, math.cos(lat1) + Bx)
         
-        return math.degrees(lat3), math.degrees(lon3)
+        return math.degrees(mid_lat), math.degrees(mid_lon)
     
     @staticmethod
-    def is_point_in_bounds(point_lat: float, point_lon: float,
-                          bounds: Dict[str, float]) -> bool:
-        """
-        检查点是否在边界框内
-        
-        Args:
-            point_lat, point_lon: 点坐标
-            bounds: 边界框 {"min_lat": float, "max_lat": float, "min_lon": float, "max_lon": float}
-            
-        Returns:
-            是否在边界框内
-        """
-        return (bounds["min_lat"] <= point_lat <= bounds["max_lat"] and
-                bounds["min_lon"] <= point_lon <= bounds["max_lon"])
-    
-    @staticmethod
-    def calculate_bounds(points: List[Point], buffer: float = 0.001) -> Dict[str, float]:
+    def calculate_bounding_box(points: List[Point], buffer: float = 0.0) -> BoundingBox:
         """
         计算点集的边界框
         
@@ -167,117 +186,196 @@ class GeoUtils:
             buffer: 缓冲区大小（度）
             
         Returns:
-            边界框字典
+            BoundingBox: 边界框
         """
         if not points:
-            return {"min_lat": 0, "max_lat": 0, "min_lon": 0, "max_lon": 0}
+            raise ValueError("点列表不能为空")
         
         lats = [p.latitude for p in points]
-        lons = [p.longitude for p in points]
+        lngs = [p.longitude for p in points]
+        
+        return BoundingBox(
+            min_lat=min(lats) - buffer,
+            max_lat=max(lats) + buffer,
+            min_lng=min(lngs) - buffer,
+            max_lng=max(lngs) + buffer
+        )
+    
+    @staticmethod
+    def calculate_trajectory_statistics(points: List[Point]) -> Dict[str, Any]:
+        """
+        计算轨迹统计信息
+        
+        Args:
+            points: 轨迹点列表
+            
+        Returns:
+            Dict[str, Any]: 统计信息
+        """
+        if len(points) < 2:
+            return {
+                "total_distance": 0.0,
+                "total_points": len(points),
+                "duration": 0,
+                "avg_speed": 0.0,
+                "max_speed": 0.0,
+                "bounds": None
+            }
+        
+        # 计算总距离
+        total_distance = 0.0
+        for i in range(1, len(points)):
+            distance = GeoUtils.haversine_distance(
+                points[i-1].latitude, points[i-1].longitude,
+                points[i].latitude, points[i].longitude
+            )
+            total_distance += distance
+        
+        # 计算时间跨度
+        duration = 0
+        if hasattr(points[0], 'timestamp') and hasattr(points[-1], 'timestamp'):
+            duration = int((points[-1].timestamp - points[0].timestamp).total_seconds())
+        
+        # 计算速度统计
+        speeds = []
+        for i in range(1, len(points)):
+            if (hasattr(points[i-1], 'timestamp') and hasattr(points[i], 'timestamp') and
+                hasattr(points[i-1], 'speed') and points[i-1].speed is not None):
+                speeds.append(points[i-1].speed)
+        
+        avg_speed = np.mean(speeds) if speeds else 0.0
+        max_speed = np.max(speeds) if speeds else 0.0
+        
+        # 计算边界框
+        bounds = GeoUtils.calculate_bounding_box(points)
         
         return {
-            "min_lat": min(lats) - buffer,
-            "max_lat": max(lats) + buffer,
-            "min_lon": min(lons) - buffer,
-            "max_lon": max(lons) + buffer
+            "total_distance": total_distance,
+            "total_points": len(points),
+            "duration": duration,
+            "avg_speed": avg_speed,
+            "max_speed": max_speed,
+            "bounds": bounds
         }
     
     @staticmethod
-    def filter_points_by_bounds(points: List[Point], bounds: Dict[str, float]) -> List[Point]:
+    def filter_points_by_speed(points: List[Point], max_speed: float = 200.0) -> List[Point]:
         """
-        根据边界框过滤点
+        根据速度过滤轨迹点
         
         Args:
-            points: 点列表
-            bounds: 边界框
+            points: 轨迹点列表
+            max_speed: 最大合理速度（km/h）
             
         Returns:
-            过滤后的点列表
+            List[Point]: 过滤后的轨迹点列表
         """
-        return [p for p in points if GeoUtils.is_point_in_bounds(p.latitude, p.longitude, bounds)]
-    
-    @staticmethod
-    def calculate_speed(lat1: float, lon1: float, time1: float,
-                       lat2: float, lon2: float, time2: float) -> float:
-        """
-        根据两个GPS点计算速度
+        filtered_points = []
+        for point in points:
+            if hasattr(point, 'speed') and point.speed is not None:
+                if point.speed <= max_speed:
+                    filtered_points.append(point)
+                else:
+                    logger.warning(f"过滤掉异常速度点: {point.speed} km/h")
+            else:
+                filtered_points.append(point)
         
-        Args:
-            lat1, lon1, time1: 第一个点的坐标和时间
-            lat2, lon2, time2: 第二个点的坐标和时间
-            
-        Returns:
-            速度（km/h）
-        """
-        if time2 <= time1:
-            return 0
-        
-        distance = GeoUtils.haversine_distance(lat1, lon1, lat2, lon2)  # 米
-        time_diff = time2 - time1  # 秒
-        
-        speed_ms = distance / time_diff  # 米/秒
-        speed_kmh = speed_ms * 3.6  # 公里/小时
-        
-        return speed_kmh
+        return filtered_points
     
     @staticmethod
     def smooth_trajectory(points: List[Point], window_size: int = 3) -> List[Point]:
         """
-        对轨迹进行平滑处理（简单移动平均）
+        平滑轨迹（简单移动平均）
         
         Args:
-            points: 原始点列表
+            points: 轨迹点列表
             window_size: 窗口大小
             
         Returns:
-            平滑后的点列表
+            List[Point]: 平滑后的轨迹点列表
         """
         if len(points) < window_size:
             return points
         
-        smoothed = []
-        for i in range(len(points)):
-            start_idx = max(0, i - window_size // 2)
-            end_idx = min(len(points), i + window_size // 2 + 1)
-            
-            window_points = points[start_idx:end_idx]
-            avg_lat = sum(p.latitude for p in window_points) / len(window_points)
-            avg_lon = sum(p.longitude for p in window_points) / len(window_points)
-            
-            smoothed.append(Point(avg_lat, avg_lon))
+        smoothed_points = []
+        half_window = window_size // 2
         
-        return smoothed
+        for i in range(len(points)):
+            if i < half_window or i >= len(points) - half_window:
+                # 边界点保持不变
+                smoothed_points.append(points[i])
+            else:
+                # 计算窗口内点的平均值
+                window_points = points[i-half_window:i+half_window+1]
+                avg_lat = np.mean([p.latitude for p in window_points])
+                avg_lon = np.mean([p.longitude for p in window_points])
+                
+                # 创建新的点
+                smoothed_point = Point(
+                    latitude=avg_lat,
+                    longitude=avg_lon,
+                    elevation=points[i].elevation
+                )
+                smoothed_points.append(smoothed_point)
+        
+        return smoothed_points
     
     @staticmethod
-    def remove_outliers(points: List[Point], max_speed: float = 200) -> List[Point]:
+    def wgs84_to_web_mercator(lat: float, lon: float) -> Tuple[float, float]:
         """
-        移除异常点（基于速度）
+        WGS84坐标转换为Web墨卡托投影
         
         Args:
-            points: 点列表
-            max_speed: 最大合理速度（km/h）
+            lat: 纬度
+            lon: 经度
             
         Returns:
-            移除异常点后的点列表
+            Tuple[float, float]: Web墨卡托坐标 (x, y)
         """
-        if len(points) < 2:
-            return points
+        x = lon * 20037508.34 / 180
+        y = math.log(math.tan((90 + lat) * math.pi / 360)) / (math.pi / 180) * 20037508.34 / 180
+        return x, y
+    
+    @staticmethod
+    def web_mercator_to_wgs84(x: float, y: float) -> Tuple[float, float]:
+        """
+        Web墨卡托投影转换为WGS84坐标
         
-        filtered = [points[0]]  # 保留第一个点
-        
-        for i in range(1, len(points)):
-            prev_point = filtered[-1]
-            curr_point = points[i]
+        Args:
+            x: Web墨卡托X坐标
+            y: Web墨卡托Y坐标
             
-            # 计算速度（假设时间间隔为1秒，实际应用中需要真实时间戳）
-            speed = GeoUtils.calculate_speed(
-                prev_point.latitude, prev_point.longitude, i-1,
-                curr_point.latitude, curr_point.longitude, i
-            )
-            
-            if speed <= max_speed:
-                filtered.append(curr_point)
-            else:
-                print(f"移除异常点: 速度 {speed:.2f} km/h")
+        Returns:
+            Tuple[float, float]: WGS84坐标 (纬度, 经度)
+        """
+        lon = x / 20037508.34 * 180
+        lat = math.atan(math.sinh(y / 20037508.34 * math.pi)) * 180 / math.pi
+        return lat, lon
+    
+    @staticmethod
+    def calculate_polygon_area(points: List[Point]) -> float:
+        """
+        计算多边形面积（使用球面几何）
         
-        return filtered
+        Args:
+            points: 多边形顶点列表
+            
+        Returns:
+            float: 面积（平方米）
+        """
+        if len(points) < 3:
+            return 0.0
+        
+        # 使用球面几何计算面积
+        area = 0.0
+        n = len(points)
+        
+        for i in range(n):
+            j = (i + 1) % n
+            lat1, lon1 = math.radians(points[i].latitude), math.radians(points[i].longitude)
+            lat2, lon2 = math.radians(points[j].latitude), math.radians(points[j].longitude)
+            
+            area += (lon2 - lon1) * (2 + math.sin(lat1) + math.sin(lat2))
+        
+        area = abs(area) * GeoUtils.EARTH_RADIUS ** 2 / 2
+        return area
