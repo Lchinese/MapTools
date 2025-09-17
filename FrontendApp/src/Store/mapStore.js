@@ -31,10 +31,10 @@ const useMapStore = create((set, get) => ({
   toggleMatched: () => set(state => ({ showMatched: !state.showMatched })),
   toggleRoadNetwork: () => set(state => ({ showRoadNetwork: !state.showRoadNetwork })),
   
-  // 重置地图
+  // 重置地图到初始位置
   resetMap: () => set({
-    center: [39.9042, 116.4074],
-    zoom: 10,
+    center: [22.5431, 114.0579], // 深圳
+    zoom: 12,
     bounds: null,
   }),
   
@@ -47,8 +47,8 @@ const useMapStore = create((set, get) => ({
   
   // 重置所有
   reset: () => set({
-    center: [39.9042, 116.4074],
-    zoom: 10,
+    center: [22.5431, 114.0579], // 深圳
+    zoom: 12,
     bounds: null,
     originalTrajectory: null,
     matchedTrajectory: null,

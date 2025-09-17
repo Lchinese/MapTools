@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
+import { ReloadOutlined } from '@ant-design/icons';
 import L from 'leaflet';
 import { useMapStore } from '../../Store/mapStore';
 import 'leaflet/dist/leaflet.css';
@@ -86,7 +87,8 @@ const MapComponent = ({ height = 400, showControls = true }) => {
     showOriginal,
     showMatched,
     showRoadNetwork,
-    roadNetwork
+    roadNetwork,
+    resetMap
   } = useMapStore();
 
   // 计算地图边界
@@ -170,7 +172,60 @@ const MapComponent = ({ height = 400, showControls = true }) => {
         )}
       </MapContainer>
 
-      {/* 地图控制面板 */}
+      {/* 重置按钮 - 放在左侧缩放控件下方 */}
+      <div style={{
+        position: 'absolute',
+        top: '50%',
+        left: 10,
+        transform: 'translateY(-50%)',
+        zIndex: 1000,
+      }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+        }}>
+          {/* 重置按钮 - 方块样式 */}
+          <div
+            onClick={resetMap}
+            style={{
+              width: 30,
+              height: 30,
+              background: 'white',
+              border: '2px solid #ccc',
+              borderRadius: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              fontSize: '12px',
+              color: '#666',
+              marginBottom: 2,
+            }}
+            title="重置地图"
+          >
+            <div style={{
+              width: 12,
+              height: 12,
+              border: '1px solid #666',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <div style={{
+                width: 4,
+                height: 4,
+                background: '#666',
+                borderRadius: '50%',
+              }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 图例 - 放在右上角 */}
       {showControls && (
         <div style={{
           position: 'absolute',
@@ -182,7 +237,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
           boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
           zIndex: 1000,
         }}>
-          <div style={{ fontSize: '12px', marginBottom: '4px' }}>
+          <div style={{ fontSize: '12px' }}>
             <div style={{ color: '#ff4d4f' }}>● 原始轨迹</div>
             <div style={{ color: '#52c41a' }}>● 匹配轨迹</div>
           </div>
