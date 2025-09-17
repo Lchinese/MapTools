@@ -175,7 +175,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
       {/* 重置按钮 - 放在左侧缩放控件下方 */}
       <div style={{
         position: 'absolute',
-        top: '50%',
+        top: '30%',
         left: 10,
         transform: 'translateY(-50%)',
         zIndex: 1000,
