@@ -10,11 +10,11 @@ import logging
 import os
 from pathlib import Path
 
-from ..CoreConfig.database import get_db
-from ..CoreConfig.logging import get_logger
-from ..DataModels.Models.trajectory import File as FileModel
-from ..DataSchemas.trajectory import FileResponse, FileCreate
-from ..UtilityTools.file_utils import FileProcessor
+from CoreConfig.database import get_db
+from CoreConfig.logging import get_logger
+from DataModels.Models.trajectory import File as FileModel
+from DataSchemas.trajectory import FileResponse, FileCreate
+from UtilityTools.file_utils import FileProcessor
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1", tags=["文件管理"])

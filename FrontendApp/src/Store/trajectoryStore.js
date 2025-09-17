@@ -137,4 +137,5 @@ const useTrajectoryStore = create((set, get) => ({
   }),
 }));
 
+export { useTrajectoryStore };
 export default useTrajectoryStore;

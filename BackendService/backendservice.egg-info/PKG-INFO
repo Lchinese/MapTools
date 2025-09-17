@@ -22,3 +22,5 @@ Requires-Dist: gpxpy>=1.6.2
 Requires-Dist: folium>=0.20.0
 Requires-Dist: scikit-learn>=1.7.2
 Requires-Dist: httpx>=0.28.1
+Requires-Dist: psutil>=5.9.0
+Requires-Dist: cryptography>=41.0.0

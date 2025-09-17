@@ -59,4 +59,5 @@ const useMapStore = create((set, get) => ({
   }),
 }));
 
+export { useMapStore };
 export default useMapStore;

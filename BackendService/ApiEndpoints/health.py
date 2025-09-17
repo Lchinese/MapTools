@@ -11,9 +11,9 @@ import logging
 import psutil
 import platform
 
-from ..CoreConfig.database import get_db, get_database_status
-from ..CoreConfig.settings import get_settings
-from ..CoreConfig.logging import get_logger
+from CoreConfig.database import get_db, get_database_status
+from CoreConfig.settings import get_settings
+from CoreConfig.logging import get_logger
 
 logger = get_logger(__name__)
 settings = get_settings()

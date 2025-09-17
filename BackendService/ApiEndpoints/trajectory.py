@@ -7,16 +7,17 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Q
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import logging
+from datetime import datetime
 
-from ..CoreConfig.database import get_db
-from ..CoreConfig.logging import get_logger
-from ..BusinessServices.trajectory_service import TrajectoryService
-from ..DataSchemas.trajectory import (
+from CoreConfig.database import get_db
+from CoreConfig.logging import get_logger
+from BusinessServices.trajectory_service import TrajectoryService
+from DataSchemas.trajectory import (
     TrajectoryResponse, TrajectoryListResponse, TrajectoryQueryParams,
     TrajectoryUploadResponse, TrajectoryDeleteResponse, DataSource
 )
-from ..UtilityTools.file_utils import TrajectoryFileProcessor
-from ..UtilityTools.validators import FileValidator
+from UtilityTools.file_utils import TrajectoryFileProcessor
+from UtilityTools.validators import DataValidator
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/trajectories", tags=["trajectories"])

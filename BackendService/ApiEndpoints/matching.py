@@ -13,15 +13,15 @@ import json
 import csv
 import io
 
-from ..CoreConfig.database import get_db
-from ..CoreConfig.logging import get_logger
-from ..BusinessServices.matching_service import MatchingService
-from ..DataSchemas.matching import (
+from CoreConfig.database import get_db
+from CoreConfig.logging import get_logger
+from BusinessServices.matching_service import MatchingService
+from DataSchemas.matching import (
     MatchingRequest, MatchingStartResponse, MatchingStatusResponse,
     MatchingResultResponse, MatchingTaskQueryParams, MatchingTaskListResponse
 )
-from ..DataModels.Models.trajectory import MatchingTask, Trajectory, MatchedPoint
-from ..DataSchemas.trajectory import TrajectoryStatus
+from DataModels.Models.trajectory import MatchingTask, Trajectory, MatchedPoint
+from DataSchemas.trajectory import TrajectoryStatus
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/matching", tags=["matching"])
