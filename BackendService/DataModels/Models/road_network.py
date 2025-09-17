@@ -3,7 +3,7 @@
 定义道路网络相关的数据库模型
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Text, Float, Boolean, Index
+from sqlalchemy import Column, Integer, String, DateTime, Text, Float, Boolean, Index, ForeignKey
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.sql import func
 from geoalchemy2 import Geometry
@@ -46,6 +46,7 @@ class RoadNetwork(BaseModel, TimestampMixin):
     __table_args__ = (
         Index('idx_road_network_id', 'network_id'),
         Index('idx_road_network_active', 'is_active'),
+        {'extend_existing': True}
     )
     
     def __repr__(self) -> str:
@@ -57,7 +58,7 @@ class RoadSegment(BaseModel, TimestampMixin):
     __tablename__ = "road_segments"
     
     # 关联信息
-    network_id = Column(String(100), nullable=False, comment="路网ID")
+    network_id = Column(String(100), ForeignKey('road_networks.network_id'), nullable=False, comment="路网ID")
     
     # 基本信息
     segment_id = Column(String(100), nullable=False, comment="道路段ID")
@@ -85,6 +86,7 @@ class RoadSegment(BaseModel, TimestampMixin):
         Index('idx_road_segment_id', 'segment_id'),
         Index('idx_road_segment_type', 'road_type'),
         Index('idx_road_segment_geom', 'geom', mysql_length={'geom': 32}),
+        {'extend_existing': True}
     )
     
     def __repr__(self) -> str:
@@ -96,20 +98,13 @@ class RoadNode(BaseModel, TimestampMixin):
     __tablename__ = "road_nodes"
     
     # 关联信息
-    network_id = Column(String(100), nullable=False, comment="路网ID")
+    network_id = Column(String(100), ForeignKey('road_networks.network_id'), nullable=False, comment="路网ID")
     
     # 基本信息
     node_id = Column(String(100), nullable=False, comment="节点ID")
-    node_type = Column(String(50), nullable=True, comment="节点类型")
-    
-    # 空间信息
     latitude = Column(Float, nullable=False, comment="纬度")
     longitude = Column(Float, nullable=False, comment="经度")
-    geom = Column(Geometry('POINT', srid=4326), nullable=True, comment="空间几何对象")
-    
-    # 节点属性
-    elevation = Column(Float, nullable=True, comment="海拔高度（米）")
-    is_intersection = Column(Boolean, default=False, comment="是否为交叉口")
+    node_type = Column(String(50), nullable=True, comment="节点类型")
     
     # 其他属性
     properties = Column(LONGTEXT, nullable=True, comment="其他属性（JSON格式）")
@@ -118,8 +113,9 @@ class RoadNode(BaseModel, TimestampMixin):
     __table_args__ = (
         Index('idx_road_node_network_id', 'network_id'),
         Index('idx_road_node_id', 'node_id'),
-        Index('idx_road_node_geom', 'geom', mysql_length={'geom': 32}),
+        Index('idx_road_node_type', 'node_type'),
+        {'extend_existing': True}
     )
     
     def __repr__(self) -> str:
-        return f"<RoadNode(id={self.id}, node_id='{self.node_id}', lat={self.latitude}, lng={self.longitude})>"
+        return f"<RoadNode(id={self.id}, node_id='{self.node_id}', node_type='{self.node_type}')>"

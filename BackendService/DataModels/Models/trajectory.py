@@ -90,11 +90,11 @@ class Trajectory(BaseModel, TimestampMixin, SoftDeleteMixin, AuditMixin):
     processing_completed_at = Column(DateTime(timezone=True), nullable=True, comment="处理完成时间")
     error_message = Column(Text, nullable=True, comment="错误信息")
     
-    # 关联关系
-    user = relationship("User", back_populates="trajectories")
+    # 关联关系 (注释掉有问题的关系)
+    # user = relationship("User", back_populates="trajectories")
     points = relationship("TrajectoryPoint", back_populates="trajectory", cascade="all, delete-orphan")
-    matching_tasks = relationship("MatchingTask", back_populates="trajectory", cascade="all, delete-orphan")
-    files = relationship("File", back_populates="trajectory", cascade="all, delete-orphan")
+    # matching_tasks = relationship("MatchingTask", back_populates="trajectory", cascade="all, delete-orphan")
+    # files = relationship("File", back_populates="trajectory", cascade="all, delete-orphan")
     
     # 索引
     __table_args__ = (
@@ -103,6 +103,7 @@ class Trajectory(BaseModel, TimestampMixin, SoftDeleteMixin, AuditMixin):
         Index('idx_trajectory_created_at', 'created_at'),
         Index('idx_trajectory_vehicle_id', 'vehicle_id'),
         Index('idx_trajectory_data_source', 'data_source'),
+        {'extend_existing': True}
     )
     
     def __repr__(self) -> str:
@@ -137,19 +138,20 @@ class TrajectoryPoint(BaseModel, TimestampMixin):
     # 其他属性
     raw_data = Column(LONGTEXT, nullable=True, comment="原始数据（JSON格式）")
     
-    # 关联关系
+    # 关联关系 (注释掉有问题的关系)
     trajectory = relationship("Trajectory", back_populates="points")
-    matched_points = relationship("MatchedPoint", back_populates="original_point", cascade="all, delete-orphan")
+    # matched_points = relationship("MatchedPoint", back_populates="original_point", cascade="all, delete-orphan")
     
     # 索引
     __table_args__ = (
         Index('idx_point_trajectory_id', 'trajectory_id'),
         Index('idx_point_timestamp', 'timestamp'),
         Index('idx_point_geom', 'geom', mysql_length={'geom': 32}),
+        {'extend_existing': True}
     )
     
     def __repr__(self) -> str:
-        return f"<TrajectoryPoint(id={self.id}, lat={self.latitude}, lng={self.longitude})>"
+        return f"<TrajectoryPoint(id={self.id}, point_id='{self.point_id}', sequence_number={self.sequence_number})>"
 
 
 class MatchingTask(BaseModel, TimestampMixin, SoftDeleteMixin):

@@ -15,7 +15,7 @@ sys.path.insert(0, str(project_root))
 def run_unit_tests(use_pytest=True):
     """运行单元测试"""
     print("运行单元测试...")
-    if use_pytest:
+    if use_pytest and check_pytest_installed():
         cmd = [
             sys.executable, "-m", "pytest", 
             "Tests/unit/", 
@@ -35,7 +35,7 @@ def run_unit_tests(use_pytest=True):
 def run_integration_tests(use_pytest=True):
     """运行集成测试"""
     print("运行集成测试...")
-    if use_pytest:
+    if use_pytest and check_pytest_installed():
         cmd = [
             sys.executable, "-m", "pytest", 
             "Tests/integration/", 
@@ -54,16 +54,16 @@ def run_integration_tests(use_pytest=True):
 
 def run_all_tests(use_pytest=True):
     """运行所有测试"""
-    if use_pytest:
+    if use_pytest and check_pytest_installed():
         print("运行所有测试...")
         cmd = [
             sys.executable, "-m", "pytest", 
             "Tests/", 
             "-v", 
-            "--tb=short",
-            "--cov=BackendService",
-            "--cov-report=html",
-            "--cov-report=term"
+            "--tb=short"
+            # "--cov=BackendService",
+            # "--cov-report=html",
+            # "--cov-report=term"
         ]
         result = subprocess.run(cmd, cwd=project_root)
         return result.returncode == 0
@@ -75,6 +75,15 @@ def run_all_tests(use_pytest=True):
         runner = unittest.TextTestRunner(verbosity=2)
         result = runner.run(suite)
         return result.wasSuccessful()
+
+def check_pytest_installed():
+    """检查pytest是否已安装"""
+    try:
+        import pytest
+        return True
+    except ImportError:
+        print("未安装pytest，将使用unittest运行测试")
+        return False
 
 def main():
     """主函数"""
@@ -91,7 +100,7 @@ def main():
         print("用法: python run_tests.py [unit|integration|all] [--no-pytest]")
         sys.exit(1)
     
-    print(f"使用 {'pytest' if use_pytest else 'unittest'} 运行测试")
+    print(f"使用 {'pytest' if use_pytest and check_pytest_installed() else 'unittest'} 运行测试")
     
     if test_type == "unit":
         success = run_unit_tests(use_pytest)
