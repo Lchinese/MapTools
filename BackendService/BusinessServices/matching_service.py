@@ -1,267 +1,200 @@
 """
-地图匹配业务服务
-提供轨迹匹配的业务逻辑
+地图匹配业务逻辑服务
+处理地图匹配相关的业务逻辑
 """
 
+import sys
+import os
 from typing import List, Dict, Any, Optional
-import time
-from MatchingAlgorithms.base import create_matching_algorithm, get_default_config
-from MatchingAlgorithms.base import GPSPoint, RoadSegment, MatchResult
-from UtilityTools.geo_utils import GeoUtils
+from sqlalchemy.orm import Session
+import uuid
+from datetime import datetime
+
+# 添加项目根目录到Python路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from DataModels.Models.trajectory import Trajectory, TrajectoryPoint, MatchingTask, MatchedPoint
+from UtilityTools.geo_utils import GeoUtils, Point as GeoPoint
+from CoreConfig.database import get_db
+from CoreConfig.logging import get_logger
+from MatchingAlgorithms import create_matching_algorithm, AlgorithmFactory
+
+logger = get_logger(__name__)
 
 
 class MatchingService:
-    """地图匹配业务服务"""
+    """地图匹配服务类"""
     
-    def __init__(self, algorithm_type: str = 'distance_matching', config: Dict[str, Any] = None):
+    def __init__(self, config: Dict[str, Any] = None):
         """
-        初始化匹配服务
+        初始化地图匹配服务
         
         Args:
-            algorithm_type: 算法类型
-            config: 算法配置参数
+            config: 配置参数
         """
-        self.algorithm_type = algorithm_type
-        self.config = config or get_default_config(algorithm_type)
-        self.algorithm = create_matching_algorithm(algorithm_type, self.config)
-        self.road_network_loaded = False
+        self.config = config or {}
     
-    def load_road_network(self, road_data: List[Dict[str, Any]]) -> None:
+    def start_matching_task(self, trajectory_id: str, algorithm: str = "distance_matching", 
+                          parameters: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        加载道路网络数据
+        启动地图匹配任务
         
         Args:
-            road_data: 道路数据列表，每个元素包含道路段信息
+            trajectory_id: 轨迹ID
+            algorithm: 匹配算法
+            parameters: 算法参数
+            
+        Returns:
+            任务信息字典
         """
-        # 转换数据格式
-        road_segments = []
-        for road in road_data:
-            segment = RoadSegment(
-                segment_id=road.get('segment_id', ''),
-                start_lat=road.get('start_lat', 0),
-                start_lon=road.get('start_lon', 0),
-                end_lat=road.get('end_lat', 0),
-                end_lon=road.get('end_lon', 0),
-                road_name=road.get('road_name', ''),
-                road_type=road.get('road_type', ''),
-                max_speed=road.get('max_speed', None)
+        try:
+            # 获取数据库会话
+            db = next(get_db())
+            
+            # 获取轨迹
+            trajectory = db.query(Trajectory).filter(
+                Trajectory.trajectory_id == trajectory_id
+            ).first()
+            
+            if not trajectory:
+                return {
+                    "success": False,
+                    "error": "轨迹不存在"
+                }
+            
+            # 创建匹配任务
+            task = MatchingTask(
+                task_id=str(uuid.uuid4()),
+                trajectory_id=trajectory_id,
+                user_id=trajectory.user_id,
+                algorithm=algorithm,
+                parameters=str(parameters) if parameters else None
             )
-            road_segments.append(segment)
-        
-        self.algorithm.load_road_network(road_segments)
-        self.road_network_loaded = True
+            
+            db.add(task)
+            db.commit()
+            db.refresh(task)
+            
+            return {
+                "success": True,
+                "task_id": task.task_id,
+                "message": "匹配任务已创建"
+            }
+            
+        except Exception as e:
+            logger.error(f"启动匹配任务失败: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
     
-    def match_trajectory(self, gps_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def get_matching_task(self, task_id: str) -> Optional[MatchingTask]:
         """
-        匹配GPS轨迹到道路网络
+        获取匹配任务
         
         Args:
-            gps_data: GPS轨迹数据列表
+            task_id: 任务ID
             
         Returns:
-            Dict[str, Any]: 匹配结果
+            匹配任务对象，如果未找到则返回None
         """
-        if not self.road_network_loaded:
-            raise ValueError("道路网络未加载，请先调用 load_road_network()")
-        
-        # 转换GPS数据格式
-        gps_points = []
-        for point_data in gps_data:
-            from ..MatchingAlgorithms.base import GPSPoint
-            gps_point = GPSPoint(
-                latitude=point_data['latitude'],
-                longitude=point_data['longitude'],
-                timestamp=point_data.get('timestamp', 0),
-                speed=point_data.get('speed'),
-                direction=point_data.get('direction'),
-                accuracy=point_data.get('accuracy')
-            )
-            gps_points.append(gps_point)
-        
-        # 执行匹配
-        start_time = time.time()
-        results = self.algorithm.match_trajectory(gps_points)
-        processing_time = time.time() - start_time
-        
-        # 计算统计信息
-        statistics = self.algorithm.get_statistics(results)
-        statistics['processing_time'] = processing_time
-        
-        # 转换结果格式
-        matched_points = []
-        for result in results:
-            if result:
-                matched_points.append({
-                    'original_lat': result.gps_point.latitude,
-                    'original_lng': result.gps_point.longitude,
-                    'matched_lat': result.matched_lat,
-                    'matched_lng': result.matched_lon,
-                    'road_id': result.matched_segment.segment_id,
-                    'road_name': result.matched_segment.road_name,
-                    'confidence': result.confidence,
-                    'distance': result.distance
-                })
-        
-        return {
-            'matched_points': matched_points,
-            'statistics': statistics,
-            'algorithm': self.algorithm_type,
-            'parameters': self.config
-        }
+        try:
+            db = next(get_db())
+            task = db.query(MatchingTask).filter(
+                MatchingTask.task_id == task_id
+            ).first()
+            return task
+        except Exception as e:
+            logger.error(f"获取匹配任务失败: {str(e)}")
+            return None
+    
+    def list_matching_tasks(self, user_id: str, limit: int = 100, offset: int = 0) -> List[MatchingTask]:
         """
-        匹配GPS轨迹
+        列出用户匹配任务
         
         Args:
-            gps_data: GPS数据列表，每个元素包含轨迹点信息
+            user_id: 用户ID
+            limit: 限制数量
+            offset: 偏移量
             
         Returns:
-            匹配结果字典
+            匹配任务列表
         """
-        if not self.road_network_loaded:
-            raise ValueError("道路网络未加载，请先调用 load_road_network()")
+        try:
+            db = next(get_db())
+            tasks = db.query(MatchingTask).filter(
+                MatchingTask.user_id == user_id
+            ).offset(offset).limit(limit).all()
+            return tasks
+        except Exception as e:
+            logger.error(f"列出匹配任务失败: {str(e)}")
+            return []
+    
+    def get_matching_result(self, task_id: str) -> List[MatchedPoint]:
+        """
+        获取匹配结果
         
-        # 转换GPS数据格式
-        gps_points = []
-        for point_data in gps_data:
-            point = GPSPoint(
-                latitude=point_data.get('latitude', 0),
-                longitude=point_data.get('longitude', 0),
-                timestamp=point_data.get('timestamp', 0),
-                speed=point_data.get('speed', None),
-                direction=point_data.get('direction', None),
-                accuracy=point_data.get('accuracy', None)
-            )
-            gps_points.append(point)
+        Args:
+            task_id: 任务ID
+            
+        Returns:
+            匹配点列表
+        """
+        try:
+            db = next(get_db())
+            matched_points = db.query(MatchedPoint).filter(
+                MatchedPoint.matching_task_id == task_id
+            ).all()
+            return matched_points
+        except Exception as e:
+            logger.error(f"获取匹配结果失败: {str(e)}")
+            return []
+    
+    def create_gps_point(self, trajectory_point: TrajectoryPoint) -> GeoPoint:
+        """
+        从轨迹点创建GPS点
         
-        # 执行匹配
-        start_time = time.time()
-        results = self.algorithm.match_trajectory(gps_points)
-        end_time = time.time()
+        Args:
+            trajectory_point: 轨迹点
+            
+        Returns:
+            GPS点
+        """
+        return GeoPoint(
+            latitude=trajectory_point.latitude,
+            longitude=trajectory_point.longitude,
+            timestamp=trajectory_point.timestamp,
+            speed=trajectory_point.speed,
+            direction=trajectory_point.direction,
+            accuracy=trajectory_point.accuracy
+        )
+    
+    def match_point(self, gps_point: GeoPoint) -> Dict[str, Any]:
+        """
+        匹配单个GPS点（示例实现）
         
-        # 转换结果格式
-        matched_results = []
-        for result in results:
-            if result:
-                matched_results.append({
-                    'gps_point': {
-                        'latitude': result.gps_point.latitude,
-                        'longitude': result.gps_point.longitude,
-                        'timestamp': result.gps_point.timestamp,
-                        'speed': result.gps_point.speed,
-                        'direction': result.gps_point.direction
-                    },
-                    'matched_segment': {
-                        'segment_id': result.matched_segment.segment_id,
-                        'road_name': result.matched_segment.road_name,
-                        'road_type': result.matched_segment.road_type
-                    },
-                    'matched_position': {
-                        'latitude': result.matched_lat,
-                        'longitude': result.matched_lon
-                    },
-                    'distance': result.distance,
-                    'confidence': result.confidence
-                })
-        
-        # 获取统计信息
-        stats = self.algorithm.get_statistics(results)
-        
+        Args:
+            gps_point: GPS点
+            
+        Returns:
+            匹配结果
+        """
+        # 这里应该实现实际的地图匹配逻辑
+        # 目前返回一个示例结果
         return {
-            'success': True,
-            'algorithm_type': self.algorithm_type,
-            'total_points': len(gps_points),
-            'matched_points': len(matched_results),
-            'match_rate': len(matched_results) / len(gps_points) if gps_points else 0,
-            'processing_time': end_time - start_time,
-            'statistics': stats,
-            'results': matched_results
+            "matched_lat": gps_point.latitude,
+            "matched_lon": gps_point.longitude,
+            "distance": 0.0,
+            "confidence": 1.0,
+            "road_name": "示例道路",
+            "road_type": "示例类型"
         }
     
-    def match_trajectory_from_file(self, file_path: str, file_type: str = 'auto') -> Dict[str, Any]:
+    def get_available_algorithms(self) -> List[str]:
         """
-        从文件匹配轨迹
-        
-        Args:
-            file_path: 文件路径
-            file_type: 文件类型
-            
-        Returns:
-            匹配结果字典
-        """
-        # 这里应该根据文件类型解析GPS数据
-        # 暂时返回空结果，实际实现需要根据具体文件格式解析
-        raise NotImplementedError("文件解析功能待实现")
-    
-    def get_algorithm_info(self) -> Dict[str, Any]:
-        """
-        获取当前算法信息
+        获取可用的匹配算法
         
         Returns:
-            算法信息字典
+            算法列表
         """
-        return {
-            'algorithm_type': self.algorithm_type,
-            'algorithm_name': self.algorithm.get_algorithm_name(),
-            'config': self.config,
-            'road_network_loaded': self.road_network_loaded
-        }
-    
-    def switch_algorithm(self, algorithm_type: str, config: Dict[str, Any] = None) -> None:
-        """
-        切换算法
-        
-        Args:
-            algorithm_type: 新的算法类型
-            config: 新的配置参数
-        """
-        self.algorithm_type = algorithm_type
-        self.config = config or get_default_config(algorithm_type)
-        self.algorithm = create_matching_algorithm(algorithm_type, self.config)
-        self.road_network_loaded = False  # 需要重新加载道路网络
-    
-    def validate_gps_data(self, gps_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        验证GPS数据
-        
-        Args:
-            gps_data: GPS数据列表
-            
-        Returns:
-            验证结果字典
-        """
-        if not gps_data:
-            return {'valid': False, 'error': 'GPS数据为空'}
-        
-        errors = []
-        warnings = []
-        
-        for i, point in enumerate(gps_data):
-            # 检查必需字段
-            if 'latitude' not in point or 'longitude' not in point:
-                errors.append(f"点 {i}: 缺少经纬度信息")
-                continue
-            
-            lat = point['latitude']
-            lon = point['longitude']
-            
-            # 检查坐标范围
-            if not (-90 <= lat <= 90):
-                errors.append(f"点 {i}: 纬度超出范围 {lat}")
-            
-            if not (-180 <= lon <= 180):
-                errors.append(f"点 {i}: 经度超出范围 {lon}")
-            
-            # 检查速度
-            if 'speed' in point and point['speed'] is not None:
-                speed = point['speed']
-                if speed < 0:
-                    warnings.append(f"点 {i}: 速度为负值 {speed}")
-                elif speed > 300:  # 300 km/h
-                    warnings.append(f"点 {i}: 速度异常高 {speed} km/h")
-        
-        return {
-            'valid': len(errors) == 0,
-            'errors': errors,
-            'warnings': warnings,
-            'total_points': len(gps_data)
-        }
+        return AlgorithmFactory.get_available_algorithms()

@@ -19,7 +19,9 @@ class TrajectoryPoint:
     """轨迹点数据类（用于测试）"""
     latitude: float
     longitude: float
-    timestamp: int
+    timestamp: float
+    sequence_number: int
+    elevation: Optional[float] = None
     speed: Optional[float] = None
     direction: Optional[float] = None
     accuracy: Optional[float] = None
@@ -27,23 +29,22 @@ class TrajectoryPoint:
 @dataclass
 class Trajectory:
     """轨迹数据类（用于测试）"""
-    trajectory_id: str
     name: str
     points: List[TrajectoryPoint]
-    created_at: int
-    updated_at: int
+    description: Optional[str] = None
+    vehicle_id: Optional[str] = None
 
 class TestTrajectory(unittest.TestCase):
-    """轨迹模型测试"""
+    """轨迹测试"""
     
     def setUp(self):
         """测试前的准备工作"""
-        # 创建轨迹点列表
         self.points = [
             TrajectoryPoint(
                 latitude=39.9087,
                 longitude=116.3974,
                 timestamp=1000,
+                sequence_number=1,
                 speed=10.0,
                 direction=45.0
             ),
@@ -51,6 +52,7 @@ class TestTrajectory(unittest.TestCase):
                 latitude=39.9088,
                 longitude=116.3975,
                 timestamp=1001,
+                sequence_number=2,
                 speed=12.0,
                 direction=46.0
             ),
@@ -58,61 +60,56 @@ class TestTrajectory(unittest.TestCase):
                 latitude=39.9089,
                 longitude=116.3976,
                 timestamp=1002,
+                sequence_number=3,
                 speed=11.0,
                 direction=47.0
             )
         ]
         
-        # 创建轨迹对象
         self.trajectory = Trajectory(
-            trajectory_id="test_traj_001",
             name="测试轨迹",
+            description="用于测试的轨迹",
             points=self.points,
-            created_at=1000,
-            updated_at=1002
+            vehicle_id="TEST001"
         )
+        
+    def test_trajectory_creation(self):
+        """测试轨迹创建"""
+        self.assertEqual(self.trajectory.name, "测试轨迹")
+        self.assertEqual(self.trajectory.description, "用于测试的轨迹")
+        self.assertEqual(self.trajectory.vehicle_id, "TEST001")
+        self.assertEqual(len(self.trajectory.points), 3)
         
     def test_trajectory_point_creation(self):
         """测试轨迹点创建"""
+        point = self.points[0]
+        self.assertEqual(point.latitude, 39.9087)
+        self.assertEqual(point.longitude, 116.3974)
+        self.assertEqual(point.sequence_number, 1)
+        self.assertEqual(point.speed, 10.0)
+        self.assertEqual(point.direction, 45.0)
+        
+    def test_trajectory_point_validation(self):
+        """测试轨迹点验证"""
+        # 测试正常情况
         point = TrajectoryPoint(
             latitude=39.9087,
             longitude=116.3974,
             timestamp=1000,
-            speed=10.0,
-            direction=45.0
+            sequence_number=1
         )
-        
         self.assertEqual(point.latitude, 39.9087)
         self.assertEqual(point.longitude, 116.3974)
-        self.assertEqual(point.timestamp, 1000)
-        self.assertEqual(point.speed, 10.0)
-        self.assertEqual(point.direction, 45.0)
         
-    def test_trajectory_creation(self):
-        """测试轨迹创建"""
-        traj = Trajectory(
-            trajectory_id="test_traj_001",
-            name="测试轨迹",
-            points=self.points,
-            created_at=1000,
-            updated_at=1002
+        # 测试边界值
+        point2 = TrajectoryPoint(
+            latitude=90.0,  # 最大纬度
+            longitude=180.0,  # 最大经度
+            timestamp=1000,
+            sequence_number=1
         )
-        
-        self.assertEqual(traj.trajectory_id, "test_traj_001")
-        self.assertEqual(traj.name, "测试轨迹")
-        self.assertEqual(len(traj.points), 3)
-        self.assertEqual(traj.created_at, 1000)
-        self.assertEqual(traj.updated_at, 1002)
-        
-    def test_trajectory_point_validation(self):
-        """测试轨迹点验证"""
-        # 测试有效轨迹点
-        valid_point = TrajectoryPoint(
-            latitude=39.9087,
-            longitude=116.3974,
-            timestamp=1000
-        )
-        self.assertIsInstance(valid_point, TrajectoryPoint)
+        self.assertEqual(point2.latitude, 90.0)
+        self.assertEqual(point2.longitude, 180.0)
 
 if __name__ == '__main__':
     unittest.main()

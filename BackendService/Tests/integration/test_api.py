@@ -31,6 +31,7 @@ except ImportError as e:
     app = Mock()
     Base = Mock()
     get_db = Mock()
+    get_settings = Mock()
 
 # 创建测试数据库
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"

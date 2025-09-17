@@ -257,6 +257,24 @@ DEFAULT_CONFIGS = {
         'use_speed_filter': True,
         'max_speed': 200  # 最大合理速度200km/h
     },
+    'greedy': {
+        'max_distance': 1000,  # 最大匹配距离1000米
+        'use_speed_filter': True,
+        'max_speed': 200,  # 最大合理速度200km/h
+        'use_topology': True  # 使用道路拓扑信息
+    },
+    'gotrackit': {
+        'max_distance': 1000,  # 最大匹配距离1000米
+        'use_speed_filter': True,
+        'max_speed': 200,  # 最大合理速度200km/h
+        'transition_probability_threshold': 0.1  # 转移概率阈值
+    },
+    'ensemble': {
+        'algorithms': ['distance_matching', 'greedy'],  # 默认使用算法
+        'weights': [0.5, 0.5],  # 算法权重
+        'voting_method': 'confidence',  # 投票方法
+        'consensus_threshold': 0.5  # 一致性阈值
+    }
     # 未来可以添加其他算法的默认配置
 }
 

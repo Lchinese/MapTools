@@ -17,7 +17,7 @@ from ..DataSchemas.trajectory import FileResponse, FileCreate
 from ..UtilityTools.file_utils import FileProcessor
 
 logger = get_logger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/api/v1", tags=["文件管理"])
 
 
 @router.get("/files", response_model=List[FileResponse])
@@ -42,6 +42,8 @@ async def get_files(
         List[FileResponse]: 文件列表
     """
     try:
+        logger.info(f"获取文件列表: skip={skip}, limit={limit}, file_type={file_type}, user_id={user_id}")
+        
         query = db.query(FileModel)
         
         if file_type:
@@ -51,9 +53,11 @@ async def get_files(
         
         files = query.offset(skip).limit(limit).all()
         
+        logger.info(f"成功获取文件列表: 共{len(files)}条记录")
+        
         return files
     except Exception as e:
-        logger.error(f"获取文件列表失败: {e}")
+        logger.error(f"获取文件列表失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="获取文件列表失败")
 
 
@@ -73,18 +77,23 @@ async def get_file(
         FileResponse: 文件详情
     """
     try:
+        logger.info(f"获取文件详情: file_id={file_id}")
+        
         file_record = db.query(FileModel).filter(
             FileModel.file_id == file_id
         ).first()
         
         if not file_record:
+            logger.warning(f"文件不存在: file_id={file_id}")
             raise HTTPException(status_code=404, detail="文件不存在")
+        
+        logger.info(f"成功获取文件详情: file_id={file_id}")
         
         return file_record
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"获取文件详情失败: {e}")
+        logger.error(f"获取文件详情失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="获取文件详情失败")
 
 
@@ -106,49 +115,48 @@ async def upload_file(
         Dict[str, Any]: 上传结果
     """
     try:
-        # 创建文件处理器
-        processor = FileProcessor()
+        logger.info(f"上传文件: filename={file.filename}, user_id={user_id}")
         
         # 读取文件内容
         file_content = await file.read()
+        file_size = len(file_content)
         
-        # 保存文件
-        file_path = processor.save_uploaded_file(file_content, file.filename)
-        
-        # 获取文件信息
-        file_info = processor.get_file_info(file_path)
+        # 保存文件到磁盘
+        file_processor = FileProcessor()
+        file_path = file_processor.save_file(file_content, file.filename)
         
         # 创建文件记录
         file_record = FileModel(
-            file_id=processor.generate_file_id(),
-            user_id=user_id,
+            file_id=str(file_path.name),  # 简化实现
+            user_id=user_id or "anonymous",
             filename=file.filename,
             original_filename=file.filename,
             file_path=str(file_path),
-            file_size=file_info["file_size"],
-            file_type=file_info["mime_type"] or "application/octet-stream",
-            mime_type=file_info["mime_type"]
+            file_size=file_size,
+            file_type=file.filename.split('.')[-1].lower() if '.' in file.filename else "unknown",
+            mime_type=file.content_type or "application/octet-stream",
+            status="uploaded"
         )
         
         db.add(file_record)
         db.commit()
         db.refresh(file_record)
         
+        logger.info(f"文件上传成功: file_id={file_record.file_id}, filename={file.filename}")
+        
         return {
             "success": True,
             "data": {
                 "file_id": file_record.file_id,
-                "filename": file_record.filename,
-                "file_size": file_record.file_size,
-                "file_type": file_record.file_type,
-                "upload_time": file_record.created_at
+                "filename": file.filename,
+                "file_size": file_size,
+                "status": "uploaded"
             },
             "message": "文件上传成功"
         }
     except Exception as e:
-        logger.error(f"文件上传失败: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="文件上传失败")
+        logger.error(f"文件上传失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"文件上传失败: {str(e)}")
 
 
 @router.delete("/files/{file_id}")
@@ -167,21 +175,30 @@ async def delete_file(
         Dict[str, Any]: 删除结果
     """
     try:
+        logger.info(f"删除文件: file_id={file_id}")
+        
+        # 查询文件记录
         file_record = db.query(FileModel).filter(
             FileModel.file_id == file_id
         ).first()
         
         if not file_record:
+            logger.warning(f"文件不存在: file_id={file_id}")
             raise HTTPException(status_code=404, detail="文件不存在")
         
-        # 删除物理文件
-        file_path = Path(file_record.file_path)
-        if file_path.exists():
-            file_path.unlink()
+        # 删除磁盘文件
+        try:
+            file_path = Path(file_record.file_path)
+            if file_path.exists():
+                file_path.unlink()
+        except Exception as e:
+            logger.warning(f"删除磁盘文件失败: {e}")
         
         # 删除数据库记录
         db.delete(file_record)
         db.commit()
+        
+        logger.info(f"文件删除成功: file_id={file_id}")
         
         return {
             "success": True,
@@ -194,16 +211,15 @@ async def delete_file(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"文件删除失败: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="文件删除失败")
+        logger.error(f"删除文件失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"删除文件失败: {str(e)}")
 
 
 @router.get("/files/{file_id}/download")
 async def download_file(
     file_id: str,
     db: Session = Depends(get_db)
-) -> Response:
+):
     """
     下载文件
     
@@ -212,36 +228,44 @@ async def download_file(
         db: 数据库会话
         
     Returns:
-        Response: 文件内容
+        Response: 文件下载响应
     """
     try:
+        logger.info(f"下载文件: file_id={file_id}")
+        
+        # 查询文件记录
         file_record = db.query(FileModel).filter(
             FileModel.file_id == file_id
         ).first()
         
         if not file_record:
+            logger.warning(f"文件不存在: file_id={file_id}")
             raise HTTPException(status_code=404, detail="文件不存在")
         
+        # 检查文件是否存在
         file_path = Path(file_record.file_path)
         if not file_path.exists():
-            raise HTTPException(status_code=404, detail="文件不存在")
+            logger.warning(f"文件不存在于磁盘: file_path={file_path}")
+            raise HTTPException(status_code=404, detail="文件不存在于磁盘")
         
         # 读取文件内容
-        with open(file_path, 'rb') as f:
-            file_content = f.read()
+        with open(file_path, "rb") as f:
+            content = f.read()
+        
+        logger.info(f"文件下载成功: file_id={file_id}, 大小={len(content)}字节")
         
         return Response(
-            content=file_content,
-            media_type=file_record.mime_type or "application/octet-stream",
+            content=content,
+            media_type=file_record.mime_type,
             headers={
-                "Content-Disposition": f"attachment; filename={file_record.original_filename}"
+                "Content-Disposition": f"attachment; filename={file_record.filename}"
             }
         )
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"文件下载失败: {e}")
-        raise HTTPException(status_code=500, detail="文件下载失败")
+        logger.error(f"文件下载失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"文件下载失败: {str(e)}")
 
 
 @router.get("/datasources/supported")

@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 import logging
 import sys
 from pathlib import Path
+import time  # 添加时间模块用于记录启动时间
 
 # 添加项目根目录到Python路径
 sys.path.append(str(Path(__file__).parent))
@@ -27,6 +28,9 @@ logger = get_logger(__name__)
 
 # 获取配置
 settings = get_settings()
+
+# 记录应用启动时间
+start_time = time.time()
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -96,15 +100,17 @@ async def root():
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
     """全局异常处理器"""
-    logger.error(f"未处理的异常: {exc}")
+    logger.error(f"未处理的异常: {exc}", exc_info=True)  # 记录异常堆栈信息
     return JSONResponse(
         status_code=500,
         content={
             "success": False,
             "error": {
-                "code": "INTERNAL_SERVER_ERROR",
-                "message": "服务器内部错误"
-            }
+                "code": "INTERNAL_ERROR",
+                "message": "服务器内部错误",
+                "details": str(exc) if settings.DEBUG else "请查看服务器日志获取详细信息"
+            },
+            "timestamp": time.time()  # 添加时间戳
         }
     )
 

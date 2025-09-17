@@ -4,6 +4,7 @@
 """
 
 import os
+import sys
 import uuid
 import hashlib
 import mimetypes
@@ -17,9 +18,12 @@ import csv
 import json
 import xml.etree.ElementTree as ET
 
-from ..CoreConfig.settings import get_settings
-from ..DataSchemas.trajectory import DataSource, DataCategory, TrajectoryPointCreate, Point
-from .geo_utils import GeoUtils
+# 添加项目根目录到Python路径，解决相对导入问题
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from CoreConfig.settings import get_settings
+from DataSchemas.trajectory import DataSource, DataCategory, TrajectoryPointCreate
+from UtilityTools.geo_utils import GeoUtils, Point
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -238,3 +242,7 @@ class TrajectoryFileProcessor(FileProcessor):
         except Exception as e:
             logger.error(f"删除文件失败: {e}")
             return False
+
+
+
+

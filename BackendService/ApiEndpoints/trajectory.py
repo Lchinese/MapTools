@@ -92,49 +92,51 @@ async def upload_trajectory(
                 trajectory_data, str(file_path), points
             )
             
-            logger.info(f"轨迹上传成功: ID={trajectory.id}, 文件名={file.filename}")
+            logger.info(f"轨迹上传成功: ID={trajectory.id}, 文件名={file.filename}, 点数={len(points)}")
             
             return TrajectoryUploadResponse(
-                trajectory_id=str(trajectory.id),
-                filename=file.filename,
-                file_size=file_size,
-                point_count=len(points),
-                upload_time=trajectory.created_at,
-                status=trajectory.status
+                success=True,
+                data={
+                    "trajectory_id": str(trajectory.id),
+                    "filename": file.filename,
+                    "file_size": file_size,
+                    "point_count": len(points),
+                    "upload_time": datetime.utcnow()
+                },
+                message="文件上传成功"
             )
             
         except Exception as e:
-            # 清理文件
-            file_processor.cleanup_file(file_path)
+            # 如果解析或创建轨迹失败，删除已保存的文件
+            try:
+                file_path.unlink()
+            except:
+                pass
             raise e
             
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"轨迹上传失败: {e}")
-        raise HTTPException(status_code=500, detail=f"轨迹上传失败: {str(e)}")
+        logger.error(f"上传轨迹文件失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"上传轨迹文件失败: {str(e)}")
 
 
 @router.get("", response_model=TrajectoryListResponse)
 async def get_trajectories(
-    page: int = Query(1, ge=1, description="页码"),
+    skip: int = Query(0, ge=0, description="跳过数量"),
     limit: int = Query(20, ge=1, le=100, description="每页数量"),
     status: Optional[str] = Query(None, description="轨迹状态"),
-    data_source: Optional[str] = Query(None, description="数据源类型"),
-    vehicle_id: Optional[str] = Query(None, description="车辆ID"),
-    start_date: Optional[str] = Query(None, description="开始日期"),
-    end_date: Optional[str] = Query(None, description="结束日期"),
+    start_date: Optional[datetime] = Query(None, description="开始日期"),
+    end_date: Optional[datetime] = Query(None, description="结束日期"),
     db: Session = Depends(get_db)
 ):
     """
     获取轨迹列表
     
     Args:
-        page: 页码
+        skip: 跳过数量
         limit: 每页数量
         status: 轨迹状态
-        data_source: 数据源类型
-        vehicle_id: 车辆ID
         start_date: 开始日期
         end_date: 结束日期
         db: 数据库会话
@@ -143,25 +145,39 @@ async def get_trajectories(
         TrajectoryListResponse: 轨迹列表
     """
     try:
-        # 构建查询参数
-        query_params = TrajectoryQueryParams(
-            page=page,
-            limit=limit,
-            status=status,
-            data_source=data_source,
-            vehicle_id=vehicle_id,
-            start_date=start_date,
-            end_date=end_date
+        logger.info(f"获取轨迹列表: skip={skip}, limit={limit}, status={status}")
+        
+        query = db.query(Trajectory).filter(Trajectory.is_deleted == False)
+        
+        if status:
+            query = query.filter(Trajectory.status == status)
+        
+        if start_date:
+            query = query.filter(Trajectory.created_at >= start_date)
+            
+        if end_date:
+            query = query.filter(Trajectory.created_at <= end_date)
+        
+        total = query.count()
+        trajectories = query.offset(skip).limit(limit).all()
+        
+        logger.info(f"成功获取轨迹列表: 共{total}条记录，返回{len(trajectories)}条")
+        
+        return TrajectoryListResponse(
+            success=True,
+            data={
+                "trajectories": trajectories,
+                "pagination": {
+                    "page": skip // limit + 1,
+                    "limit": limit,
+                    "total": total,
+                    "pages": (total + limit - 1) // limit
+                }
+            }
         )
         
-        # 获取轨迹列表
-        trajectory_service = TrajectoryService(db)
-        result = trajectory_service.get_trajectory_list(query_params)
-        
-        return result
-        
     except Exception as e:
-        logger.error(f"获取轨迹列表失败: {e}")
+        logger.error(f"获取轨迹列表失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取轨迹列表失败: {str(e)}")
 
 
@@ -171,7 +187,7 @@ async def get_trajectory(
     db: Session = Depends(get_db)
 ):
     """
-    获取轨迹详情
+    获取指定轨迹详情
     
     Args:
         trajectory_id: 轨迹ID
@@ -181,18 +197,28 @@ async def get_trajectory(
         TrajectoryResponse: 轨迹详情
     """
     try:
-        trajectory_service = TrajectoryService(db)
-        trajectory = trajectory_service.get_trajectory(trajectory_id)
+        logger.info(f"获取轨迹详情: trajectory_id={trajectory_id}")
+        
+        trajectory = db.query(Trajectory).filter(
+            Trajectory.id == trajectory_id,
+            Trajectory.is_deleted == False
+        ).first()
         
         if not trajectory:
+            logger.warning(f"轨迹不存在: trajectory_id={trajectory_id}")
             raise HTTPException(status_code=404, detail="轨迹不存在")
         
-        return trajectory
+        logger.info(f"成功获取轨迹详情: trajectory_id={trajectory_id}")
+        
+        return TrajectoryResponse(
+            success=True,
+            data=trajectory
+        )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"获取轨迹详情失败: {e}")
+        logger.error(f"获取轨迹详情失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取轨迹详情失败: {str(e)}")
 
 
@@ -202,7 +228,7 @@ async def delete_trajectory(
     db: Session = Depends(get_db)
 ):
     """
-    删除轨迹
+    删除指定轨迹
     
     Args:
         trajectory_id: 轨迹ID
@@ -212,22 +238,36 @@ async def delete_trajectory(
         TrajectoryDeleteResponse: 删除结果
     """
     try:
-        trajectory_service = TrajectoryService(db)
-        success = trajectory_service.delete_trajectory(trajectory_id)
+        logger.info(f"删除轨迹: trajectory_id={trajectory_id}")
         
-        if not success:
+        trajectory = db.query(Trajectory).filter(
+            Trajectory.id == trajectory_id,
+            Trajectory.is_deleted == False
+        ).first()
+        
+        if not trajectory:
+            logger.warning(f"轨迹不存在: trajectory_id={trajectory_id}")
             raise HTTPException(status_code=404, detail="轨迹不存在")
         
-        from datetime import datetime
+        # 标记为已删除
+        trajectory.is_deleted = True
+        db.commit()
+        
+        logger.info(f"成功删除轨迹: trajectory_id={trajectory_id}")
+        
         return TrajectoryDeleteResponse(
-            trajectory_id=str(trajectory_id),
-            deleted_at=datetime.utcnow()
+            success=True,
+            data={
+                "trajectory_id": str(trajectory_id),
+                "deleted_at": datetime.utcnow()
+            },
+            message="轨迹删除成功"
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"删除轨迹失败: {e}")
+        logger.error(f"删除轨迹失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"删除轨迹失败: {str(e)}")
 
 

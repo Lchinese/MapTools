@@ -57,35 +57,38 @@ class RoadSegment(BaseModel, TimestampMixin):
     """道路段模型"""
     __tablename__ = "road_segments"
     
-    # 关联信息
-    network_id = Column(String(100), ForeignKey('road_networks.network_id'), nullable=False, comment="路网ID")
-    
     # 基本信息
-    segment_id = Column(String(100), nullable=False, comment="道路段ID")
-    road_name = Column(String(255), nullable=True, comment="道路名称")
-    road_type = Column(String(50), nullable=True, comment="道路类型")
+    segment_id = Column(String(100), unique=True, nullable=False, comment="道路段ID")
+    network_id = Column(String(100), ForeignKey("road_networks.network_id"), nullable=False, comment="路网ID")
     
-    # 空间信息
+    # 几何信息
     start_latitude = Column(Float, nullable=False, comment="起点纬度")
     start_longitude = Column(Float, nullable=False, comment="起点经度")
     end_latitude = Column(Float, nullable=False, comment="终点纬度")
     end_longitude = Column(Float, nullable=False, comment="终点经度")
-    geom = Column(Geometry('LINESTRING', srid=4326), nullable=True, comment="空间几何对象")
+    geometry = Column(Geometry('LINESTRING', srid=4326), nullable=True, comment="道路几何")
     
-    # 道路属性
-    length = Column(Float, nullable=True, comment="长度（米）")
-    max_speed = Column(Float, nullable=True, comment="最大限速（km/h）")
-    one_way = Column(Boolean, default=False, comment="是否单行道")
+    # 属性信息
+    road_name = Column(String(255), nullable=True, comment="道路名称")
+    road_type = Column(String(100), nullable=True, comment="道路类型")
+    road_class = Column(String(50), nullable=True, comment="道路等级")
+    max_speed = Column(Integer, nullable=True, comment="最大限速（km/h）")
+    lanes = Column(Integer, nullable=True, comment="车道数")
     
-    # 其他属性
-    properties = Column(LONGTEXT, nullable=True, comment="其他属性（JSON格式）")
+    # 统计信息
+    length = Column(Float, nullable=True, comment="道路长度（米）")
+    usage_count = Column(Integer, default=0, comment="使用次数")
+    
+    # 状态信息
+    is_active = Column(Boolean, default=True, comment="是否激活")
+    last_used = Column(DateTime(timezone=True), nullable=True, comment="最后使用时间")
     
     # 索引
     __table_args__ = (
-        Index('idx_road_segment_network_id', 'network_id'),
         Index('idx_road_segment_id', 'segment_id'),
-        Index('idx_road_segment_type', 'road_type'),
-        Index('idx_road_segment_geom', 'geom', mysql_length={'geom': 32}),
+        Index('idx_road_segment_network_id', 'network_id'),
+        Index('idx_road_segment_road_name', 'road_name'),
+        Index('idx_road_segment_geometry', 'geometry', mysql_length={'geometry': 32}),
         {'extend_existing': True}
     )
     

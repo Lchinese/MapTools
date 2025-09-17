@@ -90,10 +90,9 @@ class Trajectory(BaseModel, TimestampMixin, SoftDeleteMixin, AuditMixin):
     processing_completed_at = Column(DateTime(timezone=True), nullable=True, comment="处理完成时间")
     error_message = Column(Text, nullable=True, comment="错误信息")
     
-    # 关联关系 (注释掉有问题的关系)
-    # user = relationship("User", back_populates="trajectories")
-    points = relationship("TrajectoryPoint", back_populates="trajectory", cascade="all, delete-orphan")
-    # matching_tasks = relationship("MatchingTask", back_populates="trajectory", cascade="all, delete-orphan")
+    # 关联关系 (修复关系定义)
+    trajectory = relationship("Trajectory", back_populates="points")
+    matched_points = relationship("MatchedPoint", back_populates="original_point", cascade="all, delete-orphan")
     # files = relationship("File", back_populates="trajectory", cascade="all, delete-orphan")
     
     # 索引

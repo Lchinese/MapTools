@@ -19,6 +19,9 @@ logger = get_logger(__name__)
 settings = get_settings()
 router = APIRouter()
 
+# 记录应用启动时间
+start_time = time.time()
+
 
 @router.get("/health")
 async def health_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
@@ -39,7 +42,7 @@ async def health_check(db: Session = Depends(get_db)) -> Dict[str, Any]:
         celery_status = {"status": "running"}  # 简化实现
         
         # 计算运行时间
-        uptime = int(time.time() - start_time) if 'start_time' in globals() else 0
+        uptime = int(time.time() - start_time)
         
         # 判断整体健康状态
         overall_status = "healthy" if db_status.get("status") == "connected" else "unhealthy"
@@ -94,9 +97,9 @@ async def detailed_health_check(db: Session = Depends(get_db)) -> Dict[str, Any]
             "success": True,
             "data": {
                 "system": {
-                    "uptime": int(time.time() - start_time) if 'start_time' in globals() else 0,
+                    "uptime": int(time.time() - start_time),
                     "version": settings.APP_VERSION,
-                    "environment": "development"
+                    "environment": settings.ENVIRONMENT
                 },
                 "services": services_status,
                 "resources": system_status
@@ -108,8 +111,6 @@ async def detailed_health_check(db: Session = Depends(get_db)) -> Dict[str, Any]
         raise HTTPException(status_code=500, detail="详细健康检查失败")
 
 
-# 设置启动时间
-start_time = time.time()
 
 
 @router.get("/system/status")

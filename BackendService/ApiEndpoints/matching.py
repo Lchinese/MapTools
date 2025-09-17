@@ -43,6 +43,8 @@ async def start_matching(
         MatchingStartResponse: 匹配开始响应
     """
     try:
+        logger.info(f"开始地图匹配任务: trajectory_id={request.trajectory_id}, algorithm={request.algorithm}")
+        
         # 检查轨迹是否存在
         trajectory = db.query(Trajectory).filter(
             Trajectory.id == int(request.trajectory_id),
@@ -50,6 +52,7 @@ async def start_matching(
         ).first()
         
         if not trajectory:
+            logger.warning(f"轨迹不存在: trajectory_id={request.trajectory_id}")
             raise HTTPException(status_code=404, detail="轨迹不存在")
         
         # 生成任务ID
@@ -66,22 +69,27 @@ async def start_matching(
         
         db.add(matching_task)
         db.commit()
+        db.refresh(matching_task)
         
         logger.info(f"匹配任务创建成功: task_id={task_id}, trajectory_id={request.trajectory_id}")
         
         return MatchingStartResponse(
-            task_id=task_id,
-            trajectory_id=request.trajectory_id,
-            algorithm=request.algorithm,
-            status="queued",
-            estimated_time=30,  # 简化实现
-            created_at=datetime.utcnow()
+            success=True,
+            data={
+                "task_id": task_id,
+                "trajectory_id": request.trajectory_id,
+                "algorithm": request.algorithm,
+                "status": "queued",
+                "estimated_time": 30,  # 简化实现
+                "created_at": datetime.utcnow()
+            },
+            message="匹配任务已创建"
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"开始匹配失败: {e}")
+        logger.error(f"开始匹配失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"开始匹配失败: {str(e)}")
 
 
@@ -101,37 +109,38 @@ async def get_matching_status(
         MatchingStatusResponse: 匹配状态响应
     """
     try:
+        logger.info(f"查询匹配状态: task_id={task_id}")
+        
         # 查询匹配任务
-        matching_task = db.query(MatchingTask).filter(
-            MatchingTask.task_id == task_id
-        ).first()
+        task = db.query(MatchingTask).filter(MatchingTask.task_id == task_id).first()
         
-        if not matching_task:
-            raise HTTPException(status_code=404, detail="任务不存在")
+        if not task:
+            logger.warning(f"匹配任务不存在: task_id={task_id}")
+            raise HTTPException(status_code=404, detail="匹配任务不存在")
         
-        # 构建响应数据
-        result_data = None
-        if matching_task.status == "completed":
-            result_data = {
-                "matched_points": matching_task.matched_points_count,
-                "unmatched_points": matching_task.unmatched_points_count,
-                "accuracy": matching_task.accuracy,
-                "processing_time": matching_task.processing_time
-            }
+        logger.info(f"成功查询匹配状态: task_id={task_id}, status={task.status}")
         
         return MatchingStatusResponse(
-            task_id=task_id,
-            status=matching_task.status,
-            progress=matching_task.progress,
-            result=result_data,
-            created_at=matching_task.created_at,
-            completed_at=matching_task.completed_at
+            success=True,
+            data={
+                "task_id": task.task_id,
+                "status": task.status,
+                "progress": task.progress or 0,
+                "result": {
+                    "matched_points": task.matched_points_count or 0,
+                    "unmatched_points": task.unmatched_points_count or 0,
+                    "accuracy": float(task.accuracy) if task.accuracy else 0.0,
+                    "processing_time": float(task.processing_time) if task.processing_time else 0.0
+                } if task.status == "completed" else None,
+                "created_at": task.created_at,
+                "completed_at": task.completed_at
+            }
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"查询匹配状态失败: {e}")
+        logger.error(f"查询匹配状态失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"查询匹配状态失败: {str(e)}")
 
 
@@ -151,64 +160,67 @@ async def get_matching_result(
         MatchingResultResponse: 匹配结果响应
     """
     try:
+        logger.info(f"获取匹配结果: task_id={task_id}")
+        
         # 查询匹配任务
-        matching_task = db.query(MatchingTask).filter(
-            MatchingTask.task_id == task_id
-        ).first()
+        task = db.query(MatchingTask).filter(MatchingTask.task_id == task_id).first()
         
-        if not matching_task:
-            raise HTTPException(status_code=404, detail="任务不存在")
+        if not task:
+            logger.warning(f"匹配任务不存在: task_id={task_id}")
+            raise HTTPException(status_code=404, detail="匹配任务不存在")
         
-        if matching_task.status != "completed":
-            raise HTTPException(status_code=400, detail="任务未完成")
+        if task.status != "completed":
+            logger.warning(f"匹配任务未完成: task_id={task_id}, status={task.status}")
+            raise HTTPException(status_code=400, detail="匹配任务未完成")
         
-        # 获取匹配点数据
-        matched_points = db.query(matching_task.matched_points).all()
+        # 查询匹配结果
+        matched_points = db.query(MatchedPoint).filter(MatchedPoint.matching_task_id == task.id).all()
         
-        # 构建匹配结果
-        result_data = {
-            "matched_trajectory": {
-                "points": [
-                    {
-                        "point_id": str(point.id),
-                        "original_lat": point.original_latitude,
-                        "original_lng": point.original_longitude,
-                        "matched_lat": point.matched_latitude,
-                        "matched_lng": point.matched_longitude,
-                        "road_id": point.road_segment_id,
-                        "road_name": point.road_name,
-                        "confidence": point.confidence,
-                        "distance": point.distance
-                    }
-                    for point in matched_points
-                ],
-                "total_distance": matching_task.matched_points_count * 100,  # 简化计算
-                "matched_distance": matching_task.matched_points_count * 100
-            },
-            "statistics": {
-                "total_points": matching_task.matched_points_count + matching_task.unmatched_points_count,
-                "matched_points": matching_task.matched_points_count,
-                "unmatched_points": matching_task.unmatched_points_count,
-                "accuracy": matching_task.accuracy or 0,
-                "avg_confidence": 0.85,  # 简化计算
-                "processing_time": matching_task.processing_time or 0
-            }
-        }
+        logger.info(f"成功获取匹配结果: task_id={task_id}, 匹配点数={len(matched_points)}")
         
         return MatchingResultResponse(
-            task_id=task_id,
-            trajectory_id=str(matching_task.trajectory_id),
-            algorithm=matching_task.algorithm,
-            status=matching_task.status,
-            result=result_data,
-            created_at=matching_task.created_at,
-            completed_at=matching_task.completed_at
+            success=True,
+            data={
+                "task_id": task.task_id,
+                "trajectory_id": str(task.trajectory_id),
+                "algorithm": task.algorithm,
+                "status": task.status,
+                "result": {
+                    "matched_trajectory": {
+                        "points": [
+                            {
+                                "point_id": str(point.id),
+                                "original_lat": float(point.original_latitude),
+                                "original_lng": float(point.original_longitude),
+                                "matched_lat": float(point.matched_latitude),
+                                "matched_lng": float(point.matched_longitude),
+                                "road_id": point.road_segment_id,
+                                "road_name": point.road_name,
+                                "confidence": float(point.confidence) if point.confidence else 0.0,
+                                "distance": float(point.distance) if point.distance else 0.0
+                            } for point in matched_points
+                        ],
+                        "total_distance": (task.matched_points_count or 0) * 100,
+                        "matched_distance": (task.matched_points_count or 0) * 100
+                    },
+                    "statistics": {
+                        "total_points": (task.matched_points_count or 0) + (task.unmatched_points_count or 0),
+                        "matched_points": task.matched_points_count or 0,
+                        "unmatched_points": task.unmatched_points_count or 0,
+                        "accuracy": float(task.accuracy) if task.accuracy else 0.0,
+                        "avg_confidence": 0.85,
+                        "processing_time": float(task.processing_time) if task.processing_time else 0.0
+                    }
+                },
+                "created_at": task.created_at,
+                "completed_at": task.completed_at
+            }
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"获取匹配结果失败: {e}")
+        logger.error(f"获取匹配结果失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取匹配结果失败: {str(e)}")
 
 
@@ -330,72 +342,128 @@ async def get_available_algorithms():
 @router.get("/download/{task_id}")
 async def download_matching_result(
     task_id: str,
-    format: str = Query("gpx", description="下载格式"),
-    include_original: bool = Query(False, description="是否包含原始轨迹"),
-    include_statistics: bool = Query(True, description="是否包含统计信息"),
+    format: str = Query("geojson", description="文件格式: gpx, kml, csv, geojson"),
     db: Session = Depends(get_db)
-) -> Response:
+):
     """
     下载匹配结果
     
     Args:
         task_id: 任务ID
-        format: 下载格式 (gpx, kml, csv, geojson)
-        include_original: 是否包含原始轨迹
-        include_statistics: 是否包含统计信息
+        format: 文件格式
         db: 数据库会话
         
     Returns:
-        Response: 文件内容
+        Response: 文件下载响应
     """
     try:
-        # 获取匹配任务
+        logger.info(f"下载匹配结果: task_id={task_id}, format={format}")
+        
+        # 查询匹配任务
         task = db.query(MatchingTask).filter(MatchingTask.task_id == task_id).first()
+        
         if not task:
-            raise HTTPException(status_code=404, detail="任务不存在")
+            logger.warning(f"匹配任务不存在: task_id={task_id}")
+            raise HTTPException(status_code=404, detail="匹配任务不存在")
         
         if task.status != "completed":
-            raise HTTPException(status_code=400, detail="任务未完成")
+            logger.warning(f"匹配任务未完成: task_id={task_id}, status={task.status}")
+            raise HTTPException(status_code=400, detail="匹配任务未完成")
         
-        # 获取匹配结果
-        matched_points = db.query(MatchedPoint).filter(
-            MatchedPoint.matching_task_id == task.id
-        ).all()
+        # 查询匹配结果
+        matched_points = db.query(MatchedPoint).filter(MatchedPoint.matching_task_id == task.id).all()
         
         if not matched_points:
+            logger.warning(f"匹配结果为空: task_id={task_id}")
             raise HTTPException(status_code=404, detail="匹配结果不存在")
         
         # 根据格式生成文件内容
-        if format.lower() == "gpx":
-            content = _generate_gpx_content(matched_points, include_original, include_statistics)
-            media_type = "application/gpx+xml"
-            filename = f"matching_result_{task_id}.gpx"
-        elif format.lower() == "kml":
-            content = _generate_kml_content(matched_points, include_original, include_statistics)
-            media_type = "application/vnd.google-earth.kml+xml"
-            filename = f"matching_result_{task_id}.kml"
-        elif format.lower() == "csv":
-            content = _generate_csv_content(matched_points, include_original, include_statistics)
+        if format.lower() == "csv":
+            # 生成CSV内容
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(["point_id", "original_lat", "original_lng", "matched_lat", "matched_lng", "confidence", "distance"])
+            for point in matched_points:
+                writer.writerow([
+                    point.id,
+                    point.original_latitude,
+                    point.original_longitude,
+                    point.matched_latitude,
+                    point.matched_longitude,
+                    point.confidence,
+                    point.distance
+                ])
+            content = output.getvalue()
             media_type = "text/csv"
             filename = f"matching_result_{task_id}.csv"
+            
         elif format.lower() == "geojson":
-            content = _generate_geojson_content(matched_points, include_original, include_statistics)
+            # 生成GeoJSON内容
+            features = []
+            for point in matched_points:
+                features.append({
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [float(point.matched_longitude), float(point.matched_latitude)]
+                    },
+                    "properties": {
+                        "point_id": point.id,
+                        "original_lat": float(point.original_latitude),
+                        "original_lng": float(point.original_longitude),
+                        "confidence": float(point.confidence) if point.confidence else 0.0,
+                        "distance": float(point.distance) if point.distance else 0.0
+                    }
+                })
+            
+            content = json.dumps({
+                "type": "FeatureCollection",
+                "features": features
+            }, ensure_ascii=False, indent=2)
             media_type = "application/geo+json"
             filename = f"matching_result_{task_id}.geojson"
+            
         else:
-            raise HTTPException(status_code=400, detail="不支持的格式")
+            # 默认返回GeoJSON
+            features = []
+            for point in matched_points:
+                features.append({
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [float(point.matched_longitude), float(point.matched_latitude)]
+                    },
+                    "properties": {
+                        "point_id": point.id,
+                        "original_lat": float(point.original_latitude),
+                        "original_lng": float(point.original_longitude),
+                        "confidence": float(point.confidence) if point.confidence else 0.0,
+                        "distance": float(point.distance) if point.distance else 0.0
+                    }
+                })
+            
+            content = json.dumps({
+                "type": "FeatureCollection",
+                "features": features
+            }, ensure_ascii=False, indent=2)
+            media_type = "application/geo+json"
+            filename = f"matching_result_{task_id}.geojson"
+        
+        logger.info(f"成功生成下载文件: task_id={task_id}, format={format}, 大小={len(content)}字节")
         
         return Response(
             content=content,
             media_type=media_type,
-            headers={"Content-Disposition": f"attachment; filename={filename}"}
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
         )
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"下载匹配结果失败: {e}")
-        raise HTTPException(status_code=500, detail="下载匹配结果失败")
+        logger.error(f"下载匹配结果失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"下载匹配结果失败: {str(e)}")
 
 
 def _generate_gpx_content(matched_points, include_original, include_statistics):

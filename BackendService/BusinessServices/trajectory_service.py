@@ -1,166 +1,190 @@
 """
-轨迹业务服务
-提供轨迹相关的业务逻辑处理
+轨迹业务逻辑服务
+处理轨迹相关的业务逻辑
 """
 
-from typing import List, Dict, Any, Optional, Tuple
+import sys
+import os
+from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc, asc
+import uuid
 from datetime import datetime
-import logging
 
-from ..DataModels.Models.trajectory import Trajectory, TrajectoryPoint, MatchingTask
-from ..DataSchemas.trajectory import (
-    TrajectoryCreate, TrajectoryUpdate, TrajectoryResponse, 
-    TrajectoryListResponse, TrajectoryQueryParams, TrajectoryStatus
-)
-from ..UtilityTools.file_utils import TrajectoryFileProcessor
-from ..UtilityTools.geo_utils import GeoUtils
-from ..CoreConfig.logging import log_performance, log_audit
+# 添加项目根目录到Python路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-logger = logging.getLogger(__name__)
+from DataModels.Models.trajectory import Trajectory, TrajectoryPoint, MatchingTask
+from UtilityTools.file_utils import TrajectoryFileProcessor
+from UtilityTools.geo_utils import GeoUtils
+from CoreConfig.database import get_db
+from CoreConfig.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class TrajectoryService:
-    """轨迹业务服务"""
+    """轨迹服务类"""
     
-    def __init__(self, db: Session):
-        self.db = db
-        self.file_processor = TrajectoryFileProcessor()
+    def __init__(self):
+        """初始化轨迹服务"""
+        pass
     
-    @log_performance
-    @log_audit("创建轨迹")
-    def create_trajectory(self, trajectory_data: TrajectoryCreate, 
-                         file_path: str, points: List[Dict[str, Any]]) -> TrajectoryResponse:
-        """创建轨迹"""
-        try:
-            # 计算轨迹统计信息
-            statistics = self._calculate_trajectory_statistics(points)
+    def create_trajectory(self, user_id: str, file_path: str, file_type: str) -> Dict[str, Any]:
+        """
+        创建轨迹
+        
+        Args:
+            user_id: 用户ID
+            file_path: 文件路径
+            file_type: 文件类型
             
-            # 创建轨迹记录
+        Returns:
+            轨迹信息字典
+        """
+        try:
+            # 解析轨迹文件
+            processor = TrajectoryFileProcessor()
+            trajectory_data = processor.parse_file(file_path, file_type)
+            
+            # 创建轨迹对象
             trajectory = Trajectory(
-                name=trajectory_data.name,
-                description=trajectory_data.description,
-                filename=trajectory_data.filename,
-                file_size=trajectory_data.file_size,
-                file_type=trajectory_data.file_type,
-                data_source=trajectory_data.data_source,
-                data_category=trajectory_data.data_category,
-                vehicle_id=trajectory_data.vehicle_id,
-                passenger_id=trajectory_data.passenger_id,
-                point_count=statistics['total_points'],
-                total_distance=statistics['total_distance'],
-                duration=statistics['duration'],
-                bounds_min_lat=statistics['bounds'].min_lat if statistics['bounds'] else None,
-                bounds_max_lat=statistics['bounds'].max_lat if statistics['bounds'] else None,
-                bounds_min_lng=statistics['bounds'].min_lng if statistics['bounds'] else None,
-                bounds_max_lng=statistics['bounds'].max_lng if statistics['bounds'] else None,
-                status=TrajectoryStatus.UPLOADED
+                trajectory_id=str(uuid.uuid4()),
+                user_id=user_id,
+                name=os.path.basename(file_path),
+                filename=os.path.basename(file_path),
+                file_path=file_path,
+                file_size=os.path.getsize(file_path),
+                file_type=file_type,
+                data_source="auto",
+                data_category="continuous_trajectory"
             )
             
-            self.db.add(trajectory)
-            self.db.flush()  # 获取ID
+            # 计算轨迹统计信息
+            stats = GeoUtils.calculate_trajectory_statistics(trajectory_data["points"])
+            trajectory.point_count = stats["total_points"]
+            trajectory.total_distance = stats["total_distance"]
+            trajectory.duration = stats["duration"]
             
-            # 创建轨迹点记录
-            trajectory_points = []
-            for point_data in points:
+            # 计算边界框
+            bounds = stats["bounds"]
+            if bounds:
+                trajectory.bounds_min_lat = bounds.min_lat
+                trajectory.bounds_max_lat = bounds.max_lat
+                trajectory.bounds_min_lng = bounds.min_lng
+                trajectory.bounds_max_lng = bounds.max_lng
+            
+            # 保存轨迹到数据库
+            db = next(get_db())
+            db.add(trajectory)
+            
+            # 创建轨迹点
+            points = []
+            for i, point_data in enumerate(trajectory_data["points"]):
                 point = TrajectoryPoint(
+                    point_id=str(uuid.uuid4()),
                     trajectory_id=trajectory.id,
-                    latitude=point_data['latitude'],
-                    longitude=point_data['longitude'],
-                    timestamp=point_data['timestamp'],
-                    elevation=point_data.get('elevation'),
-                    speed=point_data.get('speed'),
-                    direction=point_data.get('direction'),
-                    accuracy=point_data.get('accuracy'),
-                    raw_data=point_data.get('raw_data')
+                    sequence_number=i+1,
+                    latitude=point_data.latitude,
+                    longitude=point_data.longitude,
+                    elevation=point_data.elevation,
+                    timestamp=point_data.timestamp,
+                    speed=point_data.speed,
+                    direction=point_data.direction,
+                    accuracy=point_data.accuracy
                 )
-                trajectory_points.append(point)
+                points.append(point)
             
-            self.db.add_all(trajectory_points)
-            self.db.commit()
+            db.add_all(points)
+            db.commit()
+            db.refresh(trajectory)
             
-            logger.info(f"轨迹创建成功: ID={trajectory.id}, 点数={len(points)}")
-            
-            return TrajectoryResponse.model_validate(trajectory)
+            return {
+                "success": True,
+                "trajectory_id": trajectory.trajectory_id,
+                "message": "轨迹创建成功"
+            }
             
         except Exception as e:
-            self.db.rollback()
-            logger.error(f"创建轨迹失败: {e}")
-            raise
-    
-    @log_performance
-    def get_trajectory(self, trajectory_id: int) -> Optional[TrajectoryResponse]:
-        """获取轨迹详情"""
-        trajectory = self.db.query(Trajectory).filter(
-            Trajectory.id == trajectory_id,
-            Trajectory.is_deleted == False
-        ).first()
-        
-        if not trajectory:
-            return None
-        
-        return TrajectoryResponse.model_validate(trajectory)
-    
-    @log_performance
-    def get_trajectory_list(self, query_params: TrajectoryQueryParams) -> TrajectoryListResponse:
-        """获取轨迹列表"""
-        query = self.db.query(Trajectory).filter(Trajectory.is_deleted == False)
-        
-        # 应用过滤条件
-        if query_params.status:
-            query = query.filter(Trajectory.status == query_params.status)
-        
-        if query_params.data_source:
-            query = query.filter(Trajectory.data_source == query_params.data_source)
-        
-        if query_params.vehicle_id:
-            query = query.filter(Trajectory.vehicle_id == query_params.vehicle_id)
-        
-        if query_params.start_date:
-            query = query.filter(Trajectory.created_at >= query_params.start_date)
-        
-        if query_params.end_date:
-            query = query.filter(Trajectory.created_at <= query_params.end_date)
-        
-        # 获取总数
-        total = query.count()
-        
-        # 应用分页
-        offset = (query_params.page - 1) * query_params.limit
-        trajectories = query.order_by(desc(Trajectory.created_at)).offset(offset).limit(query_params.limit).all()
-        
-        # 计算总页数
-        pages = (total + query_params.limit - 1) // query_params.limit
-        
-        return TrajectoryListResponse(
-            trajectories=[TrajectoryResponse.model_validate(t) for t in trajectories],
-            total=total,
-            page=query_params.page,
-            limit=query_params.limit,
-            pages=pages
-        )
-    
-    def _calculate_trajectory_statistics(self, points: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """计算轨迹统计信息"""
-        if not points:
+            logger.error(f"创建轨迹失败: {str(e)}")
             return {
-                'total_points': 0,
-                'total_distance': 0.0,
-                'duration': 0,
-                'bounds': None
+                "success": False,
+                "error": str(e)
             }
+    
+    def get_trajectory(self, trajectory_id: str) -> Optional[Trajectory]:
+        """
+        获取轨迹
         
-        # 转换为Point对象
-        point_objects = []
-        for point_data in points:
-            point_objects.append(GeoUtils.Point(
-                latitude=point_data['latitude'],
-                longitude=point_data['longitude'],
-                elevation=point_data.get('elevation')
-            ))
+        Args:
+            trajectory_id: 轨迹ID
+            
+        Returns:
+            轨迹对象，如果未找到则返回None
+        """
+        try:
+            db = next(get_db())
+            trajectory = db.query(Trajectory).filter(
+                Trajectory.trajectory_id == trajectory_id
+            ).first()
+            return trajectory
+        except Exception as e:
+            logger.error(f"获取轨迹失败: {str(e)}")
+            return None
+    
+    def list_trajectories(self, user_id: str, limit: int = 100, offset: int = 0) -> List[Trajectory]:
+        """
+        列出用户轨迹
         
-        # 计算统计信息
-        statistics = GeoUtils.calculate_trajectory_statistics(point_objects)
+        Args:
+            user_id: 用户ID
+            limit: 限制数量
+            offset: 偏移量
+            
+        Returns:
+            轨迹列表
+        """
+        try:
+            db = next(get_db())
+            trajectories = db.query(Trajectory).filter(
+                Trajectory.user_id == user_id
+            ).offset(offset).limit(limit).all()
+            return trajectories
+        except Exception as e:
+            logger.error(f"列出轨迹失败: {str(e)}")
+            return []
+    
+    def delete_trajectory(self, trajectory_id: str) -> Dict[str, Any]:
+        """
+        删除轨迹
         
-        return statistics
+        Args:
+            trajectory_id: 轨迹ID
+            
+        Returns:
+            删除结果
+        """
+        try:
+            db = next(get_db())
+            trajectory = db.query(Trajectory).filter(
+                Trajectory.trajectory_id == trajectory_id
+            ).first()
+            
+            if not trajectory:
+                return {
+                    "success": False,
+                    "error": "轨迹不存在"
+                }
+            
+            db.delete(trajectory)
+            db.commit()
+            
+            return {
+                "success": True,
+                "message": "轨迹删除成功"
+            }
+        except Exception as e:
+            logger.error(f"删除轨迹失败: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }

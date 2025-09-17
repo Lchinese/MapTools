@@ -353,6 +353,21 @@ class GeoUtils:
         return lat, lon
     
     @staticmethod
+    def is_point_in_bbox(point: Point, bbox: BoundingBox) -> bool:
+        """
+        判断点是否在边界框内
+        
+        Args:
+            point: 待检测的点
+            bbox: 边界框
+            
+        Returns:
+            bool: 点是否在边界框内
+        """
+        return (bbox.min_lat <= point.latitude <= bbox.max_lat and 
+                bbox.min_lng <= point.longitude <= bbox.max_lng)
+    
+    @staticmethod
     def calculate_polygon_area(points: List[Point]) -> float:
         """
         计算多边形面积（使用球面几何）
