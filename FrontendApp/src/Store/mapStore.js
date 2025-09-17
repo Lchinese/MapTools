@@ -2,8 +2,8 @@ import { create } from 'zustand';
 
 const useMapStore = create((set, get) => ({
   // 地图状态
-  center: [39.9042, 116.4074], // 北京
-  zoom: 10,
+  center: [22.5431, 114.0579], // 深圳
+  zoom: 12,
   bounds: null,
   
   // 轨迹数据
