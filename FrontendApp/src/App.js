@@ -16,17 +16,9 @@ const { Content } = Layout;
 function App() {
   return (
     <Routes>
-      {/* 公开路由 */}
-      <Route path="/login" element={
-        <ProtectedRoute requireAuth={false}>
-          <Login />
-        </ProtectedRoute>
-      } />
-      <Route path="/register" element={
-        <ProtectedRoute requireAuth={false}>
-          <Register />
-        </ProtectedRoute>
-      } />
+      {/* 公开路由 - 直接渲染，不使用 ProtectedRoute */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
       
       {/* 受保护的路由 */}
       <Route path="/*" element={

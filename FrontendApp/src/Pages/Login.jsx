@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Form, Input, Button, Card, Typography, message, Divider } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../Hooks/useAuth';
 
@@ -14,11 +14,16 @@ const Login = () => {
   const onFinish = async (values) => {
     setLoading(true);
     try {
-      await login(values.email, values.password);
-      message.success('登录成功！');
-      navigate('/');
+      const result = await login(values.email, values.password);
+      if (result) {
+        message.success('登录成功！');
+        // 使用 setTimeout 确保状态更新后再跳转
+        setTimeout(() => {
+          navigate('/');
+        }, 100);
+      }
     } catch (error) {
-      message.error(error.message || '登录失败，请检查用户名和密码');
+      message.error(error.message || '登录失败，请检查用户名/邮箱和密码');
     } finally {
       setLoading(false);
     }
@@ -57,13 +62,12 @@ const Login = () => {
           <Form.Item
             name="email"
             rules={[
-              { required: true, message: '请输入邮箱地址' },
-              { type: 'email', message: '请输入有效的邮箱地址' }
+              { required: true, message: '请输入用户名或邮箱地址' }
             ]}
           >
             <Input
-              prefix={<MailOutlined />}
-              placeholder="邮箱地址"
+              prefix={<UserOutlined />}
+              placeholder="用户名或邮箱地址"
             />
           </Form.Item>
 

@@ -365,7 +365,7 @@ class UserCreate(BaseModel):
 
 class UserLogin(BaseModel):
     """用户登录模型"""
-    email: str = Field(..., description="邮箱地址")
+    email: str = Field(..., description="邮箱地址或用户名")
     password: str = Field(..., description="密码")
 
 

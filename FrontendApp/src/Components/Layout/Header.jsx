@@ -9,7 +9,10 @@ const { Title } = Typography;
 
 const Header = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  // eslint-disable-next-line no-unused-vars
+  const { user, logout, isAuthenticated } = useAuth();
+  
+  console.log('Header 渲染 - isAuthenticated:', isAuthenticated, 'user:', user);
 
   const userMenuItems = [
     {
@@ -73,30 +76,44 @@ const Header = () => {
       </div>
       
       <Space>
-        <Button 
-          type="primary" 
-          onClick={() => navigate('/upload')}
-        >
-          上传轨迹
-        </Button>
-        
-        <Dropdown
-          menu={{
-            items: userMenuItems,
-            onClick: handleMenuClick,
-          }}
-          placement="bottomRight"
-        >
-          <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-            <Avatar 
-              icon={<UserOutlined />} 
-              style={{ marginRight: 8 }}
-            />
-            <span style={{ color: '#fff' }}>
-              {user?.username || '用户'}
-            </span>
-          </div>
-        </Dropdown>
+        {isAuthenticated ? (
+          <>
+            <Button 
+              type="primary" 
+              onClick={() => navigate('/upload')}
+            >
+              上传轨迹
+            </Button>
+            
+            <Dropdown
+              menu={{
+                items: userMenuItems,
+                onClick: handleMenuClick,
+              }}
+              placement="bottomRight"
+            >
+              <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                <Avatar 
+                  icon={<UserOutlined />} 
+                  style={{ marginRight: 8 }}
+                />
+                <span style={{ color: '#fff' }}>
+                  {user?.username || '用户'}
+                </span>
+              </div>
+            </Dropdown>
+          </>
+        ) : (
+          <Button 
+            type="primary" 
+            onClick={() => {
+              console.log('点击登录按钮，准备跳转到登录页');
+              navigate('/login');
+            }}
+          >
+            登录
+          </Button>
+        )}
       </Space>
     </AntHeader>
   );

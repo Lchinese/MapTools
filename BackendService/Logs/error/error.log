@@ -128,3 +128,13 @@ WHERE users.email = %(email_1)s
  LIMIT %(param_1)s]
 [parameters: {'email_1': 'test@example.com', 'param_1': 1}]
 (Background on this error at: https://sqlalche.me/e/20/e3q8)"}
+{"timestamp": "2025-09-17 22:15:09", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-09-17 22:15:51", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-09-17 22:30:23", "logger": "asyncio", "level": "ERROR", "file": "base_events.py", "line": 1833, "message": "Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost(None)>"}
+Traceback (most recent call last):
+  File "C:\Users\86187\AppData\Roaming\uv\python\cpython-3.12.11-windows-x86_64-none\Lib\asyncio\events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\86187\AppData\Roaming\uv\python\cpython-3.12.11-windows-x86_64-none\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+    self._sock.shutdown(socket.SHUT_RDWR)
+ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有的连接。

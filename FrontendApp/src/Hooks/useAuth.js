@@ -28,7 +28,9 @@ export const useAuth = () => {
   // 登录
   const login = useCallback(async (email, password) => {
     try {
+      console.log('开始登录:', email);
       const response = await authAPI.login({ email, password });
+      console.log('登录响应:', response);
       
       if (response.success) {
         const { token, user: userData } = response.data;
@@ -39,6 +41,7 @@ export const useAuth = () => {
         setUser(userData);
         setIsAuthenticated(true);
         
+        console.log('登录成功，用户状态已更新');
         return response.data;
       } else {
         throw new Error(response.message || '登录失败');
@@ -67,10 +70,12 @@ export const useAuth = () => {
 
   // 登出
   const logout = useCallback(() => {
+    console.log('开始登出');
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
     setIsAuthenticated(false);
+    console.log('登出完成，状态已重置 - isAuthenticated: false, user: null');
   }, []);
 
   // 更新用户信息

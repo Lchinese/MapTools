@@ -113,19 +113,21 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
     try:
         logger.info(f"用户登录: {login_data.email}")
         
-        # 查找用户
-        user = db.query(User).filter(User.email == login_data.email).first()
+        # 查找用户 - 支持用户名或邮箱登录
+        user = db.query(User).filter(
+            (User.email == login_data.email) | (User.username == login_data.email)
+        ).first()
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="邮箱或密码错误"
+                detail="用户名/邮箱或密码错误"
             )
         
         # 验证密码
         if not verify_password(login_data.password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="邮箱或密码错误"
+                detail="用户名/邮箱或密码错误"
             )
         
         # 检查用户状态
