@@ -59,7 +59,7 @@ class Trajectory(BaseModel, TimestampMixin, SoftDeleteMixin, AuditMixin):
     trajectory_id = Column(String(36), unique=True, nullable=False, comment="轨迹ID")
     
     # 基本信息
-    user_id = Column(String(36), nullable=False, comment="用户ID")
+    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=False, comment="用户ID")
     name = Column(String(200), nullable=False, comment="轨迹名称")
     description = Column(Text, nullable=True, comment="轨迹描述")
     filename = Column(String(255), nullable=False, comment="原始文件名")
@@ -90,10 +90,11 @@ class Trajectory(BaseModel, TimestampMixin, SoftDeleteMixin, AuditMixin):
     processing_completed_at = Column(DateTime(timezone=True), nullable=True, comment="处理完成时间")
     error_message = Column(Text, nullable=True, comment="错误信息")
     
-    # 关联关系 (修复关系定义)
-    trajectory = relationship("Trajectory", back_populates="points")
-    matched_points = relationship("MatchedPoint", back_populates="original_point", cascade="all, delete-orphan")
-    # files = relationship("File", back_populates="trajectory", cascade="all, delete-orphan")
+    # 关联关系
+    user = relationship("User", back_populates="trajectories")
+    points = relationship("TrajectoryPoint", back_populates="trajectory", cascade="all, delete-orphan")
+    matching_tasks = relationship("MatchingTask", back_populates="trajectory", cascade="all, delete-orphan")
+    files = relationship("File", back_populates="trajectory", cascade="all, delete-orphan")
     
     # 索引
     __table_args__ = (
@@ -137,9 +138,9 @@ class TrajectoryPoint(BaseModel, TimestampMixin):
     # 其他属性
     raw_data = Column(LONGTEXT, nullable=True, comment="原始数据（JSON格式）")
     
-    # 关联关系 (注释掉有问题的关系)
+    # 关联关系
     trajectory = relationship("Trajectory", back_populates="points")
-    # matched_points = relationship("MatchedPoint", back_populates="original_point", cascade="all, delete-orphan")
+    matched_points = relationship("MatchedPoint", back_populates="original_point", cascade="all, delete-orphan")
     
     # 索引
     __table_args__ = (
@@ -379,7 +380,7 @@ class File(BaseModel, TimestampMixin, SoftDeleteMixin):
     error_message = Column(Text, nullable=True, comment="错误信息")
     
     # 关联信息
-    trajectory_id = Column(Integer, ForeignKey("trajectories.id"), nullable=True, comment="关联轨迹ID")
+    trajectory_id = Column(String(36), ForeignKey("trajectories.trajectory_id"), nullable=True, comment="关联轨迹ID")
     
     # 元数据
     file_metadata = Column(LONGTEXT, nullable=True, comment="文件元数据")

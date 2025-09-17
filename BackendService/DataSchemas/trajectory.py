@@ -352,3 +352,31 @@ class SystemLogResponse(SystemLogBase):
     created_at: datetime = Field(..., description="创建时间")
     
     model_config = ConfigDict(from_attributes=True)
+
+
+# 认证相关模型
+class UserCreate(BaseModel):
+    """用户创建模型"""
+    username: str = Field(..., min_length=2, max_length=20, description="用户名")
+    email: str = Field(..., description="邮箱地址")
+    phone: str = Field(..., description="手机号")
+    password: str = Field(..., min_length=6, max_length=20, description="密码")
+
+
+class UserLogin(BaseModel):
+    """用户登录模型"""
+    email: str = Field(..., description="邮箱地址")
+    password: str = Field(..., description="密码")
+
+
+class UserResponse(BaseModel):
+    """用户响应模型"""
+    user_id: str
+    username: str
+    email: str
+    phone: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    last_login_at: Optional[datetime] = None
+    
+    model_config = ConfigDict(from_attributes=True)

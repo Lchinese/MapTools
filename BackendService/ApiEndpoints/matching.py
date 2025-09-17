@@ -268,7 +268,7 @@ async def get_matching_tasks(
         tasks = query.order_by(MatchingTask.created_at.desc()).offset(offset).limit(limit).all()
         
         # 计算总页数
-        pages = (total + limit - 1) // limit
+        pages = max(1, (total + limit - 1) // limit) if total > 0 else 1
         
         # 转换为响应格式
         task_responses = []

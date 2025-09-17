@@ -2,6 +2,7 @@ README.md
 main.py
 pyproject.toml
 ApiEndpoints/__init__.py
+ApiEndpoints/auth.py
 ApiEndpoints/file_management.py
 ApiEndpoints/health.py
 ApiEndpoints/matching.py

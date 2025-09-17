@@ -2,12 +2,14 @@ import React from 'react';
 import { Layout, Typography, Space, Button, Dropdown, Avatar } from 'antd';
 import { UserOutlined, SettingOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../Hooks/useAuth';
 
 const { Header: AntHeader } = Layout;
 const { Title } = Typography;
 
 const Header = () => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const userMenuItems = [
     {
@@ -39,7 +41,8 @@ const Header = () => {
         // 处理设置
         break;
       case 'logout':
-        // 处理退出登录
+        logout();
+        navigate('/login');
         break;
       default:
         break;
@@ -84,10 +87,15 @@ const Header = () => {
           }}
           placement="bottomRight"
         >
-          <Avatar 
-            icon={<UserOutlined />} 
-            style={{ cursor: 'pointer' }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+            <Avatar 
+              icon={<UserOutlined />} 
+              style={{ marginRight: 8 }}
+            />
+            <span style={{ color: '#fff' }}>
+              {user?.username || '用户'}
+            </span>
+          </div>
         </Dropdown>
       </Space>
     </AntHeader>

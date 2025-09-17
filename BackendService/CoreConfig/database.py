@@ -56,10 +56,25 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def create_tables():
-    """创建所有数据库表"""
+    """创建所有数据库表（如果不存在）"""
     try:
+        # 检查表是否已存在
+        from sqlalchemy import inspect
+        inspector = inspect(engine)
+        existing_tables = inspector.get_table_names()
+        
+        # 只创建不存在的表
         Base.metadata.create_all(bind=engine)
-        logger.info("Database tables created successfully")
+        
+        # 检查是否有新表被创建
+        new_tables = inspector.get_table_names()
+        created_tables = set(new_tables) - set(existing_tables)
+        
+        if created_tables:
+            logger.info(f"Created new tables: {', '.join(created_tables)}")
+        else:
+            logger.info("All tables already exist, no new tables created")
+            
     except Exception as e:
         logger.error(f"Failed to create database tables: {e}")
         raise
@@ -103,11 +118,11 @@ def get_database_status() -> dict:
     try:
         with engine.connect() as connection:
             # 检查连接
-            result = connection.execute("SELECT 1 as status")
+            result = connection.execute(text("SELECT 1 as status"))
             status = result.fetchone()[0]
             
             # 获取数据库版本
-            version_result = connection.execute("SELECT VERSION() as version")
+            version_result = connection.execute(text("SELECT VERSION() as version"))
             version = version_result.fetchone()[0]
             
             return {

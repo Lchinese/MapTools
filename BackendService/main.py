@@ -21,6 +21,7 @@ from ApiEndpoints import health_router, trajectory_router, matching_router
 from ApiEndpoints.road_network import router as road_network_router
 from ApiEndpoints.file_management import router as file_management_router
 from ApiEndpoints.origin_destination import router as origin_destination_router
+from ApiEndpoints.auth import router as auth_router
 
 # 设置日志
 setup_logging()
@@ -52,6 +53,7 @@ app.add_middleware(
 
 # 注册路由
 app.include_router(health_router)
+app.include_router(auth_router)
 app.include_router(trajectory_router)
 app.include_router(matching_router)
 app.include_router(road_network_router, prefix="/api/v1", tags=["路网管理"])

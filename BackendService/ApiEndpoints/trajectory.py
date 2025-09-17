@@ -12,6 +12,7 @@ from datetime import datetime
 from CoreConfig.database import get_db
 from CoreConfig.logging import get_logger
 from BusinessServices.trajectory_service import TrajectoryService
+from DataModels.Models.trajectory import Trajectory
 from DataSchemas.trajectory import (
     TrajectoryResponse, TrajectoryListResponse, TrajectoryQueryParams,
     TrajectoryUploadResponse, TrajectoryDeleteResponse, DataSource
@@ -165,16 +166,11 @@ async def get_trajectories(
         logger.info(f"成功获取轨迹列表: 共{total}条记录，返回{len(trajectories)}条")
         
         return TrajectoryListResponse(
-            success=True,
-            data={
-                "trajectories": trajectories,
-                "pagination": {
-                    "page": skip // limit + 1,
-                    "limit": limit,
-                    "total": total,
-                    "pages": (total + limit - 1) // limit
-                }
-            }
+            trajectories=trajectories,
+            total=total,
+            page=skip // limit + 1,
+            limit=limit,
+            pages=max(1, (total + limit - 1) // limit) if total > 0 else 1
         )
         
     except Exception as e:

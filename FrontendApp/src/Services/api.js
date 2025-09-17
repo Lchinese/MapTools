@@ -120,4 +120,18 @@ export const systemAPI = {
   queue: () => api.get('/system/queue'),
 };
 
+export const authAPI = {
+  // 用户注册
+  register: (userData) => api.post('/auth/register', userData),
+  
+  // 用户登录
+  login: (credentials) => api.post('/auth/login', credentials),
+  
+  // 验证令牌
+  verify: () => api.get('/auth/verify'),
+  
+  // 用户登出
+  logout: () => api.post('/auth/logout'),
+};
+
 export default api;

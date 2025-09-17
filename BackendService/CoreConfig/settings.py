@@ -58,11 +58,12 @@ class Settings(BaseSettings):
     
     # API配置
     API_V1_PREFIX: str = "/api/v1"
-    CORS_ORIGINS: list = ["http://localhost:3000", "http://localhost:8080"]
     
-    # 安全配置
+    # 认证配置
     SECRET_KEY: str = "your-secret-key-change-in-production"
+    ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    CORS_ORIGINS: list = ["http://localhost:3000", "http://localhost:8080"]
     
     @field_validator('DATABASE_URL')
     @classmethod
