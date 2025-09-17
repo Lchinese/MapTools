@@ -8,10 +8,16 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import tempfile
 import os
+import sys
+from pathlib import Path
 
-from BackendService.main import app
-from BackendService.CoreConfig.database import Base, get_db
-from BackendService.CoreConfig.settings import get_settings
+# 添加项目根目录到Python路径
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from main import app
+from CoreConfig.database import Base, get_db
+from CoreConfig.settings import get_settings
 
 # 创建测试数据库
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
