@@ -204,3 +204,44 @@ pages
 {"timestamp": "2025-09-17 21:52:37", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
 {"timestamp": "2025-09-17 21:52:37", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 77, "message": "数据库表创建完成"}
 {"timestamp": "2025-09-17 21:52:37", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 79, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-17 21:54:53", "logger": "passlib.handlers.bcrypt", "level": "WARNING", "file": "bcrypt.py", "line": 622, "message": "(trapped) error reading bcrypt version"}
+Traceback (most recent call last):
+  File "D:\Project\MapTools\BackendService\.venv\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+{"timestamp": "2025-09-17 21:54:53", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 500: 注册失败: 'phone' is an invalid keyword argument for User"}
+{"timestamp": "2025-09-17 21:56:19", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 68, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-17 21:56:19", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-17 21:56:19", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-17 21:56:19", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 77, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-17 21:56:19", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 79, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-17 21:57:19", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 500: 注册失败: (pymysql.err.OperationalError) (1054, "Unknown column 'users.phone' in 'field list'")
+[SQL: SELECT users.user_id AS users_user_id, users.username AS users_username, users.email AS users_email, users.phone AS users_phone, users.password_hash AS users_password_hash, users.full_name AS users_full_name, users.avatar_url AS users_avatar_url, users.is_active AS users_is_active, users.is_admin AS users_is_admin, users.last_login_at AS users_last_login_at, users.id AS users_id, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.is_deleted AS users_is_deleted, users.deleted_at AS users_deleted_at 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'test@example.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)"}
+{"timestamp": "2025-09-17 21:58:03", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 68, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-17 21:58:03", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-17 21:58:04", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-17 21:58:04", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 77, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-17 21:58:04", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 79, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-17 21:58:04", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 89, "message": "MapTools 后端服务正在关闭..."}
+{"timestamp": "2025-09-17 21:59:21", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 68, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-17 21:59:21", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-17 21:59:21", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-17 21:59:21", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 77, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-17 21:59:21", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 79, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-17 22:08:19", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 68, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-17 22:08:19", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-17 22:08:19", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-17 22:08:19", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 77, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-17 22:08:19", "logger": "__main__", "level": "INFO", "file": "main.py", "line": 79, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-17 22:09:03", "logger": "passlib.handlers.bcrypt", "level": "WARNING", "file": "bcrypt.py", "line": 622, "message": "(trapped) error reading bcrypt version"}
+Traceback (most recent call last):
+  File "D:\Project\MapTools\BackendService\.venv\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'

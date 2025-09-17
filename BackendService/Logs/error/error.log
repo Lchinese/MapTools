@@ -120,3 +120,11 @@ pages
 pages
   Input should be greater than or equal to 1 [type=greater_than_equal, input_value=0, input_type=int]
     For further information visit https://errors.pydantic.dev/2.11/v/greater_than_equal"}
+{"timestamp": "2025-09-17 21:54:53", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 500: 注册失败: 'phone' is an invalid keyword argument for User"}
+{"timestamp": "2025-09-17 21:57:19", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 500: 注册失败: (pymysql.err.OperationalError) (1054, "Unknown column 'users.phone' in 'field list'")
+[SQL: SELECT users.user_id AS users_user_id, users.username AS users_username, users.email AS users_email, users.phone AS users_phone, users.password_hash AS users_password_hash, users.full_name AS users_full_name, users.avatar_url AS users_avatar_url, users.is_active AS users_is_active, users.is_admin AS users_is_admin, users.last_login_at AS users_last_login_at, users.id AS users_id, users.created_at AS users_created_at, users.updated_at AS users_updated_at, users.is_deleted AS users_is_deleted, users.deleted_at AS users_deleted_at 
+FROM users 
+WHERE users.email = %(email_1)s 
+ LIMIT %(param_1)s]
+[parameters: {'email_1': 'test@example.com', 'param_1': 1}]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)"}
