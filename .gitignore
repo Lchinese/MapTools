@@ -333,6 +333,8 @@ $RECYCLE.BIN/
 UserUploads/
 # 外部数据文件
 ExternalData/
+# 数据文件夹
+data/
 # 日志文件
 Logs/
 # 临时文件
