@@ -1,7 +1,13 @@
 """
-数据模型定义目录
-包含所有数据库表对应的模型类
+数据模型模块初始化文件
 """
+
+# 用户模型
+from .user import User
+
+__all__ = [
+    "User"
+]
 
 from .trajectory import (
     Trajectory, 

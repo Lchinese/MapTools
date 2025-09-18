@@ -17,6 +17,7 @@ info:
     - 实时任务状态监控
     - 结果文件下载
     - 路网数据管理
+    - 用户认证和权限管理
     
     ## 认证
     当前版本支持可选的 JWT Token 认证，未来版本将支持 OAuth 2.0。
@@ -55,3 +56,5 @@ tags:
     description: 路网管理相关接口
   - name: Files
     description: 文件管理相关接口
+  - name: Auth
+    description: 用户认证相关接口

@@ -19,23 +19,22 @@
 │   │   └── 📄 health.py          # 健康检查 API
 │   ├── 📁 CoreConfig/            # 核心配置层
 │   │   ├── 📄 settings.py        # 配置管理
-│   │   ├── 📄 database.py        # 数据库配置
+│   │   ├── 📄 database.py        # 数据库配置（仅用于用户认证）
 │   │   └── 📄 logging.py         # 日志配置
-│   ├── 📁 DataModels/                # 数据模型层（SQLAlchemy + MySQL）
-│   │   ├── 📄 base.py                # 基础模型
-│   │   └── 📁 Models/                # 模型定义目录
-│   │       ├── 📄 trajectory.py      # 轨迹模型
-│   │       └── 📄 road_network.py    # 路网模型
-│   ├── 📁 DataSchemas/            # 数据验证层（Pydantic）
-│   │   ├── 📄 trajectory.py       # 轨迹验证
-│   │   └── 📄 matching.py         # 匹配结果验证
-│   ├── 📁 BusinessServices/           # 业务逻辑层
+│   ├── 📁 DataModels/            # 数据模型层（仅用于用户认证）
+│   │   ├── 📄 base.py            # 基础模型
+│   │   └── 📁 Models/           # 模型定义目录
+│   │       └── 📄 user.py        # 用户模型
+│   ├── 📁 DataSchemas/           # 数据验证层（Pydantic）
+│   │   ├── 📄 trajectory.py      # 轨迹验证
+│   │   └── 📄 matching.py        # 匹配结果验证
+│   ├── 📁 BusinessServices/      # 业务逻辑层
 │   │   ├── 📄 trajectory_service.py   # 轨迹业务逻辑
 │   │   ├── 📄 matching_service.py     # 匹配业务逻辑
 │   │   └── 📄 file_service.py         # 文件处理逻辑
-│   ├── 📁 MatchingAlgorithms/            # 算法模块（可插拔）
-│   │   ├── 📄 base.py                    # 算法基类接口
-│   │   └── 📁 Algorithms/                # 算法实现目录
+│   ├── 📁 MatchingAlgorithms/         # 算法模块（可插拔）
+│   │   ├── 📄 base.py                 # 算法基类接口
+│   │   └── 📁 Algorithms/             # 算法实现目录
 │   │       ├── 📄 distance_matching.py    # 最短距离匹配算法
 │   │       ├── 📄 greedy_algorithm.py     # 最近邻算法
 │   │       ├── 📄 gotrackit_adapter.py    # GoTrackIt 适配器
@@ -49,6 +48,7 @@
 │   │   └── 📄 validators.py      # 数据验证工具
 │   ├── 📄 dockerfile             # Docker 配置文件
 │   └── 📄 main.py                # FastAPI 入口
+├── 📁 data/                      # 出租车轨迹数据文件（本地存储）
 ├── 📁 ExternalData/              # 外部数据（天地图 Shapefile）
 ├── 📁 UserUploads/               # 用户上传的轨迹文件
 ├── 📁 Logs/                      # 系统日志存储目录

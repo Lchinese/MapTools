@@ -1,36 +1,19 @@
 """
-数据模型层
-提供数据库模型定义和ORM映射
+数据模型模块初始化文件
 """
 
-from .base import Base
-from .Models.trajectory import (
-    Trajectory, 
-    TrajectoryPoint, 
-    MatchingTask, 
-    MatchedPoint, 
-    RoadNetwork, 
-    RoadSegment,
-    File,
-    LogLevel,
-    TrajectoryStatus,
-    DataSource,
-    DataCategory
-)
+from .base import Base, BaseModel, TimestampMixin, SoftDeleteMixin, AuditMixin
+
+# 导入所有模型
+from .Models import *
 
 __all__ = [
-    "Base",
-    "Trajectory",
-    "TrajectoryPoint",
-    "MatchingTask",
-    "MatchedPoint",
-    "RoadNetwork",
-    "RoadSegment",
-    "File",
-    "LogLevel",
-    "TrajectoryStatus",
-    "DataSource",
-    "DataCategory"
+    "Base", 
+    "BaseModel", 
+    "TimestampMixin", 
+    "SoftDeleteMixin", 
+    "AuditMixin",
+    "User"
 ]
 
 __version__ = "0.1.0"
