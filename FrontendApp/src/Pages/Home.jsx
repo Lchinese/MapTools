@@ -40,11 +40,11 @@ const Home = () => {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <Title level={2}>MapTools 轨迹匹配系统</Title>
+        <Title level={2}>MapTools GPS道路吸附系统</Title>
         <Paragraph>
-          当前版本仅保留认证与健康检查接口。轨迹/匹配等后端接口已移除，页面展示为占位信息。
+          基于sample-utf.txt出租车GPS数据，使用道路匹配算法将GPS点吸附到最近的道路上。
         </Paragraph>
-        <Alert type="info" showIcon message="提示" description="如需恢复完整功能，请启用后端轨迹与匹配接口后再刷新页面。" />
+        <Alert type="success" showIcon message="功能说明" description="地图上显示的是从sample-utf.txt解析的GPS点，经过道路匹配算法吸附到道路上的小圆点。" />
       </div>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
@@ -63,7 +63,7 @@ const Home = () => {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={16}>
-          <Card title="地图预览" style={{ height: 500 }}>
+          <Card title="GPS数据道路吸附展示" style={{ height: 500 }}>
             <MapComponent height={400} />
           </Card>
         </Col>

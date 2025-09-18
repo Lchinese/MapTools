@@ -59,4 +59,12 @@ export const healthAPI = {
   health: () => axios.get('http://localhost:8000/health').then(r => r.data)
 };
 
+// 地图匹配API - 直接访问后端，不使用/api/v1前缀
+export const matchingAPI = {
+  getGPSData: (params = {}) => axios.get('http://localhost:8000/matching/gps-data', { params }).then(r => r.data),
+  matchToRoads: (params = {}) => axios.get('http://localhost:8000/matching/match', { params }).then(r => r.data),
+  getRoadNetwork: () => axios.get('http://localhost:8000/matching/road-network').then(r => r.data),
+  getVehiclesData: (params = {}) => axios.get('http://localhost:8000/matching/vehicles', { params }).then(r => r.data),
+};
+
 export default api;

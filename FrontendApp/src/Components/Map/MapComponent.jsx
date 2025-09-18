@@ -1,8 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import { ReloadOutlined } from '@ant-design/icons';
 import L from 'leaflet';
 import { useMapStore } from '../../Store/mapStore';
+import { matchingAPI } from '../../Services/api';
+import MatchedPoints from './MatchedPoints';
 import 'leaflet/dist/leaflet.css';
 
 // 修复Leaflet默认图标问题
@@ -78,6 +80,9 @@ const TrajectoryPoints = ({ trajectory, color = '#1890ff' }) => {
 
 const MapComponent = ({ height = 400, showControls = true }) => {
   const mapRef = useRef();
+  const [matchedPoints, setMatchedPoints] = useState([]);
+  const [loading, setLoading] = useState(false);
+  
   const {
     center,
     zoom,
@@ -91,9 +96,31 @@ const MapComponent = ({ height = 400, showControls = true }) => {
     resetMap
   } = useMapStore();
 
+  // 加载匹配点数据
+  useEffect(() => {
+    const loadMatchedPoints = async () => {
+      setLoading(true);
+      try {
+        const response = await matchingAPI.matchToRoads({ limit: 50 });
+        setMatchedPoints(response.matched_points_data || []);
+      } catch (error) {
+        console.error('加载匹配点失败:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadMatchedPoints();
+  }, []);
+
   // 计算地图边界
   const calculateBounds = () => {
     const allPoints = [];
+    
+    // 添加匹配点
+    if (matchedPoints.length > 0) {
+      allPoints.push(...matchedPoints.map(p => [p.matched_latitude, p.matched_longitude]));
+    }
     
     if (showOriginal && originalTrajectory?.points) {
       allPoints.push(...originalTrajectory.points.map(p => [p.latitude, p.longitude]));
@@ -137,6 +164,9 @@ const MapComponent = ({ height = 400, showControls = true }) => {
           zoom={zoom} 
           bounds={mapBounds} 
         />
+
+        {/* 吸附点 - 只显示匹配到道路上的点 */}
+        <MatchedPoints matchedPoints={matchedPoints} />
 
         {/* 原始轨迹 */}
         {showOriginal && originalTrajectory && (
@@ -238,8 +268,8 @@ const MapComponent = ({ height = 400, showControls = true }) => {
           zIndex: 1000,
         }}>
           <div style={{ fontSize: '12px' }}>
-            <div style={{ color: '#ff4d4f' }}>● 原始轨迹</div>
-            <div style={{ color: '#52c41a' }}>● 匹配轨迹</div>
+            <div style={{ color: '#1890ff' }}>● 道路吸附点 ({matchedPoints.length})</div>
+            {loading && <div style={{ color: '#999' }}>加载中...</div>}
           </div>
         </div>
       )}

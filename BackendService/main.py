@@ -19,6 +19,7 @@ from CoreConfig.logging import setup_logging, get_logger
 from CoreConfig.database import create_tables, check_connection
 from ApiEndpoints import health_router
 from ApiEndpoints.auth import router as auth_router
+from ApiEndpoints.matching import router as matching_router
 
 # 设置日志
 setup_logging()
@@ -48,9 +49,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 注册路由（仅保留健康检查与认证）
+# 注册路由（健康检查、认证、地图匹配）
 app.include_router(health_router)
 app.include_router(auth_router)
+app.include_router(matching_router)
 
 
 @app.on_event("startup")
