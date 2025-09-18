@@ -100,7 +100,7 @@ async def get_gps_data(
 
 @router.get("/match", response_model=MatchingResult)
 async def match_gps_to_roads(
-    limit: Optional[int] = Query(50, description="匹配的GPS点数量限制"),
+    limit: Optional[int] = Query(None, description="匹配的GPS点数量限制，不设置则返回所有点"),
     valid_only: bool = Query(True, description="是否只匹配有效的GPS点")
 ):
     """将GPS点匹配到道路"""

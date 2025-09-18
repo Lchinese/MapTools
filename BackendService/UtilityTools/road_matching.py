@@ -15,79 +15,22 @@ class RoadMatcher:
     """道路匹配器"""
     
     def __init__(self):
-        # 尝试从OpenStreetMap加载真实道路数据，如果失败则使用模拟数据
+        # 从天地图WFS服务加载真实道路数据
         try:
             self.roads = self._load_osm_roads()
-            logger.info(f"成功加载 {len(self.roads)} 条OSM道路")
+            logger.info(f"成功加载 {len(self.roads)} 条天地图道路")
         except Exception as e:
-            logger.warning(f"加载OSM道路失败: {e}，使用模拟道路网络")
-            self.roads = self._create_simple_road_network()
+            logger.error(f"加载天地图WFS道路失败: {e}")
+            # 如果天地图WFS失败，尝试OpenStreetMap作为备选
+            try:
+                self.roads = self._load_osm_fallback("113.812401,22.503099,114.269966,22.748068")
+                logger.info(f"使用OpenStreetMap备选方案，加载了 {len(self.roads)} 条道路")
+            except Exception as fallback_error:
+                logger.error(f"OpenStreetMap备选方案也失败: {fallback_error}")
+                # 如果都失败，使用空的道路网络
+                self.roads = []
+                logger.warning("无法加载任何道路数据，使用空道路网络")
     
-    def _create_simple_road_network(self) -> List[Dict[str, Any]]:
-        """创建基于GPS数据分布的动态道路网络"""
-        # 基于GPS数据实际范围创建道路网络
-        # GPS范围: 纬度 22.503099-22.748068, 经度 113.812401-114.269966
-        
-        roads = []
-        
-        # 创建网格状道路网络，覆盖GPS数据分布区域
-        lat_min, lat_max = 22.50, 22.75
-        lon_min, lon_max = 113.80, 114.27
-        
-        # 东西向道路（纬度固定，经度变化）
-        for i, lat in enumerate([22.52, 22.55, 22.58, 22.61, 22.64, 22.67, 22.70, 22.73]):
-            road_id = f'road_ew_{i+1:02d}'
-            road_name = f'东西向道路{i+1}'
-            
-            # 创建经度点，覆盖GPS数据范围
-            points = []
-            for lon in [113.85, 113.90, 113.95, 114.00, 114.05, 114.10, 114.15, 114.20, 114.25]:
-                points.append((lon, lat))
-            
-            roads.append({
-                'id': road_id,
-                'name': road_name,
-                'type': 'highway' if i in [2, 4] else 'arterial',
-                'points': points
-            })
-        
-        # 南北向道路（经度固定，纬度变化）
-        for i, lon in enumerate([113.85, 113.90, 113.95, 114.00, 114.05, 114.10, 114.15, 114.20, 114.25]):
-            road_id = f'road_ns_{i+1:02d}'
-            road_name = f'南北向道路{i+1}'
-            
-            # 创建纬度点，覆盖GPS数据范围
-            points = []
-            for lat in [22.52, 22.55, 22.58, 22.61, 22.64, 22.67, 22.70, 22.73]:
-                points.append((lon, lat))
-            
-            roads.append({
-                'id': road_id,
-                'name': road_name,
-                'type': 'highway' if i in [3, 5] else 'arterial',
-                'points': points
-            })
-        
-        # 添加一些对角线道路
-        roads.append({
-            'id': 'road_diag_01',
-            'name': '对角线道路1',
-            'type': 'arterial',
-            'points': [
-                (113.85, 22.52), (113.90, 22.55), (113.95, 22.58), (114.00, 22.61), (114.05, 22.64), (114.10, 22.67)
-            ]
-        })
-        
-        roads.append({
-            'id': 'road_diag_02',
-            'name': '对角线道路2',
-            'type': 'arterial',
-            'points': [
-                (114.00, 22.52), (114.05, 22.55), (114.10, 22.58), (114.15, 22.61), (114.20, 22.64), (114.25, 22.67)
-            ]
-        })
-        
-        return roads
     
     def _load_osm_roads(self) -> List[Dict[str, Any]]:
         """从天地图WFS服务加载深圳地区的道路数据"""
@@ -290,9 +233,14 @@ class RoadMatcher:
                 'segment': None
             }
         
-        # 如果没找到，使用默认点（深南大道中心）
-        default_road = self.roads[0]
-        default_point = (114.0, 22.5)
+        # 如果没找到，使用第一个道路的第一个点作为默认点
+        if self.roads and len(self.roads) > 0:
+            default_road = self.roads[0]
+            default_point = self.roads[0]['points'][0] if self.roads[0]['points'] else (114.0, 22.5)
+        else:
+            # 如果没有任何道路数据，使用深圳中心点
+            default_road = {'id': 'default', 'name': '默认点', 'type': 'unknown', 'points': []}
+            default_point = (114.0, 22.5)
         return {
             'road': default_road,
             'matched_point': default_point,

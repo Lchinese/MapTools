@@ -101,7 +101,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
     const loadMatchedPoints = async () => {
       setLoading(true);
       try {
-        const response = await matchingAPI.matchToRoads({ limit: 50 });
+        const response = await matchingAPI.matchToRoads();
         setMatchedPoints(response.matched_points_data || []);
       } catch (error) {
         console.error('加载匹配点失败:', error);
