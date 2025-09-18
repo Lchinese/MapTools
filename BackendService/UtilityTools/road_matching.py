@@ -90,11 +90,86 @@ class RoadMatcher:
         return roads
     
     def _load_osm_roads(self) -> List[Dict[str, Any]]:
-        """从OpenStreetMap加载深圳地区的道路数据"""
+        """从天地图WFS服务加载深圳地区的道路数据"""
         # 深圳边界框 (基于GPS数据范围)
         bbox = "113.812401,22.503099,114.269966,22.748068"
         
-        # Overpass API查询语句 - 获取主要道路
+        # 天地图WFS服务URL
+        wfs_url = "http://gisserver.tianditu.gov.cn/TDTService/wfs"
+        
+        # WFS GetFeature请求参数 - 尝试多个可能的道路图层
+        road_layers = ['TDTService:LRDL', 'TDTService:LRRL', 'TDTService:AANP']
+        
+        for layer_name in road_layers:
+            try:
+                params = {
+                    'service': 'WFS',
+                    'version': '1.1.0',
+                    'request': 'GetFeature',
+                    'typeName': layer_name,
+                    'outputFormat': 'application/json',
+                    'srsName': 'EPSG:4326',
+                    'bbox': f'{bbox},EPSG:4326'
+                }
+                
+                logger.info(f"尝试获取图层: {layer_name}")
+                response = requests.get(wfs_url, params=params, timeout=30)
+                response.raise_for_status()
+                
+                data = response.json()
+                roads = []
+                
+                # 解析WFS返回的GeoJSON数据
+                for feature in data.get('features', []):
+                    geometry = feature.get('geometry', {})
+                    properties = feature.get('properties', {})
+                    
+                    if geometry.get('type') in ['LineString', 'MultiLineString']:
+                        coordinates = geometry.get('coordinates', [])
+                        
+                        # 处理MultiLineString
+                        if geometry.get('type') == 'MultiLineString':
+                            for line_coords in coordinates:
+                                if len(line_coords) >= 2:
+                                    points = [(coord[0], coord[1]) for coord in line_coords]
+                                    road_name = properties.get('NAME', f'未命名道路_{feature.get("id", "unknown")}')
+                                    road_type = properties.get('TYPE', layer_name.split(':')[1])
+                                    
+                                    roads.append({
+                                        'id': f'tdt_{layer_name}_{feature.get("id", "unknown")}_{len(roads)}',
+                                        'name': road_name,
+                                        'type': road_type,
+                                        'points': points
+                                    })
+                        else:
+                            # 处理LineString
+                            if len(coordinates) >= 2:
+                                points = [(coord[0], coord[1]) for coord in coordinates]
+                                road_name = properties.get('NAME', f'未命名道路_{feature.get("id", "unknown")}')
+                                road_type = properties.get('TYPE', layer_name.split(':')[1])
+                                
+                                roads.append({
+                                    'id': f'tdt_{layer_name}_{feature.get("id", "unknown")}',
+                                    'name': road_name,
+                                    'type': road_type,
+                                    'points': points
+                                })
+                
+                if roads:
+                    logger.info(f"从天地图WFS图层 {layer_name} 加载了 {len(roads)} 条道路")
+                    return roads
+                else:
+                    logger.warning(f"图层 {layer_name} 没有返回道路数据")
+                    
+            except Exception as e:
+                logger.warning(f"获取图层 {layer_name} 失败: {e}")
+                continue
+        
+        # 如果所有图层都失败，抛出异常
+        raise Exception("所有天地图WFS图层都无法获取道路数据")
+    
+    def _load_osm_fallback(self, bbox: str) -> List[Dict[str, Any]]:
+        """备选方案：从OpenStreetMap加载道路数据"""
         overpass_query = f"""
         [out:json][timeout:25];
         (
@@ -104,7 +179,6 @@ class RoadMatcher:
         """
         
         try:
-            # 调用Overpass API
             response = requests.post(
                 "https://overpass-api.de/api/interpreter",
                 data=overpass_query,
@@ -117,17 +191,15 @@ class RoadMatcher:
             
             for element in data.get('elements', []):
                 if element['type'] == 'way' and 'geometry' in element:
-                    # 提取道路信息
                     tags = element.get('tags', {})
                     highway_type = tags.get('highway', 'unknown')
                     name = tags.get('name', f'未命名道路_{element["id"]}')
                     
-                    # 转换坐标格式 (lon, lat)
                     points = []
                     for node in element['geometry']:
                         points.append((node['lon'], node['lat']))
                     
-                    if len(points) >= 2:  # 至少需要两个点才能形成道路
+                    if len(points) >= 2:
                         roads.append({
                             'id': f'osm_way_{element["id"]}',
                             'name': name,
@@ -135,11 +207,11 @@ class RoadMatcher:
                             'points': points
                         })
             
-            logger.info(f"从OSM加载了 {len(roads)} 条道路")
+            logger.info(f"从OSM备选方案加载了 {len(roads)} 条道路")
             return roads
             
         except Exception as e:
-            logger.error(f"从OSM加载道路数据失败: {e}")
+            logger.error(f"OSM备选方案也失败: {e}")
             raise e
     
     def calculate_distance(self, point1: Tuple[float, float], point2: Tuple[float, float]) -> float:
