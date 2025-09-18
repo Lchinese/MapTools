@@ -20,6 +20,7 @@ class User(BaseModel, TimestampMixin, SoftDeleteMixin):
     email = Column(String(100), unique=True, nullable=False, comment="邮箱")
     password_hash = Column(String(255), nullable=False, comment="密码哈希")
     full_name = Column(String(100), nullable=True, comment="全名")
+    phone = Column(String(20), nullable=True, comment="手机号")
     avatar_url = Column(String(500), nullable=True, comment="头像URL")
     
     # 状态信息

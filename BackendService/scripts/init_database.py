@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 数据库初始化脚本
-使用SQLAlchemy ORM创建数据库和表结构
+使用SQLAlchemy ORM创建数据库和表结构（当前版本仅 users 表）
 """
 
 import sys
@@ -16,11 +16,8 @@ from CoreConfig.settings import get_settings
 from DataModels.base import Base
 from CoreConfig.database import engine
 
-# 导入所有模型以确保它们被注册到Base.metadata
-from DataModels.Models.trajectory import (
-    Trajectory, TrajectoryPoint, MatchingTask, MatchedPoint,
-    User, RoadNetwork, RoadSegment, File, SystemLog
-)
+# 仅导入用户模型确保注册到 Base.metadata
+from DataModels.Models import User
 
 def create_database():
     """创建数据库（如果不存在）"""
@@ -60,13 +57,13 @@ def create_database():
     return True
 
 def create_tables():
-    """创建所有表"""
-    print("正在创建表结构...")
+    """创建 users 表"""
+    print("正在创建表结构（仅 users ）...")
     
     try:
-        # 创建所有表
+        # 创建所有表（此时 Base.metadata 仅包含 User）
         Base.metadata.create_all(bind=engine)
-        print("所有表创建成功")
+        print("表创建成功")
         
         # 显示创建的表
         with engine.connect() as conn:
@@ -81,18 +78,12 @@ def create_tables():
         return False
 
 def verify_tables():
-    """验证表结构"""
-    print("正在验证表结构...")
+    """验证仅存在 users 表"""
+    print("正在验证表结构（仅 users ）...")
     
     try:
         with engine.connect() as conn:
-            # 检查每个表是否存在
-            expected_tables = [
-                'users', 'trajectories', 'trajectory_points', 
-                'matching_tasks', 'matched_points',
-                'road_networks', 'road_segments', 'files', 'system_logs'
-            ]
-            
+            expected_tables = ['users']
             result = conn.execute(text("SHOW TABLES"))
             existing_tables = [table[0] for table in result.fetchall()]
             
@@ -102,8 +93,12 @@ def verify_tables():
                     print(f"  ✓ {table}")
                 else:
                     print(f"  ✗ {table} (缺失)")
+            # 同时提示多余表
+            extras = [t for t in existing_tables if t not in expected_tables]
+            if extras:
+                print(f"  ! 发现多余表: {extras}")
             
-            return len(existing_tables) == len(expected_tables)
+            return set(existing_tables) == set(expected_tables)
             
     except SQLAlchemyError as e:
         print(f"验证表结构时出错: {e}")
@@ -112,7 +107,7 @@ def verify_tables():
 def main():
     """主函数"""
     print("=" * 50)
-    print("MapTools 数据库初始化")
+    print("MapTools 数据库初始化（仅 users 表）")
     print("=" * 50)
     
     # 步骤1: 创建数据库
@@ -127,7 +122,7 @@ def main():
     
     # 步骤3: 验证表结构
     if not verify_tables():
-        print("表结构验证失败")
+        print("表结构验证失败（存在缺失或多余表）")
         return False
     
     print("=" * 50)

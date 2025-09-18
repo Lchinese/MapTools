@@ -17,10 +17,7 @@ sys.path.append(str(Path(__file__).parent))
 from CoreConfig.settings import get_settings
 from CoreConfig.logging import setup_logging, get_logger
 from CoreConfig.database import create_tables, check_connection
-from ApiEndpoints import health_router, trajectory_router, matching_router
-from ApiEndpoints.road_network import router as road_network_router
-from ApiEndpoints.file_management import router as file_management_router
-from ApiEndpoints.origin_destination import router as origin_destination_router
+from ApiEndpoints import health_router
 from ApiEndpoints.auth import router as auth_router
 
 # 设置日志
@@ -51,14 +48,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 注册路由
+# 注册路由（仅保留健康检查与认证）
 app.include_router(health_router)
 app.include_router(auth_router)
-app.include_router(trajectory_router)
-app.include_router(matching_router)
-app.include_router(road_network_router, prefix="/api/v1", tags=["路网管理"])
-app.include_router(file_management_router, prefix="/api/v1", tags=["文件管理"])
-app.include_router(origin_destination_router, prefix="/api/v1", tags=["起始终止记录"])
 
 
 @app.on_event("startup")
@@ -72,7 +64,7 @@ async def startup_event():
             logger.error("数据库连接失败")
             raise Exception("数据库连接失败")
         
-        # 创建数据库表
+        # 创建数据库表（当前仅 users ）
         create_tables()
         logger.info("数据库表创建完成")
         

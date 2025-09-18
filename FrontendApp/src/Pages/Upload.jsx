@@ -4,14 +4,14 @@ import {
   Upload, 
   Form, 
   Input, 
-  Select, 
   Button, 
   message, 
   Progress,
   Typography,
   Row,
   Col,
-  Space
+  Space,
+  Alert
 } from 'antd';
 import { 
   InboxOutlined, 
@@ -19,40 +19,20 @@ import {
   FileTextOutlined 
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
-import { useTrajectoryStore } from '../Store/trajectoryStore';
 
 const { Title, Paragraph } = Typography;
 const { Dragger } = Upload;
 const { TextArea } = Input;
-const { Option } = Select;
 
 const UploadPage = () => {
   const navigate = useNavigate();
-  const { uploadTrajectory, loading } = useTrajectoryStore();
   const [form] = Form.useForm();
   const [uploadProgress, setUploadProgress] = useState(0);
   const [fileList, setFileList] = useState([]);
 
-  const dataSourceOptions = [
-    { value: 'gpx', label: 'GPX文件' },
-    { value: 'csv', label: 'CSV文件' },
-    { value: 'kml', label: 'KML文件' },
-    { value: 'auto', label: '自动识别' },
-  ];
-
-  const dataCategoryOptions = [
-    { value: 'continuous_trajectory', label: '连续轨迹' },
-    { value: 'origin_destination', label: '起终点记录' },
-    { value: 'time_range', label: '时间段记录' },
-  ];
-
   const handleUpload = async (file) => {
-    const formData = form.getFieldsValue();
-    
     try {
       setUploadProgress(0);
-      
-      // 模拟上传进度
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 90) {
@@ -63,24 +43,12 @@ const UploadPage = () => {
         });
       }, 200);
 
-      const result = await uploadTrajectory(file, {
-        name: formData.name || file.name,
-        description: formData.description,
-        dataSource: formData.dataSource,
-        dataCategory: formData.dataCategory,
-      });
-
+      // 本版本不上传至后端，仅作占位
+      await new Promise(r => setTimeout(r, 800));
       clearInterval(progressInterval);
       setUploadProgress(100);
-      
-      message.success('文件上传成功！');
-      
-      // 跳转到结果页面
-      setTimeout(() => {
-        navigate('/results');
-      }, 1000);
-      
-      return false; // 阻止默认上传行为
+      message.success('模拟上传完成（本版本未启用后端上传接口）');
+      return false;
     } catch (error) {
       message.error(`上传失败: ${error.message}`);
       setUploadProgress(0);
@@ -94,7 +62,7 @@ const UploadPage = () => {
     fileList,
     beforeUpload: handleUpload,
     onChange: (info) => {
-      setFileList(info.fileList.slice(-1)); // 只保留最后一个文件
+      setFileList(info.fileList.slice(-1));
     },
     onRemove: () => {
       setFileList([]);
@@ -106,10 +74,11 @@ const UploadPage = () => {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <Title level={2}>上传轨迹文件</Title>
+        <Title level={2}>上传文件</Title>
         <Paragraph>
-          支持上传GPX、KML、CSV等格式的轨迹文件。系统将自动解析文件内容并进行地图匹配。
+          当前版本未启用后端上传与匹配接口，上传操作仅为占位演示。
         </Paragraph>
+        <Alert type="info" showIcon message="提示" description="启用后端接口后可恢复完整上传与匹配流程。" />
       </div>
 
       <Row gutter={[24, 24]}>
@@ -118,72 +87,14 @@ const UploadPage = () => {
             <Form
               form={form}
               layout="vertical"
-              initialValues={{
-                dataSource: 'auto',
-                dataCategory: 'continuous_trajectory',
-              }}
             >
-              <Form.Item
-                name="name"
-                label="轨迹名称"
-                rules={[{ required: true, message: '请输入轨迹名称' }]}
-              >
-                <Input placeholder="请输入轨迹名称" />
-              </Form.Item>
-
-              <Form.Item
-                name="description"
-                label="描述"
-              >
-                <TextArea 
-                  rows={3} 
-                  placeholder="请输入轨迹描述（可选）" 
-                />
-              </Form.Item>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    name="dataSource"
-                    label="数据源类型"
-                    rules={[{ required: true, message: '请选择数据源类型' }]}
-                  >
-                    <Select placeholder="选择数据源类型">
-                      {dataSourceOptions.map(option => (
-                        <Option key={option.value} value={option.value}>
-                          {option.label}
-                        </Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="dataCategory"
-                    label="数据类别"
-                    rules={[{ required: true, message: '请选择数据类别' }]}
-                  >
-                    <Select placeholder="选择数据类别">
-                      {dataCategoryOptions.map(option => (
-                        <Option key={option.value} value={option.value}>
-                          {option.label}
-                        </Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
-              </Row>
-
               <Form.Item label="选择文件">
                 <Dragger {...uploadProps} style={{ marginBottom: 16 }}>
                   <p className="ant-upload-drag-icon">
                     <InboxOutlined />
                   </p>
                   <p className="ant-upload-text">
-                    点击或拖拽文件到此区域上传
-                  </p>
-                  <p className="ant-upload-hint">
-                    支持单个文件上传，支持GPX、KML、CSV、TXT格式
+                    点击或拖拽文件到此区域上传（本版本为占位演示）
                   </p>
                 </Dragger>
               </Form.Item>
@@ -201,55 +112,22 @@ const UploadPage = () => {
         </Col>
 
         <Col xs={24} lg={8}>
-          <Card title="上传说明">
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-              <div>
-                <Title level={5}>支持的文件格式：</Title>
-                <ul>
-                  <li>GPX - GPS交换格式</li>
-                  <li>KML - Google Earth格式</li>
-                  <li>CSV - 逗号分隔值</li>
-                  <li>TXT - 文本格式</li>
-                </ul>
-              </div>
-
-              <div>
-                <Title level={5}>文件要求：</Title>
-                <ul>
-                  <li>文件大小不超过100MB</li>
-                  <li>包含有效的经纬度坐标</li>
-                  <li>时间戳格式正确</li>
-                </ul>
-              </div>
-
-              <div>
-                <Title level={5}>处理流程：</Title>
-                <ol>
-                  <li>上传文件并解析</li>
-                  <li>验证数据格式</li>
-                  <li>开始地图匹配</li>
-                  <li>生成匹配结果</li>
-                </ol>
-              </div>
-            </Space>
-          </Card>
-
-          <Card title="快速操作" style={{ marginTop: 16 }}>
+          <Card title="快速操作" style={{ marginTop: 0 }}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <Button 
                 icon={<FileTextOutlined />}
                 block
-                onClick={() => navigate('/files')}
+                onClick={() => navigate('/results')}
               >
-                查看已上传文件
+                查看匹配结果（占位）
               </Button>
               
               <Button 
                 icon={<UploadOutlined />}
                 block
-                onClick={() => navigate('/results')}
+                onClick={() => navigate('/')}
               >
-                查看匹配结果
+                返回首页
               </Button>
             </Space>
           </Card>

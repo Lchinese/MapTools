@@ -138,3 +138,22 @@ Traceback (most recent call last):
   File "C:\Users\86187\AppData\Roaming\uv\python\cpython-3.12.11-windows-x86_64-none\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
     self._sock.shutdown(socket.SHUT_RDWR)
 ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有的连接。
+{"timestamp": "2025-09-18 19:19:04", "logger": "asyncio", "level": "ERROR", "file": "base_events.py", "line": 1833, "message": "Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost(None)>"}
+Traceback (most recent call last):
+  File "C:\Users\86187\AppData\Roaming\uv\python\cpython-3.12.11-windows-x86_64-none\Lib\asyncio\events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\86187\AppData\Roaming\uv\python\cpython-3.12.11-windows-x86_64-none\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+    self._sock.shutdown(socket.SHUT_RDWR)
+ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有的连接。
+{"timestamp": "2025-09-18 21:07:07", "logger": "asyncio", "level": "ERROR", "file": "base_events.py", "line": 1833, "message": "Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost(None)>"}
+Traceback (most recent call last):
+  File "C:\Users\86187\AppData\Roaming\uv\python\cpython-3.12.11-windows-x86_64-none\Lib\asyncio\events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\86187\AppData\Roaming\uv\python\cpython-3.12.11-windows-x86_64-none\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+    self._sock.shutdown(socket.SHUT_RDWR)
+ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有的连接。
+{"timestamp": "2025-09-18 21:19:50", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 500: 注册失败: 'phone' is an invalid keyword argument for User"}
+{"timestamp": "2025-09-18 21:19:53", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 500: 注册失败: 'phone' is an invalid keyword argument for User"}
+{"timestamp": "2025-09-18 21:38:47", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 无效的认证凭据"}

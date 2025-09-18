@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { trajectoryAPI, matchingAPI } from '../Services/api';
 
 const useTrajectoryStore = create((set, get) => ({
   // 状态
@@ -10,117 +9,42 @@ const useTrajectoryStore = create((set, get) => ({
   loading: false,
   error: null,
 
-  // 轨迹相关操作
-  fetchTrajectories: async (params = {}) => {
-    set({ loading: true, error: null });
-    try {
-      const response = await trajectoryAPI.list(params);
-      set({ trajectories: response.data || [], loading: false });
-    } catch (error) {
-      set({ error: error.message, loading: false });
-    }
+  // 轨迹相关操作（后端接口已移除，以下返回安全默认值）
+  fetchTrajectories: async () => {
+    set({ trajectories: [], loading: false, error: null });
   },
 
-  fetchTrajectory: async (id) => {
-    set({ loading: true, error: null });
-    try {
-      const response = await trajectoryAPI.get(id);
-      set({ currentTrajectory: response.data, loading: false });
-    } catch (error) {
-      set({ error: error.message, loading: false });
-    }
+  fetchTrajectory: async () => {
+    set({ currentTrajectory: null, loading: false, error: null });
   },
 
-  uploadTrajectory: async (file, metadata = {}) => {
-    set({ loading: true, error: null });
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('name', metadata.name || file.name);
-      formData.append('description', metadata.description || '');
-      formData.append('data_source', metadata.dataSource || 'auto');
-      formData.append('data_category', metadata.dataCategory || 'continuous_trajectory');
-
-      const response = await trajectoryAPI.upload(formData);
-      set({ loading: false });
-      
-      // 刷新轨迹列表
-      get().fetchTrajectories();
-      
-      return response.data;
-    } catch (error) {
-      set({ error: error.message, loading: false });
-      throw error;
-    }
+  uploadTrajectory: async () => {
+    // 后端上传接口已移除，这里仅模拟成功以保持前端流程不报错
+    set({ loading: false });
+    return { ok: true };
   },
 
-  deleteTrajectory: async (id) => {
-    set({ loading: true, error: null });
-    try {
-      await trajectoryAPI.delete(id);
-      set({ loading: false });
-      
-      // 从列表中移除
-      set(state => ({
-        trajectories: state.trajectories.filter(t => t.trajectory_id !== id)
-      }));
-    } catch (error) {
-      set({ error: error.message, loading: false });
-      throw error;
-    }
+  deleteTrajectory: async () => {
+    set({ loading: false });
   },
 
-  // 匹配任务相关操作
-  startMatching: async (trajectoryId, algorithm = 'distance_matching', parameters = {}) => {
-    set({ loading: true, error: null });
-    try {
-      const response = await matchingAPI.start({
-        trajectory_id: trajectoryId,
-        algorithm,
-        parameters
-      });
-      set({ loading: false });
-      
-      // 刷新任务列表
-      get().fetchMatchingTasks();
-      
-      return response.data;
-    } catch (error) {
-      set({ error: error.message, loading: false });
-      throw error;
-    }
+  // 匹配任务相关操作（后端接口已移除）
+  startMatching: async () => {
+    set({ loading: false });
+    return { ok: true };
   },
 
-  fetchMatchingTasks: async (params = {}) => {
-    set({ loading: true, error: null });
-    try {
-      const response = await matchingAPI.list(params);
-      set({ matchingTasks: response.data || [], loading: false });
-    } catch (error) {
-      set({ error: error.message, loading: false });
-    }
+  fetchMatchingTasks: async () => {
+    set({ matchingTasks: [], loading: false, error: null });
   },
 
-  fetchTaskStatus: async (taskId) => {
-    try {
-      const response = await matchingAPI.status(taskId);
-      return response.data;
-    } catch (error) {
-      set({ error: error.message });
-      throw error;
-    }
+  fetchTaskStatus: async () => {
+    return { status: 'not_available' };
   },
 
-  fetchTaskResult: async (taskId) => {
-    set({ loading: true, error: null });
-    try {
-      const response = await matchingAPI.result(taskId);
-      set({ currentTask: response.data, loading: false });
-      return response.data;
-    } catch (error) {
-      set({ error: error.message, loading: false });
-      throw error;
-    }
+  fetchTaskResult: async () => {
+    set({ currentTask: null, loading: false });
+    return null;
   },
 
   // 清除错误

@@ -82,7 +82,7 @@ const Header = () => {
               type="primary" 
               onClick={() => navigate('/upload')}
             >
-              上传轨迹
+              上传文件
             </Button>
             
             <Dropdown
