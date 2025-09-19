@@ -17,7 +17,7 @@ from CoreConfig.database import get_db
 from CoreConfig.logging import get_logger
 from CoreConfig.settings import get_settings
 from DataModels.Models import User
-from DataSchemas.trajectory import UserCreate, UserLogin, UserResponse
+from DataSchemas import UserCreate, UserLogin, UserResponse
 
 logger = get_logger(__name__)
 settings = get_settings()

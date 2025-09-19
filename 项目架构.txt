@@ -59,14 +59,22 @@
 │   │   ├── 📄 __init__.py
 │   │   ├── 📄 base.py            # 基础模型
 │   │   ├── 📄 enums.py           # 公共枚举定义
-│   │   └── 📁 Models/            # 模型定义目录
+│   │   └── 📁 Models/            # 模型定义目录（按功能域拆分）
 │   │       ├── 📄 __init__.py
 │   │       ├── 📄 user.py        # 用户模型
-│   │       └── 📄 trajectory.py  # 轨迹模型（包含所有数据模型）
-│   ├── 📁 DataSchemas/           # 数据验证层（Pydantic）
+│   │       ├── 📄 trajectory.py  # 轨迹模型
+│   │       ├── 📄 matching.py    # 匹配模型
+│   │       ├── 📄 road_network.py # 路网模型
+│   │       ├── 📄 file.py        # 文件模型
+│   │       └── 📄 system_log.py  # 系统日志模型
+│   ├── 📁 DataSchemas/           # 数据验证层（Pydantic - 按功能域拆分）
 │   │   ├── 📄 __init__.py
-│   │   ├── 📄 trajectory.py      # 轨迹验证
-│   │   └── 📄 matching.py        # 匹配结果验证
+│   │   ├── 📄 user.py            # 用户验证模型
+│   │   ├── 📄 trajectory.py      # 轨迹验证模型
+│   │   ├── 📄 road_network.py    # 路网验证模型
+│   │   ├── 📄 file.py            # 文件验证模型
+│   │   ├── 📄 system_log.py      # 系统日志验证模型
+│   │   └── 📄 matching.py        # 匹配验证模型
 │   ├── 📁 BusinessServices/      # 业务逻辑层
 │   │   ├── 📄 __init__.py
 │   │   ├── 📄 trajectory_service.py   # 轨迹业务逻辑
@@ -143,3 +151,34 @@
 ├── 📄 文件说明.txt                # 文件说明文档
 ├── 📄 运行说明.md                 # 运行说明文档
 └── 📄 项目架构.txt                # 项目架构描述
+
+## 📋 架构说明
+
+### 🔄 代码拆分优化
+为了降低代码耦合度和提高可维护性，项目进行了以下拆分：
+
+#### DataModels 拆分
+- **原文件**: `trajectory.py` (403行，包含9个模型)
+- **拆分后**: 6个文件，按功能域组织
+  - `user.py` - 用户管理 (35行)
+  - `trajectory.py` - 轨迹管理 (85行)
+  - `matching.py` - 地图匹配 (85行)
+  - `road_network.py` - 路网管理 (75行)
+  - `file.py` - 文件管理 (45行)
+  - `system_log.py` - 系统日志 (35行)
+
+#### DataSchemas 拆分
+- **原文件**: `trajectory.py` (349行，包含大量验证模型)
+- **拆分后**: 6个文件，按功能域组织
+  - `user.py` - 用户验证 (35行)
+  - `trajectory.py` - 轨迹验证 (180行)
+  - `road_network.py` - 路网验证 (75行)
+  - `file.py` - 文件验证 (35行)
+  - `system_log.py` - 日志验证 (35行)
+  - `matching.py` - 匹配验证 (202行)
+
+### 🎯 拆分优势
+- **降低复杂度**: 单文件行数从400+行降至35-180行
+- **提高可维护性**: 按功能域组织，修改影响范围小
+- **减少耦合**: 各功能域相对独立
+- **便于协作**: 不同开发者可并行开发不同功能域

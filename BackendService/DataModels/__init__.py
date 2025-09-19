@@ -6,10 +6,7 @@ from .base import Base, BaseModel, TimestampMixin, SoftDeleteMixin, AuditMixin
 from .enums import TrajectoryStatus, DataSource, DataCategory, LogLevel, TaskStatus, FileStatus
 
 # 导入所有模型
-from .Models.trajectory import (
-    Trajectory, TrajectoryPoint, MatchingTask, MatchedPoint, 
-    User, RoadNetwork, RoadSegment, File, SystemLog
-)
+from .Models import *
 
 __all__ = [
     # 基础类
