@@ -2,11 +2,21 @@
 数据模型模块初始化文件
 """
 
-# 仅保留用户模型
-from .user import User
+from .trajectory import (
+    Trajectory, TrajectoryPoint, MatchingTask, MatchedPoint, 
+    User, RoadNetwork, RoadSegment, File, SystemLog
+)
 
 __all__ = [
-    "User"
+    "Trajectory",
+    "TrajectoryPoint", 
+    "MatchingTask",
+    "MatchedPoint",
+    "User",
+    "RoadNetwork",
+    "RoadSegment",
+    "File",
+    "SystemLog"
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

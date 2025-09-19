@@ -6,34 +6,8 @@
 from pydantic import BaseModel, Field, validator, ConfigDict
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
-from enum import Enum
 
-
-class TrajectoryStatus(str, Enum):
-    """轨迹状态枚举"""
-    UPLOADED = "uploaded"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-class DataSource(str, Enum):
-    """数据源类型枚举"""
-    TAXI_GPS = "taxi_gps"
-    BUS_CARD = "bus_card"
-    METRO_CARD = "metro_card"
-    TAXI_TRANSACTION = "taxi_transaction"
-    BUS_GPS = "bus_gps"
-    GPX = "gpx"
-    CSV = "csv"
-    AUTO = "auto"
-
-
-class DataCategory(str, Enum):
-    """数据类别枚举"""
-    CONTINUOUS_TRAJECTORY = "continuous_trajectory"
-    ORIGIN_DESTINATION = "origin_destination"
-    TIME_RANGE = "time_range"
+from DataModels.enums import TrajectoryStatus, DataSource, DataCategory, LogLevel
 
 
 class TrajectoryPointBase(BaseModel):
@@ -203,13 +177,6 @@ class TrajectoryQueryParams(BaseModel):
         return v
 
 
-class LogLevel(str, Enum):
-    """日志级别枚举"""
-    DEBUG = "DEBUG"
-    INFO = "INFO"
-    WARNING = "WARNING"
-    ERROR = "ERROR"
-    CRITICAL = "CRITICAL"
 
 
 class UserBase(BaseModel):

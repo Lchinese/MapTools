@@ -11,16 +11,19 @@ from .trajectory import (
     TrajectoryUploadResponse,
     TrajectoryDeleteResponse,
     TrajectoryQueryParams,
-    DataSource,
-    DataCategory,
-    TrajectoryStatus,
     FileResponse,
     FileCreate,
     RoadNetworkCreate,
     RoadNetworkResponse,
     RoadSegmentCreate,
-    RoadSegmentResponse
+    RoadSegmentResponse,
+    UserCreate,
+    UserLogin,
+    UserResponse
 )
+
+# 从 DataModels 导入枚举
+from DataModels.enums import DataSource, DataCategory, TrajectoryStatus
 
 from .matching import (
     MatchingRequest,
@@ -41,15 +44,20 @@ __all__ = [
     "TrajectoryUploadResponse",
     "TrajectoryDeleteResponse",
     "TrajectoryQueryParams",
-    "DataSource",
-    "DataCategory",
-    "TrajectoryStatus",
     "FileResponse",
     "FileCreate",
     "RoadNetworkCreate",
     "RoadNetworkResponse",
     "RoadSegmentCreate",
     "RoadSegmentResponse",
+    "UserCreate",
+    "UserLogin",
+    "UserResponse",
+    
+    # Enums (from DataModels)
+    "DataSource",
+    "DataCategory",
+    "TrajectoryStatus",
     
     # Matching schemas
     "MatchingRequest",

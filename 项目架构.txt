@@ -3,62 +3,143 @@
 │   ├── 📁 src/                   # 源代码目录
 │   │   ├── 📁 Components/        # 可复用组件模块
 │   │   │   ├── 📁 Map/           # 地图组件
+│   │   │   │   ├── 📄 MapComponent.jsx
+│   │   │   │   └── 📄 MatchedPoints.jsx
 │   │   │   ├── 📁 Upload/        # 上传组件
+│   │   │   │   └── 📄 FileUpload.jsx
 │   │   │   ├── 📁 Results/       # 结果展示组件
-│   │   │   └── 📁 Common/        # 通用组件
+│   │   │   │   └── 📄 ResultsDisplay.jsx
+│   │   │   ├── 📁 Common/        # 通用组件
+│   │   │   │   ├── 📄 Loading.jsx
+│   │   │   │   └── 📄 ProtectedRoute.jsx
+│   │   │   └── 📁 Layout/        # 布局组件
+│   │   │       ├── 📄 Header.jsx
+│   │   │       └── 📄 Sidebar.jsx
 │   │   ├── 📁 Services/          # API 服务层
+│   │   │   ├── 📄 api.js
+│   │   │   ├── 📄 auth.js
+│   │   │   └── 📄 websocket.js
 │   │   ├── 📁 Hooks/             # 自定义 Hooks
+│   │   │   ├── 📄 useAuth.js
+│   │   │   ├── 📄 useMap.js
+│   │   │   └── 📄 useTrajectory.js
 │   │   ├── 📁 Utils/             # 工具函数
+│   │   │   ├── 📄 fileUtils.js
+│   │   │   └── 📄 geoUtils.js
 │   │   ├── 📁 Store/             # 状态管理
-│   │   └── 📁 Pages/             # 页面组件
-│   └── 📁 Public/                # 静态资源目录
+│   │   │   ├── 📄 mapStore.js
+│   │   │   └── 📄 trajectoryStore.js
+│   │   ├── 📁 Pages/             # 页面组件
+│   │   │   ├── 📄 Home.jsx
+│   │   │   ├── 📄 Login.jsx
+│   │   │   ├── 📄 Register.jsx
+│   │   │   ├── 📄 Results.jsx
+│   │   │   └── 📄 Upload.jsx
+│   │   ├── 📄 App.js             # 主应用组件
+│   │   ├── 📄 App.css            # 主应用样式
+│   │   ├── 📄 index.js           # 应用入口
+│   │   └── 📄 index.css          # 全局样式
+│   ├── 📁 public/                # 静态资源目录
+│   ├── 📁 node_modules/          # Node.js 依赖包
+│   ├── 📄 package.json           # 项目依赖配置
+│   ├── 📄 package-lock.json      # 依赖锁定文件
+│   └── 📄 README.md              # 前端说明文档
 ├── 📁 BackendService/            # 后端服务（FastAPI - 分层模块化）
 │   ├── 📁 ApiEndpoints/          # API 路由层
-│   │   ├── 📄 trajectory.py      # 轨迹 API
-│   │   ├── 📄 matching.py        # 匹配 API
-│   │   └── 📄 health.py          # 健康检查 API
+│   │   ├── 📄 __init__.py
+│   │   ├── 📄 auth.py            # 认证 API
+│   │   ├── 📄 health.py          # 健康检查 API
+│   │   └── 📄 matching.py        # 匹配 API
 │   ├── 📁 CoreConfig/            # 核心配置层
+│   │   ├── 📄 __init__.py
 │   │   ├── 📄 settings.py        # 配置管理
-│   │   ├── 📄 database.py        # 数据库配置（仅用于用户认证）
+│   │   ├── 📄 database.py        # 数据库配置
 │   │   └── 📄 logging.py         # 日志配置
-│   ├── 📁 DataModels/            # 数据模型层（仅用于用户认证）
+│   ├── 📁 DataModels/            # 数据模型层
+│   │   ├── 📄 __init__.py
 │   │   ├── 📄 base.py            # 基础模型
-│   │   └── 📁 Models/           # 模型定义目录
-│   │       └── 📄 user.py        # 用户模型
+│   │   ├── 📄 enums.py           # 公共枚举定义
+│   │   └── 📁 Models/            # 模型定义目录
+│   │       ├── 📄 __init__.py
+│   │       ├── 📄 user.py        # 用户模型
+│   │       └── 📄 trajectory.py  # 轨迹模型（包含所有数据模型）
 │   ├── 📁 DataSchemas/           # 数据验证层（Pydantic）
+│   │   ├── 📄 __init__.py
 │   │   ├── 📄 trajectory.py      # 轨迹验证
 │   │   └── 📄 matching.py        # 匹配结果验证
 │   ├── 📁 BusinessServices/      # 业务逻辑层
+│   │   ├── 📄 __init__.py
 │   │   ├── 📄 trajectory_service.py   # 轨迹业务逻辑
 │   │   ├── 📄 matching_service.py     # 匹配业务逻辑
 │   │   └── 📄 file_service.py         # 文件处理逻辑
-│   ├── 📁 MatchingAlgorithms/         # 算法模块（可插拔）
-│   │   ├── 📄 base.py                 # 算法基类接口
-│   │   └── 📁 Algorithms/             # 算法实现目录
+│   ├── 📁 MatchingAlgorithms/    # 算法模块（可插拔）
+│   │   ├── 📄 __init__.py
+│   │   ├── 📄 base.py            # 算法基类接口
+│   │   └── 📁 Algorithms/        # 算法实现目录
+│   │       ├── 📄 __init__.py
 │   │       ├── 📄 distance_matching.py    # 最短距离匹配算法
 │   │       ├── 📄 greedy_algorithm.py     # 最近邻算法
 │   │       ├── 📄 gotrackit_adapter.py    # GoTrackIt 适配器
 │   │       └── 📄 ensemble_algorithm.py   # 集成算法（选举机制）
 │   ├── 📁 AsyncTasks/            # 异步任务层（Celery）
+│   │   ├── 📄 __init__.py
 │   │   ├── 📄 celery_app.py      # Celery 配置
 │   │   └── 📄 tasks.py           # 任务定义
 │   ├── 📁 UtilityTools/          # 工具模块
+│   │   ├── 📄 __init__.py
 │   │   ├── 📄 file_utils.py      # 文件处理工具
 │   │   ├── 📄 geo_utils.py       # 地理计算工具
+│   │   ├── 📄 gps_parser.py      # GPS 解析工具
+│   │   ├── 📄 road_matching.py   # 道路匹配工具
 │   │   └── 📄 validators.py      # 数据验证工具
+│   ├── 📁 Tests/                 # 测试模块
+│   │   ├── 📄 __init__.py
+│   │   ├── 📄 run_tests.py       # 测试运行器
+│   │   ├── 📁 unit/              # 单元测试
+│   │   └── 📁 integration/       # 集成测试
+│   ├── 📁 scripts/               # 脚本工具
+│   │   ├── 📄 init_database.py   # 数据库初始化
+│   │   ├── 📄 log_cleanup.py     # 日志清理
+│   │   └── 📄 setup_logging.py   # 日志设置
+│   ├── 📁 Logs/                  # 日志存储目录
+│   │   ├── 📁 api/               # API 日志
+│   │   ├── 📁 app/               # 应用日志
+│   │   ├── 📁 audit/             # 审计日志
+│   │   ├── 📁 business/          # 业务日志
+│   │   ├── 📁 celery/            # Celery 日志
+│   │   ├── 📁 error/             # 错误日志
+│   │   ├── 📁 matching/          # 匹配日志
+│   │   ├── 📁 performance/       # 性能日志
+│   │   └── 📁 utils/             # 工具日志
+│   ├── 📁 backendservice.egg-info/ # Python 包信息
 │   ├── 📄 dockerfile             # Docker 配置文件
-│   └── 📄 main.py                # FastAPI 入口
+│   ├── 📄 docker-logging.yml     # Docker 日志配置
+│   ├── 📄 env.example            # 环境变量示例
+│   ├── 📄 logging.conf           # 日志配置文件
+│   ├── 📄 logging.env            # 日志环境变量
+│   ├── 📄 main.py                # FastAPI 入口
+│   ├── 📄 pyproject.toml         # Python 项目配置
+│   ├── 📄 README.md              # 后端说明文档
+│   ├── 📄 test_fixes.py          # 测试修复文件
+│   └── 📄 uv.lock                # UV 依赖锁定文件
 ├── 📁 data/                      # 出租车轨迹数据文件（本地存储）
 ├── 📁 ExternalData/              # 外部数据（天地图 Shapefile）
 ├── 📁 UserUploads/               # 用户上传的轨迹文件
 ├── 📁 Logs/                      # 系统日志存储目录
-├── 📁 Tests/                     # 测试模块
-│   ├── 📁 unit/                  # 单元测试
-│   ├── 📁 integration/           # 集成测试
-│   └── 📁 e2e/                   # 端到端测试
 ├── 📁 Docs/                      # 项目文档存放
+│   ├── 📄 API规范文档.md          # API 规范文档
+│   ├── 📄 可行性文档(未定).md      # 可行性分析文档
+│   ├── 📄 后端接口文档.md          # 后端接口文档
+│   ├── 📄 数据库设计文档.md        # 数据库设计文档
+│   ├── 📄 日志系统.md             # 日志系统文档
+│   └── 📄 部署文档.md             # 部署文档
 ├── 📄 docker-compose.yml         # 容器编排配置
-├── 📄 .env.example               # 环境配置示例
-├── 📄 项目架构.txt                # 项目架构描述
+├── 📄 env.example                # 环境配置示例
+├── 📄 LICENSE                    # 开源许可证
+├── 📄 README.md                  # 项目说明文档
 ├── 📄 requirements.txt           # 项目依赖包
-└── 📄 README.md                  # 项目说明文档
+├── 📄 sample-utf.txt             # 示例 UTF-8 文件
+├── 📄 start.ps1                  # PowerShell 启动脚本
+├── 📄 文件说明.txt                # 文件说明文档
+├── 📄 运行说明.md                 # 运行说明文档
+└── 📄 项目架构.txt                # 项目架构描述

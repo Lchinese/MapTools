@@ -10,45 +10,9 @@ from sqlalchemy.sql import func
 from geoalchemy2 import Geometry
 from datetime import datetime
 from typing import List, Optional
-import enum
 
 from ..base import BaseModel, TimestampMixin, SoftDeleteMixin, AuditMixin
-
-
-class TrajectoryStatus(enum.Enum):
-    """轨迹状态枚举"""
-    UPLOADED = "uploaded"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-class DataSource(enum.Enum):
-    """数据源类型枚举"""
-    TAXI_GPS = "taxi_gps"
-    BUS_CARD = "bus_card"
-    METRO_CARD = "metro_card"
-    TAXI_TRANSACTION = "taxi_transaction"
-    BUS_GPS = "bus_gps"
-    GPX = "gpx"
-    CSV = "csv"
-    AUTO = "auto"
-
-
-class DataCategory(enum.Enum):
-    """数据类别枚举"""
-    CONTINUOUS_TRAJECTORY = "continuous_trajectory"
-    ORIGIN_DESTINATION = "origin_destination"
-    TIME_RANGE = "time_range"
-
-
-class LogLevel(enum.Enum):
-    """日志级别枚举"""
-    DEBUG = "DEBUG"
-    INFO = "INFO"
-    WARNING = "WARNING"
-    ERROR = "ERROR"
-    CRITICAL = "CRITICAL"
+from ..enums import TrajectoryStatus, DataSource, DataCategory, LogLevel
 
 
 class Trajectory(BaseModel, TimestampMixin, SoftDeleteMixin, AuditMixin):
