@@ -17,7 +17,7 @@ from CoreConfig.settings import get_settings
 from UtilityTools.geo_utils import GeoUtils
 from BusinessServices.matching_service import MatchingService
 from CoreConfig.database import get_db
-from DataModels.Models.trajectory import MatchingTask, MatchedPoint
+from DataModels.Models.matching import MatchingTask, MatchedPoint
 from CoreConfig.logging import get_logger
 
 logger = get_logger(__name__)

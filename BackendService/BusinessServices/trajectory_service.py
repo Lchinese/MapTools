@@ -13,7 +13,8 @@ from datetime import datetime
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from DataModels.Models.trajectory import Trajectory, TrajectoryPoint, MatchingTask
+from DataModels.Models.trajectory import Trajectory, TrajectoryPoint
+from DataModels.Models.matching import MatchingTask
 from UtilityTools.file_utils import TrajectoryFileProcessor
 from UtilityTools.geo_utils import GeoUtils
 from CoreConfig.database import get_db
