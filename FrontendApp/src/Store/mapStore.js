@@ -27,6 +27,9 @@ const useMapStore = create((set, get) => ({
   setRoadNetwork: (network) => set({ roadNetwork: network }),
   
   // 显示选项操作
+  setShowOriginal: (show) => set({ showOriginal: show }),
+  setShowMatched: (show) => set({ showMatched: show }),
+  setShowRoadNetwork: (show) => set({ showRoadNetwork: show }),
   toggleOriginal: () => set(state => ({ showOriginal: !state.showOriginal })),
   toggleMatched: () => set(state => ({ showMatched: !state.showMatched })),
   toggleRoadNetwork: () => set(state => ({ showRoadNetwork: !state.showRoadNetwork })),

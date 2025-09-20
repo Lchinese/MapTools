@@ -7,11 +7,12 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Dict, List, Optional
 import logging
 
-from ..UtilityTools.fetch_trajectory_data import (
+from UtilityTools.fetch_trajectory_data import (
     fetch_all_trajectory_data, 
     fetch_trajectory_data_by_plate,
     fetch_plate_numbers
 )
+from UtilityTools.road_matching import RoadMatcher
 
 logger = logging.getLogger(__name__)
 

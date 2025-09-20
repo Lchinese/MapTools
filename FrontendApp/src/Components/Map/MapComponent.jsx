@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
-import { ReloadOutlined } from '@ant-design/icons';
+import { ReloadOutlined, CarOutlined, EnvironmentOutlined, SettingOutlined } from '@ant-design/icons';
+import { Card, InputNumber, Checkbox, Button, Space, Typography, Divider, Tooltip, Badge } from 'antd';
 import L from 'leaflet';
 import { useMapStore } from '../../Store/mapStore';
 import { matchingAPI } from '../../Services/api';
 import { useTrajectoryData } from '../../Hooks/useTrajectory';
 import MatchedPoints from './MatchedPoints';
 import 'leaflet/dist/leaflet.css';
+import './MapComponent.css';
 
 // 修复Leaflet默认图标问题
 delete L.Icon.Default.prototype._getIconUrl;
@@ -41,52 +43,83 @@ const BatchLoadControl = ({ loading, onLoadBatch }) => {
   };
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: 10,
-      left: 10,
-      background: 'white',
-      padding: '10px',
-      borderRadius: '4px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-      zIndex: 1000,
-      maxWidth: '300px',
-    }}>
-      <h4 style={{ margin: '0 0 10px 0' }}>批量加载车辆轨迹</h4>
-      
-      <div style={{ marginBottom: '10px' }}>
-        <label style={{ display: 'block', marginBottom: '5px' }}>
-          车辆数量:
-          <input 
-            type="number" 
-            min="1" 
-            max="1000" 
+    <Card 
+      className="map-card fade-in"
+      title={
+        <Space>
+          <CarOutlined style={{ color: '#1890ff' }} />
+          <span>批量加载车辆轨迹</span>
+        </Space>
+      }
+      size="small"
+      style={{ 
+        marginBottom: 16,
+        borderRadius: 8,
+        boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+        border: '1px solid #f0f0f0'
+      }}
+      headStyle={{ 
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white',
+        borderRadius: '8px 8px 0 0',
+        border: 'none'
+      }}
+      bodyStyle={{ padding: '16px' }}
+    >
+      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        <div>
+          <Typography.Text strong style={{ marginBottom: 8, display: 'block' }}>
+            车辆数量
+          </Typography.Text>
+          <InputNumber
+            className="map-input"
+            min={1}
+            max={1000}
             value={vehicleCount}
-            onChange={(e) => setVehicleCount(Math.min(1000, Math.max(1, parseInt(e.target.value) || 1)))}
-            style={{ width: '100%', padding: '5px', marginTop: '5px' }}
+            onChange={(value) => setVehicleCount(value || 1)}
+            style={{ width: '100%' }}
+            size="large"
+            addonAfter="辆"
+            placeholder="请输入车辆数量"
           />
-        </label>
-        <label style={{ display: 'block', marginBottom: '10px' }}>
-          <input 
-            type="checkbox" 
-            checked={matchToRoads}
-            onChange={(e) => setMatchToRoads(e.target.checked)}
-          />
+        </div>
+        
+        <Checkbox 
+          checked={matchToRoads}
+          onChange={(e) => setMatchToRoads(e.target.checked)}
+          style={{ fontSize: '14px' }}
+        >
+          <EnvironmentOutlined style={{ marginRight: 4 }} />
           吸附到道路
-        </label>
-        <button 
+        </Checkbox>
+        
+        <Button 
+          className="map-button"
+          type="primary"
+          size="large"
+          loading={loading}
           onClick={handleLoad}
-          disabled={loading}
-          style={{ width: '100%', padding: '5px' }}
+          icon={<CarOutlined />}
+          style={{ 
+            width: '100%',
+            height: 40,
+            borderRadius: 6,
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            border: 'none',
+            fontSize: '14px',
+            fontWeight: 500
+          }}
         >
           {loading ? '加载中...' : '加载轨迹'}
-        </button>
-      </div>
-      
-      <div style={{ fontSize: '12px', color: '#666' }}>
-        注意：大量车辆轨迹可能影响地图性能
-      </div>
-    </div>
+        </Button>
+        
+        <Divider style={{ margin: '8px 0' }} />
+        
+        <Typography.Text type="secondary" style={{ fontSize: '12px', textAlign: 'center', display: 'block' }}>
+          ⚠️ 大量车辆轨迹可能影响地图性能
+        </Typography.Text>
+      </Space>
+    </Card>
   );
 };
 
@@ -112,7 +145,10 @@ const MapComponent = ({ height = 400, showControls = true }) => {
     showMatched,
     showRoadNetwork,
     roadNetwork,
-    resetMap
+    resetMap,
+    setShowOriginal,
+    setShowMatched,
+    setShowRoadNetwork
   } = useMapStore();
 
   // 加载匹配点数据
@@ -139,101 +175,49 @@ const MapComponent = ({ height = 400, showControls = true }) => {
 
   // 计算地图边界
   const calculateBounds = () => {
-    const allPoints = [];
-    
-    // 添加匹配点
-    if (matchedPoints.length > 0) {
-      allPoints.push(...matchedPoints.map(p => [p.matched_latitude, p.matched_longitude]));
-    }
-    
-    // 添加车辆轨迹数据点
-    Object.values(trajectoryData).forEach(vehiclePoints => {
-      if (vehiclePoints && vehiclePoints.length > 0) {
-        // 检查是原始GPS点还是已匹配的点
-        if (vehiclePoints[0].hasOwnProperty('matched_latitude')) {
-          // 已匹配的点
-          allPoints.push(...vehiclePoints.map(p => [p.matched_latitude, p.matched_longitude]));
-        } else {
-          // 原始GPS点
-          allPoints.push(...vehiclePoints.map(p => [p.latitude, p.longitude]));
-        }
-      }
-    });
-    
-    if (showOriginal && originalTrajectory?.points) {
-      allPoints.push(...originalTrajectory.points.map(p => [p.latitude, p.longitude]));
-    }
-    
-    if (showMatched && matchedTrajectory?.points) {
-      allPoints.push(...matchedTrajectory.points.map(p => [p.matched_latitude, p.matched_longitude]));
+    if (Object.keys(trajectoryData).length === 0) {
+      return null;
     }
 
-    if (allPoints.length > 0) {
-      const lats = allPoints.map(p => p[0]);
-      const lngs = allPoints.map(p => p[1]);
-      
-      return [
-        [Math.min(...lats), Math.min(...lngs)],
-        [Math.max(...lats), Math.max(...lngs)]
-      ];
-    }
-    
-    return null;
+    let minLat = Infinity, maxLat = -Infinity;
+    let minLng = Infinity, maxLng = -Infinity;
+
+    Object.values(trajectoryData).forEach(points => {
+      points.forEach(point => {
+        minLat = Math.min(minLat, point.latitude);
+        maxLat = Math.max(maxLat, point.latitude);
+        minLng = Math.min(minLng, point.longitude);
+        maxLng = Math.max(maxLng, point.longitude);
+      });
+    });
+
+    return [[minLat, minLng], [maxLat, maxLng]];
   };
 
   const mapBounds = calculateBounds();
 
   // 渲染车辆轨迹线
   const renderVehicleTrajectories = () => {
-    return Object.entries(trajectoryData).map(([plateNumber, points], index) => {
-      // 为不同车辆生成不同颜色
-      const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1'];
-      const color = colors[index % colors.length];
-      
-      if (!points || points.length === 0) {
-        return null;
-      }
-      
-      // 检查是原始GPS点还是已匹配的点
-      let positions;
-      if (points[0].hasOwnProperty('matched_latitude')) {
-        // 已匹配的点
-        positions = points.map(point => [point.matched_latitude, point.matched_longitude]);
-      } else {
-        // 原始GPS点
-        positions = points.map(point => [point.latitude, point.longitude]);
-      }
+    return Object.entries(trajectoryData).map(([plateNumber, points]) => {
+      if (points.length < 2) return null;
+
+      const positions = points.map(point => [point.latitude, point.longitude]);
       
       return (
         <Polyline
-          key={plateNumber}
+          key={`trajectory-${plateNumber}`}
           positions={positions}
-          color={color}
-          weight={3}
-          opacity={0.8}
-        >
-          <Popup>
-            <div>
-              <p><strong>车牌号:</strong> {plateNumber}</p>
-              <p><strong>轨迹点数:</strong> {points.length}</p>
-            </div>
-          </Popup>
-        </Polyline>
+          color="#1890ff"
+          weight={2}
+          opacity={0.6}
+        />
       );
     });
   };
 
   // 渲染车辆轨迹点
   const renderVehicleTrajectoryPoints = () => {
-    return Object.entries(trajectoryData).map(([plateNumber, points], index) => {
-      // 为不同车辆生成不同颜色
-      const colors = ['#1890ff', '#52c41a', '#faad14', '#f5222d', '#722ed1'];
-      const color = colors[index % colors.length];
-      
-      if (!points || points.length === 0) {
-        return null;
-      }
-      
+    return Object.entries(trajectoryData).map(([plateNumber, points]) => {
       return (
         <>
           {points.map((point, pointIndex) => {
@@ -283,147 +267,217 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   };
 
   return (
-    <div style={{ height, width: '100%', position: 'relative' }}>
-      <MapContainer
-        ref={mapRef}
-        center={center}
-        zoom={zoom}
-        style={{ height: '100%', width: '100%' }}
-        scrollWheelZoom={true}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        
-        <MapUpdater 
-          center={mapBounds ? null : center} 
-          zoom={zoom} 
-          bounds={mapBounds} 
-        />
-
-        {/* 吸附点 - 只显示匹配到道路上的点 */}
-        <MatchedPoints matchedPoints={matchedPoints} />
-
-        {/* 车辆轨迹线 */}
-        {renderVehicleTrajectories()}
-
-        {/* 车辆轨迹点 */}
-        {renderVehicleTrajectoryPoints()}
-
-        {/* 原始轨迹 */}
-        {showOriginal && originalTrajectory && (
-          <TrajectoryLine 
-            trajectory={originalTrajectory} 
-            color="#ff4d4f" 
-            weight={3}
+    <div>
+      {/* 地图容器 */}
+      <div style={{ height, width: '100%', position: 'relative' }}>
+        <MapContainer
+          ref={mapRef}
+          center={center}
+          zoom={zoom}
+          style={{ height: '100%', width: '100%' }}
+          scrollWheelZoom={true}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-        )}
-
-        {/* 匹配轨迹 */}
-        {showMatched && matchedTrajectory && (
-          <TrajectoryLine 
-            trajectory={matchedTrajectory} 
-            color="#52c41a" 
-            weight={4}
+          
+          <MapUpdater 
+            center={mapBounds ? null : center} 
+            zoom={zoom} 
+            bounds={mapBounds} 
           />
-        )}
 
-        {/* 轨迹点 */}
-        {showOriginal && originalTrajectory && (
-          <TrajectoryPoints 
-            trajectory={originalTrajectory} 
-            color="#ff4d4f"
-          />
-        )}
+          {/* 吸附点 - 只显示匹配到道路上的点 */}
+          <MatchedPoints matchedPoints={matchedPoints} />
 
-        {showMatched && matchedTrajectory && (
-          <TrajectoryPoints 
-            trajectory={matchedTrajectory} 
-            color="#52c41a"
-          />
-        )}
-      </MapContainer>
+          {/* 车辆轨迹线 */}
+          {renderVehicleTrajectories()}
 
-      {/* 批量加载控制 */}
-      <BatchLoadControl 
-        loading={loading}
-        onLoadBatch={handleLoadBatch}
-      />
+          {/* 车辆轨迹点 */}
+          {renderVehicleTrajectoryPoints()}
 
-      {/* 重置按钮 - 放在左侧缩放控件下方 */}
-      <div style={{
-        position: 'absolute',
-        top: '30%',
-        left: 10,
-        transform: 'translateY(-50%)',
-        zIndex: 1000,
-      }}>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
-        }}>
-          {/* 重置按钮 - 方块样式 */}
-          <div
-            onClick={resetMap}
-            style={{
-              width: 30,
-              height: 30,
-              background: 'white',
-              border: '2px solid #ccc',
-              borderRadius: '4px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-              fontSize: '12px',
-              color: '#666',
-              marginBottom: 2,
-            }}
-            title="重置地图"
-          >
-            <div style={{
-              width: 12,
-              height: 12,
-              border: '1px solid #666',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}>
-              <div style={{
-                width: 4,
-                height: 4,
-                background: '#666',
-                borderRadius: '50%',
-              }} />
-            </div>
-          </div>
-        </div>
-      </div>
+          {/* 原始轨迹 */}
+          {showOriginal && originalTrajectory && (
+            <TrajectoryLine 
+              trajectory={originalTrajectory} 
+              color="#ff4d4f" 
+              weight={3}
+            />
+          )}
 
-      {/* 图例 - 放在右上角 */}
-      {showControls && (
+          {/* 匹配轨迹 */}
+          {showMatched && matchedTrajectory && (
+            <TrajectoryLine 
+              trajectory={matchedTrajectory} 
+              color="#52c41a" 
+              weight={4}
+            />
+          )}
+
+          {/* 轨迹点 */}
+          {showOriginal && originalTrajectory && (
+            <TrajectoryPoints 
+              trajectory={originalTrajectory} 
+              color="#ff4d4f"
+            />
+          )}
+
+          {showMatched && matchedTrajectory && (
+            <TrajectoryPoints 
+              trajectory={matchedTrajectory} 
+              color="#52c41a"
+            />
+          )}
+        </MapContainer>
+
+        {/* 重置按钮 - 放在左侧缩放控件下方 */}
         <div style={{
           position: 'absolute',
-          top: 10,
-          right: 10,
-          background: 'white',
-          padding: '8px 12px',
-          borderRadius: '4px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          top: '30%',
+          left: 10,
+          transform: 'translateY(-50%)',
           zIndex: 1000,
         }}>
-          <div style={{ fontSize: '12px' }}>
-            <div style={{ color: '#1890ff' }}>● 道路吸附点 ({matchedPoints.length})</div>
-            <div style={{ color: '#1890ff' }}>● 车辆轨迹点 ({Object.values(trajectoryData).flat().length})</div>
-            <div style={{ color: '#1890ff' }}>● 车辆数量 ({Object.keys(trajectoryData).length})</div>
-            {loading && <div style={{ color: '#999' }}>加载中...</div>}
-          </div>
+          <Tooltip title="重置地图" placement="right">
+            <Button
+              className="map-button pulse"
+              type="primary"
+              shape="circle"
+              icon={<ReloadOutlined />}
+              onClick={resetMap}
+              style={{
+                width: 40,
+                height: 40,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                border: 'none',
+                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            />
+          </Tooltip>
         </div>
-      )}
+
+        {/* 控制面板 - 放在左下角 */}
+        {showControls && (
+          <Card
+            className="map-card fade-in"
+            title={
+              <Space>
+                <SettingOutlined style={{ color: '#1890ff' }} />
+                <span>显示控制</span>
+              </Space>
+            }
+            size="small"
+            style={{
+              position: 'absolute',
+              bottom: 10,
+              left: 10,
+              width: 180,
+              borderRadius: 8,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              zIndex: 1000,
+              border: '1px solid #f0f0f0'
+            }}
+            headStyle={{ 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              borderRadius: '8px 8px 0 0',
+              border: 'none',
+              padding: '8px 12px'
+            }}
+            bodyStyle={{ padding: '12px' }}
+          >
+            <Space direction="vertical" style={{ width: '100%' }} size="small">
+              <Checkbox 
+                checked={showOriginal}
+                onChange={(e) => setShowOriginal(e.target.checked)}
+                style={{ fontSize: '13px', width: '100%' }}
+              >
+                <span style={{ color: '#ff4d4f' }}>●</span> 原始轨迹
+              </Checkbox>
+              <Checkbox 
+                checked={showMatched}
+                onChange={(e) => setShowMatched(e.target.checked)}
+                style={{ fontSize: '13px', width: '100%' }}
+              >
+                <span style={{ color: '#52c41a' }}>●</span> 匹配轨迹
+              </Checkbox>
+              <Checkbox 
+                checked={showRoadNetwork}
+                onChange={(e) => setShowRoadNetwork(e.target.checked)}
+                style={{ fontSize: '13px', width: '100%' }}
+              >
+                <span style={{ color: '#1890ff' }}>●</span> 道路网络
+              </Checkbox>
+            </Space>
+          </Card>
+        )}
+
+        {/* 图例 - 放在右下角，避免与地图内容重叠 */}
+        {showControls && (
+          <Card
+            className="map-card fade-in"
+            title="数据统计"
+            size="small"
+            style={{
+              position: 'absolute',
+              bottom: 10,
+              right: 10,
+              width: 200,
+              borderRadius: 8,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              zIndex: 1000,
+              border: '1px solid #f0f0f0'
+            }}
+            headStyle={{ 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              borderRadius: '8px 8px 0 0',
+              border: 'none',
+              padding: '8px 12px'
+            }}
+            bodyStyle={{ padding: '12px' }}
+          >
+            <Space direction="vertical" style={{ width: '100%' }} size="small">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Space>
+                  <span style={{ color: '#1890ff', fontSize: '16px' }}>●</span>
+                  <Typography.Text style={{ fontSize: '13px' }}>道路吸附点</Typography.Text>
+                </Space>
+                <Badge count={matchedPoints.length} style={{ backgroundColor: '#1890ff' }} />
+              </div>
+              
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Space>
+                  <span style={{ color: '#52c41a', fontSize: '16px' }}>●</span>
+                  <Typography.Text style={{ fontSize: '13px' }}>车辆轨迹点</Typography.Text>
+                </Space>
+                <Badge count={Object.values(trajectoryData).flat().length} style={{ backgroundColor: '#52c41a' }} />
+              </div>
+              
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Space>
+                  <span style={{ color: '#faad14', fontSize: '16px' }}>●</span>
+                  <Typography.Text style={{ fontSize: '13px' }}>车辆数量</Typography.Text>
+                </Space>
+                <Badge count={Object.keys(trajectoryData).length} style={{ backgroundColor: '#faad14' }} />
+              </div>
+              
+              {loading && (
+                <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                  <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                    <ReloadOutlined spin style={{ marginRight: 4 }} />
+                    加载中...
+                  </Typography.Text>
+                </div>
+              )}
+            </Space>
+          </Card>
+        )}
+      </div>
     </div>
   );
 };
