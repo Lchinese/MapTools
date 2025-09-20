@@ -17,9 +17,10 @@ sys.path.append(str(Path(__file__).parent))
 from CoreConfig.settings import get_settings
 from CoreConfig.logging import setup_logging, get_logger
 from CoreConfig.database import create_tables, check_connection
-from ApiEndpoints import health_router
+from ApiEndpoints.health import router as health_router
 from ApiEndpoints.auth import router as auth_router
 from ApiEndpoints.matching import router as matching_router
+from ApiEndpoints.trajectory import router as trajectory_router  # 添加轨迹数据路由
 
 # 设置日志
 setup_logging()
@@ -49,10 +50,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 注册路由（健康检查、认证、地图匹配）
+# 注册路由
 app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(matching_router)
+app.include_router(trajectory_router)  # 注册轨迹数据路由
 
 
 @app.on_event("startup")
@@ -112,4 +114,10 @@ async def global_exception_handler(request, exc):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.DEBUG,
+        log_level=settings.LOG_LEVEL.lower()
+    )
