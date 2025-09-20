@@ -61,6 +61,7 @@ class GPSDataParser:
             reserved_field = parts[8].strip()
             location_flag = int(parts[9].strip())
 
+
             # 构建时间
             try:
                 if len(time_str) == 6:
