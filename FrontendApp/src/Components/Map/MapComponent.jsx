@@ -1,14 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
-import { ReloadOutlined, CarOutlined, EnvironmentOutlined, SettingOutlined } from '@ant-design/icons';
-import { Card, InputNumber, Checkbox, Button, Space, Typography, Divider, Tooltip, Badge } from 'antd';
+import { Map, TileLayer, Polyline, Marker, Popup } from 'react-leaflet';
+import { ReloadOutlined, SettingOutlined } from '@ant-design/icons';
+import { Card, Checkbox, Button, Space, Typography, Tooltip, Badge } from 'antd';
 import L from 'leaflet';
 import { useMapStore } from '../../Store/mapStore';
 import { matchingAPI } from '../../Services/api';
 import { useTrajectoryData } from '../../Hooks/useTrajectory';
 import MatchedPoints from './MatchedPoints';
 import 'leaflet/dist/leaflet.css';
-import './MapComponent.css';
 
 // 修复Leaflet默认图标问题
 delete L.Icon.Default.prototype._getIconUrl;
@@ -18,180 +17,232 @@ L.Icon.Default.mergeOptions({
   shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
 });
 
-// 地图更新组件
-const MapUpdater = ({ center, zoom, bounds }) => {
-  const map = useMap();
-
+// 地图更新组件（react-leaflet 2.x版本）
+const MapUpdater = ({ center, zoom, bounds, mapRef }) => {
   useEffect(() => {
-    if (bounds) {
-      map.fitBounds(bounds);
-    } else if (center) {
-      map.setView(center, zoom);
+    if (mapRef && mapRef.current) {
+      const map = mapRef.current.leafletElement;
+      if (bounds) {
+        map.fitBounds(bounds);
+      } else if (center) {
+        map.setView(center, zoom);
+      }
     }
-  }, [map, center, zoom, bounds]);
+  }, [mapRef, center, zoom, bounds]);
 
   return null;
 };
 
-// 批量加载控制组件
-const BatchLoadControl = ({ loading, onLoadBatch }) => {
-  const [vehicleCount, setVehicleCount] = useState(50);
-  const [matchToRoads, setMatchToRoads] = useState(false);
+// 轨迹线组件
+const TrajectoryLine = ({ trajectory, color, weight }) => {
+  if (!trajectory || trajectory.length < 2) return null;
   
-  const handleLoad = () => {
-    onLoadBatch(vehicleCount, matchToRoads);
-  };
-
+  const positions = trajectory.map(point => [point.latitude, point.longitude]);
+  
   return (
-    <Card 
-      className="map-card fade-in"
-      title={
-        <Space>
-          <CarOutlined style={{ color: '#1890ff' }} />
-          <span>批量加载车辆轨迹</span>
-        </Space>
-      }
-      size="small"
-      style={{ 
-        marginBottom: 16,
-        borderRadius: 8,
-        boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-        border: '1px solid #f0f0f0'
-      }}
-      headStyle={{ 
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        color: 'white',
-        borderRadius: '8px 8px 0 0',
-        border: 'none'
-      }}
-      bodyStyle={{ padding: '16px' }}
-    >
-      <Space direction="vertical" style={{ width: '100%' }} size="middle">
-        <div>
-          <Typography.Text strong style={{ marginBottom: 8, display: 'block' }}>
-            车辆数量
-          </Typography.Text>
-          <InputNumber
-            className="map-input"
-            min={1}
-            max={1000}
-            value={vehicleCount}
-            onChange={(value) => setVehicleCount(value || 1)}
-            style={{ width: '100%' }}
-            size="large"
-            addonAfter="辆"
-            placeholder="请输入车辆数量"
-          />
-        </div>
-        
-        <Checkbox 
-          checked={matchToRoads}
-          onChange={(e) => setMatchToRoads(e.target.checked)}
-          style={{ fontSize: '14px' }}
-        >
-          <EnvironmentOutlined style={{ marginRight: 4 }} />
-          吸附到道路
-        </Checkbox>
-        
-        <Button 
-          className="map-button"
-          type="primary"
-          size="large"
-          loading={loading}
-          onClick={handleLoad}
-          icon={<CarOutlined />}
-          style={{ 
-            width: '100%',
-            height: 40,
-            borderRadius: 6,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            border: 'none',
-            fontSize: '14px',
-            fontWeight: 500
-          }}
-        >
-          {loading ? '加载中...' : '加载轨迹'}
-        </Button>
-        
-        <Divider style={{ margin: '8px 0' }} />
-        
-        <Typography.Text type="secondary" style={{ fontSize: '12px', textAlign: 'center', display: 'block' }}>
-          ⚠️ 大量车辆轨迹可能影响地图性能
-        </Typography.Text>
-      </Space>
-    </Card>
+    <Polyline
+      positions={positions}
+      color={color}
+      weight={weight}
+      opacity={0.8}
+    />
   );
 };
+
+// 轨迹点组件
+const TrajectoryPoints = ({ trajectory, color }) => {
+  if (!trajectory || trajectory.length === 0) return null;
+  
+  return (
+    <>
+      {trajectory.map((point, index) => (
+        <Marker
+          key={`trajectory-point-${index}`}
+          position={[point.latitude, point.longitude]}
+          icon={L.divIcon({
+            className: 'custom-trajectory-marker',
+            html: `<div style="
+              width: 8px;
+              height: 8px;
+              background-color: ${color};
+              border: 2px solid white;
+              border-radius: 50%;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            "></div>`,
+            iconSize: [8, 8],
+            iconAnchor: [4, 4],
+          })}
+        >
+          <Popup>
+            <div style={{ fontSize: '12px', minWidth: '200px' }}>
+              <p><strong>时间:</strong> {point.datetime}</p>
+              <p><strong>坐标:</strong> {point.latitude?.toFixed(6)}, {point.longitude?.toFixed(6)}</p>
+              <p><strong>速度:</strong> {point.speed} km/h</p>
+              <p><strong>方向:</strong> {point.heading}°</p>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
+    </>
+  );
+};
+
+// 批量加载控制组件（暂时注释掉）
+// const BatchLoadControl = ({ loading, onLoadBatch }) => {
+//   const [vehicleCount, setVehicleCount] = useState(50);
+//   const [matchToRoads, setMatchToRoads] = useState(false);
+
+//   const handleLoad = () => {
+//     onLoadBatch(vehicleCount, matchToRoads);
+//   };
+
+//   return (
+//     <Card
+//       className="map-card fade-in"
+//       title={
+//         <Space>
+//           <CarOutlined style={{ color: '#1890ff' }} />
+//           <span>批量加载车辆轨迹</span>
+//         </Space>
+//       }
+//       size="small"
+//       style={{
+//         marginBottom: 16,
+//         borderRadius: 8,
+//         boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+//         border: '1px solid #f0f0f0'
+//       }}
+//       headStyle={{
+//         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+//         color: 'white',
+//         borderRadius: '8px 8px 0 0',
+//         border: 'none'
+//       }}
+//       bodyStyle={{ padding: '16px' }}
+//     >
+//       <Space direction="vertical" style={{ width: '100%' }} size="middle">
+//         <div>
+//           <Typography.Text strong style={{ marginBottom: 8, display: 'block' }}>
+//             车辆数量
+//           </Typography.Text>
+//           <InputNumber
+//             className="map-input"
+//             min={1}
+//             max={1000}
+//             value={vehicleCount}
+//             onChange={(value) => setVehicleCount(value || 1)}
+//             style={{ width: '100%' }}
+//             size="large"
+//             addonAfter="辆"
+//             placeholder="请输入车辆数量"
+//           />
+//         </div>
+
+//         <Checkbox
+//           checked={matchToRoads}
+//           onChange={(e) => setMatchToRoads(e.target.checked)}
+//           style={{ fontSize: '14px' }}
+//         >
+//           <EnvironmentOutlined style={{ marginRight: 4 }} />
+//           吸附到道路
+//         </Checkbox>
+
+//         <Button
+//           className="map-button"
+//           type="primary"
+//           size="large"
+//           loading={loading}
+//           onClick={handleLoad}
+//           icon={<CarOutlined />}
+//           style={{
+//             width: '100%',
+//             height: 40,
+//             borderRadius: 6,
+//             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+//             border: 'none',
+//             fontSize: '14px',
+//             fontWeight: 500
+//           }}
+//         >
+//           {loading ? '加载中...' : '加载轨迹'}
+//         </Button>
+
+//         <Divider style={{ margin: '8px 0' }} />
+
+//         <Typography.Text type="secondary" style={{ fontSize: '12px', textAlign: 'center', display: 'block' }}>
+//           ⚠️ 大量车辆轨迹可能影响地图性能
+//         </Typography.Text>
+//       </Space>
+//     </Card>
+//   );
+// };
 
 const MapComponent = ({ height = 400, showControls = true }) => {
   const mapRef = useRef();
   const [matchedPoints, setMatchedPoints] = useState([]);
   const [loading, setLoading] = useState(false);
-  
-  // 使用新的轨迹数据Hook
-  const { 
-    trajectoryData, 
-    plateNumbers,
+
+  const {
+    trajectoryData,
     fetchBatchTrajectoryData
   } = useTrajectoryData();
-  
+
   const {
     center,
     zoom,
-    bounds,
     originalTrajectory,
     matchedTrajectory,
     showOriginal,
     showMatched,
     showRoadNetwork,
-    roadNetwork,
     resetMap,
     setShowOriginal,
     setShowMatched,
     setShowRoadNetwork
   } = useMapStore();
 
-  // 加载匹配点数据
+  // 加载初始轨迹数据
   useEffect(() => {
-    const loadMatchedPoints = async () => {
-      setLoading(true);
+    const loadInitialData = async () => {
       try {
-        const response = await matchingAPI.matchToRoads();
-        setMatchedPoints(response.matched_points_data || []);
+        setLoading(true);
+        
+        // 加载轨迹数据
+        await fetchBatchTrajectoryData(20, false);
+        
+        // 加载匹配点数据
+        const response = await matchingAPI.getMatchedPoints();
+        if (response.data && response.data.matched_points) {
+          setMatchedPoints(response.data.matched_points);
+        }
       } catch (error) {
-        console.error('加载匹配点失败:', error);
+        console.error('加载数据失败:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    loadMatchedPoints();
-  }, []);
+    loadInitialData();
+  }, [fetchBatchTrajectoryData]);
 
-  // 处理批量加载
-  const handleLoadBatch = async (limit, matchToRoads) => {
-    await fetchBatchTrajectoryData(limit, matchToRoads);
-  };
+  // const handleLoadBatch = async (limit, matchToRoads) => {
+  //   await fetchBatchTrajectoryData(limit, matchToRoads);
+  // };
 
   // 计算地图边界
   const calculateBounds = () => {
-    if (Object.keys(trajectoryData).length === 0) {
-      return null;
-    }
+    if (Object.keys(trajectoryData).length === 0) return null;
+    
+    const allPoints = Object.values(trajectoryData).flat();
+    if (allPoints.length === 0) return null;
 
-    let minLat = Infinity, maxLat = -Infinity;
-    let minLng = Infinity, maxLng = -Infinity;
-
-    Object.values(trajectoryData).forEach(points => {
-      points.forEach(point => {
-        minLat = Math.min(minLat, point.latitude);
-        maxLat = Math.max(maxLat, point.latitude);
-        minLng = Math.min(minLng, point.longitude);
-        maxLng = Math.max(maxLng, point.longitude);
-      });
-    });
-
-    return [[minLat, minLng], [maxLat, maxLng]];
+    const lats = allPoints.map(point => point.latitude);
+    const lngs = allPoints.map(point => point.longitude);
+    
+    return [
+      [Math.min(...lats), Math.min(...lngs)],
+      [Math.max(...lats), Math.max(...lngs)]
+    ];
   };
 
   const mapBounds = calculateBounds();
@@ -200,7 +251,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   const renderVehicleTrajectories = () => {
     return Object.entries(trajectoryData).map(([plateNumber, points]) => {
       if (points.length < 2) return null;
-
+      
       const positions = points.map(point => [point.latitude, point.longitude]);
       
       return (
@@ -208,8 +259,8 @@ const MapComponent = ({ height = 400, showControls = true }) => {
           key={`trajectory-${plateNumber}`}
           positions={positions}
           color="#1890ff"
-          weight={2}
-          opacity={0.6}
+          weight={3}
+          opacity={0.8}
         />
       );
     });
@@ -218,51 +269,34 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   // 渲染车辆轨迹点
   const renderVehicleTrajectoryPoints = () => {
     return Object.entries(trajectoryData).map(([plateNumber, points]) => {
-      return (
-        <>
-          {points.map((point, pointIndex) => {
-            // 检查是原始GPS点还是已匹配的点
-            let position, popupContent;
-            if (point.hasOwnProperty('matched_latitude')) {
-              // 已匹配的点
-              position = [point.matched_latitude, point.matched_longitude];
-              popupContent = (
-                <div style={{ fontSize: '12px' }}>
-                  <p><strong>车牌号:</strong> {point.original_gps?.plate_number || plateNumber}</p>
-                  <p><strong>时间:</strong> {point.original_gps?.datetime}</p>
-                  <p><strong>原始坐标:</strong> {point.original_gps?.latitude?.toFixed(6)}, {point.original_gps?.longitude?.toFixed(6)}</p>
-                  <p><strong>匹配坐标:</strong> {point.matched_latitude?.toFixed(6)}, {point.matched_longitude?.toFixed(6)}</p>
-                  <p><strong>道路名称:</strong> {point.road_name}</p>
-                  <p><strong>距离:</strong> {point.distance_to_road?.toFixed(2)} 米</p>
-                </div>
-              );
-            } else {
-              // 原始GPS点
-              position = [point.latitude, point.longitude];
-              popupContent = (
-                <div style={{ fontSize: '12px' }}>
-                  <p><strong>车牌号:</strong> {point.plate_number}</p>
-                  <p><strong>时间:</strong> {point.datetime}</p>
-                  <p><strong>坐标:</strong> {point.latitude.toFixed(6)}, {point.longitude.toFixed(6)}</p>
-                  {point.speed && <p><strong>速度:</strong> {point.speed.toFixed(2)} km/h</p>}
-                  {point.heading && <p><strong>方向:</strong> {point.heading.toFixed(2)} 度</p>}
-                </div>
-              );
-            }
-            
-            return (
-              <Marker
-                key={`${plateNumber}-${pointIndex}`}
-                position={position}
-              >
-                <Popup>
-                  {popupContent}
-                </Popup>
-              </Marker>
-            );
+      return points.map((point, index) => (
+        <Marker
+          key={`point-${plateNumber}-${index}`}
+          position={[point.latitude, point.longitude]}
+          icon={L.divIcon({
+            className: 'custom-trajectory-point',
+            html: `<div style="
+              width: 8px;
+              height: 8px;
+              background-color: #1890ff;
+              border: 2px solid white;
+              border-radius: 50%;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            "></div>`,
+            iconSize: [8, 8],
+            iconAnchor: [4, 4],
           })}
-        </>
-      );
+        >
+          <Popup>
+            <div>
+              <strong>车牌号:</strong> {plateNumber}<br/>
+              <strong>时间:</strong> {point.datetime}<br/>
+              <strong>速度:</strong> {point.speed} km/h<br/>
+              <strong>方向:</strong> {point.heading}°
+            </div>
+          </Popup>
+        </Marker>
+      ));
     });
   };
 
@@ -270,7 +304,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
     <div>
       {/* 地图容器 */}
       <div style={{ height, width: '100%', position: 'relative' }}>
-        <MapContainer
+        <Map
           ref={mapRef}
           center={center}
           zoom={zoom}
@@ -281,11 +315,12 @@ const MapComponent = ({ height = 400, showControls = true }) => {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          
-          <MapUpdater 
-            center={mapBounds ? null : center} 
-            zoom={zoom} 
-            bounds={mapBounds} 
+
+          <MapUpdater
+            center={mapBounds ? null : center}
+            zoom={zoom}
+            bounds={mapBounds}
+            mapRef={mapRef}
           />
 
           {/* 吸附点 - 只显示匹配到道路上的点 */}
@@ -299,37 +334,37 @@ const MapComponent = ({ height = 400, showControls = true }) => {
 
           {/* 原始轨迹 */}
           {showOriginal && originalTrajectory && (
-            <TrajectoryLine 
-              trajectory={originalTrajectory} 
-              color="#ff4d4f" 
+            <TrajectoryLine
+              trajectory={originalTrajectory}
+              color="#ff4d4f"
               weight={3}
             />
           )}
 
           {/* 匹配轨迹 */}
           {showMatched && matchedTrajectory && (
-            <TrajectoryLine 
-              trajectory={matchedTrajectory} 
-              color="#52c41a" 
+            <TrajectoryLine
+              trajectory={matchedTrajectory}
+              color="#52c41a"
               weight={4}
             />
           )}
 
           {/* 轨迹点 */}
           {showOriginal && originalTrajectory && (
-            <TrajectoryPoints 
-              trajectory={originalTrajectory} 
+            <TrajectoryPoints
+              trajectory={originalTrajectory}
               color="#ff4d4f"
             />
           )}
 
           {showMatched && matchedTrajectory && (
-            <TrajectoryPoints 
-              trajectory={matchedTrajectory} 
+            <TrajectoryPoints
+              trajectory={matchedTrajectory}
               color="#52c41a"
             />
           )}
-        </MapContainer>
+        </Map>
 
         {/* 重置按钮 - 放在左侧缩放控件下方 */}
         <div style={{
@@ -381,7 +416,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
               zIndex: 1000,
               border: '1px solid #f0f0f0'
             }}
-            headStyle={{ 
+            headStyle={{
               background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
               color: 'white',
               borderRadius: '8px 8px 0 0',
@@ -391,21 +426,21 @@ const MapComponent = ({ height = 400, showControls = true }) => {
             bodyStyle={{ padding: '12px' }}
           >
             <Space direction="vertical" style={{ width: '100%' }} size="small">
-              <Checkbox 
+              <Checkbox
                 checked={showOriginal}
                 onChange={(e) => setShowOriginal(e.target.checked)}
                 style={{ fontSize: '13px', width: '100%' }}
               >
                 <span style={{ color: '#ff4d4f' }}>●</span> 原始轨迹
               </Checkbox>
-              <Checkbox 
+              <Checkbox
                 checked={showMatched}
                 onChange={(e) => setShowMatched(e.target.checked)}
                 style={{ fontSize: '13px', width: '100%' }}
               >
                 <span style={{ color: '#52c41a' }}>●</span> 匹配轨迹
               </Checkbox>
-              <Checkbox 
+              <Checkbox
                 checked={showRoadNetwork}
                 onChange={(e) => setShowRoadNetwork(e.target.checked)}
                 style={{ fontSize: '13px', width: '100%' }}
@@ -416,7 +451,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
           </Card>
         )}
 
-        {/* 图例 - 放在右下角，避免与地图内容重叠 */}
+        {/* 数据统计 - 放在右下角 */}
         {showControls && (
           <Card
             className="map-card fade-in"
@@ -479,54 +514,6 @@ const MapComponent = ({ height = 400, showControls = true }) => {
         )}
       </div>
     </div>
-  );
-};
-
-// 轨迹线组件
-const TrajectoryLine = ({ trajectory, color = '#1890ff', weight = 3 }) => {
-  if (!trajectory || !trajectory.points || trajectory.points.length === 0) {
-    return null;
-  }
-
-  const positions = trajectory.points
-    .sort((a, b) => a.sequence_number - b.sequence_number)
-    .map(point => [point.latitude, point.longitude]);
-
-  return (
-    <Polyline
-      positions={positions}
-      color={color}
-      weight={weight}
-      opacity={0.8}
-    />
-  );
-};
-
-// 轨迹点组件
-const TrajectoryPoints = ({ trajectory, color = '#1890ff' }) => {
-  if (!trajectory || !trajectory.points || trajectory.points.length === 0) {
-    return null;
-  }
-
-  return (
-    <>
-      {trajectory.points.map((point, index) => (
-        <Marker
-          key={point.point_id || index}
-          position={[point.latitude, point.longitude]}
-        >
-          <Popup>
-            <div>
-              <p><strong>序列:</strong> {point.sequence_number}</p>
-              <p><strong>时间:</strong> {new Date(point.timestamp).toLocaleString()}</p>
-              <p><strong>坐标:</strong> {point.latitude.toFixed(6)}, {point.longitude.toFixed(6)}</p>
-              {point.speed && <p><strong>速度:</strong> {point.speed.toFixed(2)} km/h</p>}
-              {point.accuracy && <p><strong>精度:</strong> {point.accuracy.toFixed(2)} m</p>}
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-    </>
   );
 };
 

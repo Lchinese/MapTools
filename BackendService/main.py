@@ -6,6 +6,7 @@ MapTools 后端服务主应用
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 import logging
 import sys
 from pathlib import Path
@@ -32,13 +33,41 @@ settings = get_settings()
 # 记录应用启动时间
 start_time = time.time()
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    # 启动事件
+    try:
+        logger.info("MapTools 后端服务启动中...")
+        
+        # 检查数据库连接
+        if not check_connection():
+            logger.error("数据库连接失败")
+            raise Exception("数据库连接失败")
+        
+        # 创建数据库表（当前仅 users ）
+        create_tables()
+        logger.info("数据库表创建完成")
+        
+        logger.info("MapTools 后端服务启动成功")
+        
+    except Exception as e:
+        logger.error(f"应用启动失败: {e}")
+        raise
+    
+    yield
+    
+    # 关闭事件
+    logger.info("MapTools 后端服务正在关闭...")
+
 # 创建FastAPI应用
 app = FastAPI(
     title=settings.APP_NAME,
     description="Backend service for trajectory matching system",
     version=settings.APP_VERSION,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # 添加CORS中间件
@@ -57,32 +86,6 @@ app.include_router(matching_router)
 app.include_router(trajectory_router)  # 注册轨迹数据路由
 
 
-@app.on_event("startup")
-async def startup_event():
-    """应用启动事件"""
-    try:
-        logger.info("MapTools 后端服务启动中...")
-        
-        # 检查数据库连接
-        if not check_connection():
-            logger.error("数据库连接失败")
-            raise Exception("数据库连接失败")
-        
-        # 创建数据库表（当前仅 users ）
-        create_tables()
-        logger.info("数据库表创建完成")
-        
-        logger.info("MapTools 后端服务启动成功")
-        
-    except Exception as e:
-        logger.error(f"应用启动失败: {e}")
-        raise
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """应用关闭事件"""
-    logger.info("MapTools 后端服务正在关闭...")
 
 
 @app.get("/")
