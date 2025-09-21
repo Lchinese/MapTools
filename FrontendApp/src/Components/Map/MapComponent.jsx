@@ -23,11 +23,11 @@ const MapUpdater = ({ center, zoom, bounds, mapRef }) => {
   useEffect(() => {
     if (mapRef && mapRef.current) {
       const map = mapRef.current.leafletElement;
-      if (bounds) {
-        map.fitBounds(bounds);
-      } else if (center) {
-        map.setView(center, zoom);
-      }
+    if (bounds) {
+      map.fitBounds(bounds);
+    } else if (center) {
+      map.setView(center, zoom);
+    }
     }
   }, [mapRef, center, zoom, bounds]);
 
@@ -53,7 +53,7 @@ const TrajectoryLine = ({ trajectory, color, weight }) => {
 // 轨迹点组件
 const TrajectoryPoints = ({ trajectory, color }) => {
   if (!trajectory || trajectory.length === 0) return null;
-  
+
   return (
     <>
       {trajectory.map((point, index) => (
@@ -80,7 +80,7 @@ const TrajectoryPoints = ({ trajectory, color }) => {
               <p><strong>坐标:</strong> {point.latitude?.toFixed(6)}, {point.longitude?.toFixed(6)}</p>
               <p><strong>速度:</strong> {point.speed} km/h</p>
               <p><strong>方向:</strong> {point.heading}°</p>
-            </div>
+      </div>
           </Popup>
         </Marker>
       ))}
@@ -183,9 +183,9 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   const [matchedPoints, setMatchedPoints] = useState([]);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-
-  const {
-    trajectoryData,
+  
+  const { 
+    trajectoryData, 
     fetchBatchTrajectoryData
   } = useTrajectoryData();
 
@@ -196,7 +196,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
     loading: originalLoading
   } = useTrajectoryStore();
 
-
+  
   const {
     center,
     zoom,
@@ -218,7 +218,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        setLoading(true);
+      setLoading(true);
         
         // 加载原始轨迹数据（从数据库分页查询）
         await stableFetchOriginalTrajectories(1, 20);
@@ -252,11 +252,11 @@ const MapComponent = ({ height = 400, showControls = true }) => {
 
     const lats = allPoints.map(point => point.latitude);
     const lngs = allPoints.map(point => point.longitude);
-    
-    return [
-      [Math.min(...lats), Math.min(...lngs)],
-      [Math.max(...lats), Math.max(...lngs)]
-    ];
+      
+      return [
+        [Math.min(...lats), Math.min(...lngs)],
+        [Math.max(...lats), Math.max(...lngs)]
+      ];
   };
 
   const mapBounds = calculateBounds();
@@ -286,7 +286,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
     const dataToUse = showOriginal ? originalTrajectories : trajectoryData;
     return Object.entries(dataToUse).map(([plateNumber, points]) => {
       return points.map((point, index) => (
-        <Marker
+              <Marker
           key={`point-${plateNumber}-${index}`}
           position={[point.latitude, point.longitude]}
           icon={L.divIcon({
@@ -302,16 +302,16 @@ const MapComponent = ({ height = 400, showControls = true }) => {
             iconSize: [8, 8],
             iconAnchor: [4, 4],
           })}
-        >
-          <Popup>
+              >
+                <Popup>
             <div>
               <strong>车牌号:</strong> {plateNumber}<br/>
               <strong>时间:</strong> {point.datetime}<br/>
               <strong>速度:</strong> {point.speed} km/h<br/>
               <strong>方向:</strong> {point.heading}°
             </div>
-          </Popup>
-        </Marker>
+                </Popup>
+              </Marker>
       ));
     });
   };
@@ -319,28 +319,28 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   return (
     <div>
       {/* 地图容器 */}
-      <div style={{ height, width: '100%', position: 'relative' }}>
+    <div style={{ height, width: '100%', position: 'relative' }}>
         <Map
-          ref={mapRef}
-          center={center}
-          zoom={zoom}
-          style={{ height: '100%', width: '100%' }}
-          scrollWheelZoom={true}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-
-          <MapUpdater
-            center={mapBounds ? null : center}
-            zoom={zoom}
-            bounds={mapBounds}
+        ref={mapRef}
+        center={center}
+        zoom={zoom}
+        style={{ height: '100%', width: '100%' }}
+        scrollWheelZoom={true}
+      >
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        
+        <MapUpdater 
+          center={mapBounds ? null : center} 
+          zoom={zoom} 
+          bounds={mapBounds} 
             mapRef={mapRef}
-          />
+        />
 
-          {/* 吸附点 - 只显示匹配到道路上的点 */}
-          <MatchedPoints matchedPoints={matchedPoints} />
+        {/* 吸附点 - 只显示匹配到道路上的点 */}
+        <MatchedPoints matchedPoints={matchedPoints} />
 
           {/* 车辆轨迹线 - 原始轨迹 */}
           {showOriginal && renderVehicleTrajectories()}
@@ -348,71 +348,71 @@ const MapComponent = ({ height = 400, showControls = true }) => {
           {/* 车辆轨迹点 - 原始轨迹点 */}
           {showOriginal && renderVehicleTrajectoryPoints()}
 
-          {/* 原始轨迹 */}
-          {showOriginal && originalTrajectory && (
-            <TrajectoryLine
-              trajectory={originalTrajectory}
-              color="#ff4d4f"
-              weight={3}
-            />
-          )}
+        {/* 原始轨迹 */}
+        {showOriginal && originalTrajectory && (
+          <TrajectoryLine 
+            trajectory={originalTrajectory} 
+            color="#ff4d4f" 
+            weight={3}
+          />
+        )}
 
-          {/* 匹配轨迹 */}
-          {showMatched && matchedTrajectory && (
-            <TrajectoryLine
-              trajectory={matchedTrajectory}
-              color="#52c41a"
-              weight={4}
-            />
-          )}
+        {/* 匹配轨迹 */}
+        {showMatched && matchedTrajectory && (
+          <TrajectoryLine 
+            trajectory={matchedTrajectory} 
+            color="#52c41a" 
+            weight={4}
+          />
+        )}
 
-          {/* 轨迹点 */}
-          {showOriginal && originalTrajectory && (
-            <TrajectoryPoints
-              trajectory={originalTrajectory}
-              color="#ff4d4f"
-            />
-          )}
+        {/* 轨迹点 */}
+        {showOriginal && originalTrajectory && (
+          <TrajectoryPoints 
+            trajectory={originalTrajectory} 
+            color="#ff4d4f"
+          />
+        )}
 
-          {showMatched && matchedTrajectory && (
-            <TrajectoryPoints
-              trajectory={matchedTrajectory}
-              color="#52c41a"
-            />
-          )}
+        {showMatched && matchedTrajectory && (
+          <TrajectoryPoints 
+            trajectory={matchedTrajectory} 
+            color="#52c41a"
+          />
+        )}
         </Map>
 
-        {/* 重置按钮 - 放在左侧缩放控件下方 */}
-        <div style={{
-          position: 'absolute',
-          top: '30%',
-          left: 10,
-          transform: 'translateY(-50%)',
-          zIndex: 1000,
-        }}>
+      {/* 重置按钮 - 放在左侧缩放控件下方 */}
+      <div style={{
+        position: 'absolute',
+        top: '30%',
+        left: 10,
+        transform: 'translateY(-50%)',
+        zIndex: 1000,
+      }}>
           <Tooltip title="重置地图" placement="right">
             <Button
               className="map-button pulse"
               type="primary"
               shape="circle"
               icon={<ReloadOutlined />}
-              onClick={resetMap}
-              style={{
+            onClick={resetMap}
+            style={{
                 width: 40,
                 height: 40,
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 border: 'none',
                 boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
               }}
             />
           </Tooltip>
-        </div>
+      </div>
 
         {/* 控制面板 - 放在左下角 */}
-        {showControls && (
+      {showControls && (
           <Card
             className="map-card fade-in"
             title={
@@ -423,13 +423,13 @@ const MapComponent = ({ height = 400, showControls = true }) => {
             }
             size="small"
             style={{
-              position: 'absolute',
+          position: 'absolute',
               bottom: 10,
               left: 10,
               width: 180,
               borderRadius: 8,
               boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-              zIndex: 1000,
+          zIndex: 1000,
               border: '1px solid #f0f0f0'
             }}
             headStyle={{
@@ -458,9 +458,9 @@ const MapComponent = ({ height = 400, showControls = true }) => {
                     {pagination.total_count && (
                       <div style={{ fontSize: '11px', color: '#666', marginTop: 2 }}>
                         总计 {pagination.total_count} 辆车
-                      </div>
-                    )}
-                  </div>
+        </div>
+      )}
+    </div>
                   <Space size="small">
                     <Button 
                       size="small" 
@@ -568,7 +568,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
           </Card>
         )}
       </div>
-    </div>
+            </div>
   );
 };
 

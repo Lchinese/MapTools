@@ -80,7 +80,7 @@ const Home = () => {
               MapTools GPS道路吸附系统
             </Title>
             <Paragraph style={{ fontSize: '16px', color: '#666', margin: '16px 0 0 0' }}>
-              基于sample-utf.txt出租车GPS数据，使用道路匹配算法将GPS点吸附到最近的道路上
+              基于MongoDB数据库的车辆轨迹数据，支持分页查询和道路匹配展示
             </Paragraph>
           </div>
           
@@ -88,7 +88,7 @@ const Home = () => {
             type="success" 
             showIcon 
             message="功能说明" 
-            description="地图上显示的是从sample-utf.txt解析的GPS点，经过道路匹配算法吸附到道路上的小圆点。" 
+            description="地图上显示的是从MongoDB数据库加载的车辆轨迹数据，支持原始轨迹和道路匹配轨迹的切换显示。" 
             style={{ borderRadius: 8 }}
           />
         </Space>
@@ -133,7 +133,7 @@ const Home = () => {
             title={
               <Space>
                 <RocketOutlined style={{ color: '#1890ff' }} />
-                <span>GPS数据道路吸附展示</span>
+                <span>车辆轨迹数据展示</span>
               </Space>
             }
             style={{ 
