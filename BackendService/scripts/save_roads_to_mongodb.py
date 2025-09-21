@@ -119,22 +119,22 @@ def save_roads_to_mongodb():
         total_count = collection.count_documents({})
         logger.info(f"验证完成，MongoDB中共有 {total_count} 条道路数据")
         
-        # 8. 保存统计信息
-        stats = {
+        # 8. 保存统计信息到主集合的元数据文档
+        stats_doc = {
+            "_id": "metadata",
             "total_roads": total_count,
             "saved_at": datetime.now().isoformat(),
             "source": "tianditu_wfs",
             "region": "深圳",
-            "bbox": "113.812401,22.503099,114.269966,22.748068"
+            "bbox": "113.812401,22.503099,114.269966,22.748068",
+            "type": "metadata"
         }
         
-        # 保存统计信息到单独的集合
-        stats_collection = client["MapTools"]["road_network_stats"]
-        stats_collection.delete_many({})  # 清空旧统计
-        stats_collection.insert_one(stats)
+        # 保存统计信息到主集合
+        collection.insert_one(stats_doc)
         
         logger.info("✅ 道路数据保存完成！")
-        logger.info(f"📊 统计信息: 总计 {stats['total_roads']} 条道路，保存时间: {stats['saved_at']}")
+        logger.info(f"📊 统计信息: 总计 {stats_doc['total_roads']} 条道路，保存时间: {stats_doc['saved_at']}")
         
         return True
         
@@ -164,8 +164,7 @@ def query_roads_from_mongodb(limit: int = 5):
             logger.info(f"  {i}. ID: {road['road_id']}, 名称: {road['name']}, 类型: {road['type']}, 点数: {road['point_count']}")
         
         # 查询统计信息
-        stats_collection = client["MapTools"]["road_network_stats"]
-        stats = stats_collection.find_one()
+        stats = collection.find_one({"_id": "metadata"})
         if stats:
             logger.info(f"📊 道路网络统计: 总计 {stats['total_roads']} 条道路")
         
