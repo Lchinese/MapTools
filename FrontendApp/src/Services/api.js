@@ -65,6 +65,36 @@ export const matchingAPI = {
   matchToRoads: (params = {}) => axios.get('http://localhost:8000/matching/match', { params }).then(r => r.data),
   getRoadNetwork: () => axios.get('http://localhost:8000/matching/road-network').then(r => r.data),
   getVehiclesData: (params = {}) => axios.get('http://localhost:8000/matching/vehicles', { params }).then(r => r.data),
+  getMatchedPoints: () => axios.get('http://localhost:8000/matching/match').then(r => r.data),
 };
 
-export default api;
+// 轨迹数据API
+export const trajectoryAPI = {
+  // 从数据库获取原始轨迹数据（分页查询）
+  getOriginalTrajectoryData: (page = 1, pageSize = 20, plateNumber = null) => axios.get('http://localhost:8000/trajectory/original', { 
+    params: { page, page_size: pageSize, plate_number: plateNumber } 
+  }).then(r => r.data),
+  
+  // 批量获取指定数量车辆的轨迹数据
+  getBatchTrajectoryData: (limit = 50, matchToRoads = false) => axios.get('http://localhost:8000/trajectory/batch', { 
+    params: { limit, match_to_roads: matchToRoads } 
+  }).then(r => r.data),
+  
+  // 分页获取所有车辆列表
+  getAllTrajectoryData: (page = 1, pageSize = 10) => axios.get('http://localhost:8000/trajectory/all', { 
+    params: { page, page_size: pageSize } 
+  }).then(r => r.data),
+  
+  // 根据车牌号获取轨迹数据
+  getTrajectoryDataByPlate: (plateNumber) => axios.get('http://localhost:8000/trajectory/by-plate', { 
+    params: { plate_number: plateNumber } 
+  }).then(r => r.data),
+  
+  // 获取所有车牌号
+  getAllPlateNumbers: () => axios.get('http://localhost:8000/trajectory/plates').then(r => r.data),
+  
+  // 获取轨迹摘要信息
+  getTrajectorySummary: (plateNumber) => axios.get('http://localhost:8000/trajectory/summary', {
+    params: { plate_number: plateNumber }
+  }).then(r => r.data),
+};

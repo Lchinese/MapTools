@@ -6,6 +6,7 @@
 import math
 import requests
 import json
+import pymongo
 from typing import List, Dict, Any, Tuple
 import logging
 
@@ -15,22 +16,56 @@ class RoadMatcher:
     """道路匹配器"""
     
     def __init__(self):
-        # 从天地图WFS服务加载真实道路数据
+        # 优先从MongoDB加载道路数据
         try:
-            self.roads = self._load_osm_roads()
-            logger.info(f"成功加载 {len(self.roads)} 条天地图道路")
+            self.roads = self._load_roads_from_mongodb()
+            if self.roads:
+                logger.info(f"从MongoDB成功加载 {len(self.roads)} 条道路数据")
+            else:
+                # 如果MongoDB没有数据，尝试从天地图WFS加载
+                logger.warning("MongoDB中没有道路数据，尝试从天地图WFS加载...")
+                self.roads = self._load_osm_roads()
+                logger.info(f"从天地图WFS成功加载 {len(self.roads)} 条道路")
         except Exception as e:
-            logger.error(f"加载天地图WFS道路失败: {e}")
-            # 如果天地图WFS失败，尝试OpenStreetMap作为备选
+            logger.error(f"从MongoDB加载道路数据失败: {e}")
+            # 如果MongoDB失败，尝试天地图WFS作为备选
             try:
-                self.roads = self._load_osm_fallback("113.812401,22.503099,114.269966,22.748068")
-                logger.info(f"使用OpenStreetMap备选方案，加载了 {len(self.roads)} 条道路")
-            except Exception as fallback_error:
-                logger.error(f"OpenStreetMap备选方案也失败: {fallback_error}")
+                self.roads = self._load_osm_roads()
+                logger.info(f"使用天地图WFS备选方案，加载了 {len(self.roads)} 条道路")
+            except Exception as wfs_error:
+                logger.error(f"天地图WFS也失败: {wfs_error}")
                 # 如果都失败，使用空的道路网络
                 self.roads = []
                 logger.warning("无法加载任何道路数据，使用空道路网络")
     
+    def _load_roads_from_mongodb(self) -> List[Dict[str, Any]]:
+        """从MongoDB加载道路数据"""
+        try:
+            # 连接到MongoDB
+            client = pymongo.MongoClient('localhost', 27017)
+            db = client['MapTools']
+            collection = db['road_network']
+            
+            # 查询道路数据（排除元数据文档）
+            roads_cursor = collection.find({"type": {"$ne": "metadata"}})
+            roads = []
+            
+            for road_doc in roads_cursor:
+                road = {
+                    'id': road_doc['road_id'],
+                    'name': road_doc['name'],
+                    'type': road_doc['type'],
+                    'points': road_doc['points']
+                }
+                roads.append(road)
+            
+            client.close()
+            logger.info(f"从MongoDB加载了 {len(roads)} 条道路数据")
+            return roads
+            
+        except Exception as e:
+            logger.error(f"从MongoDB加载道路数据失败: {e}")
+            return []
     
     def _load_osm_roads(self) -> List[Dict[str, Any]]:
         """从天地图WFS服务加载深圳地区的道路数据"""

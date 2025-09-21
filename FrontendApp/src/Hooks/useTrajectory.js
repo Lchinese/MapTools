@@ -1,6 +1,156 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { trajectoryAPI } from '../Services/api';
 import { useTrajectoryStore } from '../Store/trajectoryStore';
 import { parseTrajectoryFile } from '../Utils/fileUtils';
+
+/**
+ * 轨迹数据Hook
+ * 用于从MongoDB获取轨迹数据
+ */
+export const useTrajectoryData = () => {
+  const [trajectoryData, setTrajectoryData] = useState({});
+  const [plateNumbers, setPlateNumbers] = useState([]);
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+    totalItems: 0,
+    totalPages: 0
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // 批量获取指定数量车辆的轨迹数据
+  const fetchBatchTrajectoryData = useCallback(async (limit = 50, matchToRoads = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await trajectoryAPI.getBatchTrajectoryData(limit, matchToRoads);
+      if (response.success) {
+        setTrajectoryData(response.data);
+        // 提取车牌号列表
+        const plates = Object.keys(response.data);
+        setPlateNumbers(plates);
+      } else {
+        throw new Error(response.message || '批量获取轨迹数据失败');
+      }
+    } catch (err) {
+      console.error('批量获取轨迹数据失败:', err);
+      setError(err.message || '批量获取轨迹数据失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 分页获取车辆列表
+  const fetchVehicleList = useCallback(async (page = 1, pageSize = 10) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await trajectoryAPI.getAllTrajectoryData(page, pageSize);
+      if (response.success) {
+        setPlateNumbers(response.data.plate_numbers);
+        setPagination(response.data.pagination);
+      } else {
+        throw new Error(response.message || '获取车辆列表失败');
+      }
+    } catch (err) {
+      console.error('获取车辆列表失败:', err);
+      setError(err.message || '获取车辆列表失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 根据车牌号获取轨迹数据
+  const fetchTrajectoryDataByPlate = useCallback(async (plateNumber) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await trajectoryAPI.getTrajectoryDataByPlate(plateNumber);
+      if (response.success) {
+        setTrajectoryData(prev => ({
+          ...prev,
+          ...response.data
+        }));
+        // 如果车牌号列表中没有这个车牌号，则添加到列表中
+        if (!plateNumbers.includes(plateNumber)) {
+          setPlateNumbers(prev => [...prev, plateNumber]);
+        }
+      } else {
+        throw new Error(response.message || '获取轨迹数据失败');
+      }
+    } catch (err) {
+      console.error('获取轨迹数据失败:', err);
+      setError(err.message || '获取轨迹数据失败');
+    } finally {
+      setLoading(false);
+    }
+  }, [plateNumbers]);
+
+  // 获取车辆轨迹摘要信息
+  const fetchTrajectorySummary = useCallback(async (plateNumber) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await trajectoryAPI.getTrajectorySummary(plateNumber);
+      if (response.success) {
+        // 可以在这里处理摘要信息，比如存储到状态中
+        return response.data;
+      } else {
+        throw new Error(response.message || '获取轨迹摘要信息失败');
+      }
+    } catch (err) {
+      console.error('获取轨迹摘要信息失败:', err);
+      setError(err.message || '获取轨迹摘要信息失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 获取所有车牌号
+  const fetchAllPlateNumbers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await trajectoryAPI.getAllPlateNumbers();
+      if (response.success) {
+        setPlateNumbers(response.data.plate_numbers);
+      } else {
+        throw new Error(response.message || '获取车牌号列表失败');
+      }
+    } catch (err) {
+      console.error('获取车牌号列表失败:', err);
+      setError(err.message || '获取车牌号列表失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // 清除错误
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  // 清除轨迹数据
+  const clearTrajectoryData = useCallback(() => {
+    setTrajectoryData({});
+  }, []);
+
+  return {
+    trajectoryData,
+    plateNumbers,
+    pagination,
+    loading,
+    error,
+    fetchBatchTrajectoryData,
+    fetchVehicleList,
+    fetchTrajectoryDataByPlate,
+    fetchTrajectorySummary,
+    fetchAllPlateNumbers,
+    clearError,
+    clearTrajectoryData
+  };
+};
 
 /**
  * 轨迹相关Hook

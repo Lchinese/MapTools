@@ -61,6 +61,7 @@ class GPSDataParser:
             reserved_field = parts[8].strip()
             location_flag = int(parts[9].strip())
 
+
             # 构建时间
             try:
                 if len(time_str) == 6:
@@ -220,6 +221,59 @@ class GPSDataParser:
             self.total_processed += len(documents)
         self._insert_batch(documents, db_name, collection_name)
         logger.info(f"✅ 单文件 '{filename}' 已保存至 {db_name}.{collection_name}")
+
+    def parse_sample_data(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """
+        解析示例数据（用于API测试）
+        
+        Args:
+            limit: 返回的数据点数量限制
+            
+        Returns:
+            List[Dict]: GPS点数据列表
+        """
+        try:
+            # 从MongoDB获取数据
+            client = MongoClient('localhost', 27017, serverSelectionTimeoutMS=5000)
+            db = client["MapTools"]
+            collection = db["gps_points"]
+            
+            # 获取指定数量的有效GPS点
+            cursor = collection.find({"is_valid": True}).limit(limit)
+            gps_points = []
+            
+            for i, record in enumerate(cursor):
+                gps_point = {
+                    'id': i + 1,
+                    'plate_number': record['plate_number'],
+                    'datetime': record['datetime'].strftime('%Y-%m-%dT%H:%M:%S') if isinstance(record['datetime'], datetime) else record['datetime'],
+                    'longitude': record['location']['coordinates'][0],
+                    'latitude': record['location']['coordinates'][1],
+                    'speed': record.get('speed', 0),
+                    'heading': record.get('heading', 0),
+                    'is_valid': record.get('is_valid', False)
+                }
+                gps_points.append(gps_point)
+            
+            client.close()
+            logger.info(f"从MongoDB获取了 {len(gps_points)} 个GPS点")
+            return gps_points
+            
+        except Exception as e:
+            logger.error(f"解析示例数据失败: {e}")
+            return []
+
+    def filter_valid_points(self, gps_points: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        过滤有效的GPS点
+        
+        Args:
+            gps_points: GPS点列表
+            
+        Returns:
+            List[Dict]: 过滤后的有效GPS点列表
+        """
+        return [point for point in gps_points if point.get('is_valid', False)]
 
 
 # ======================

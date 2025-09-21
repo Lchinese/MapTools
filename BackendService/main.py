@@ -6,6 +6,7 @@ MapTools 后端服务主应用
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 import logging
 import sys
 from pathlib import Path
@@ -17,9 +18,10 @@ sys.path.append(str(Path(__file__).parent))
 from CoreConfig.settings import get_settings
 from CoreConfig.logging import setup_logging, get_logger
 from CoreConfig.database import create_tables, check_connection
-from ApiEndpoints import health_router
+from ApiEndpoints.health import router as health_router
 from ApiEndpoints.auth import router as auth_router
 from ApiEndpoints.matching import router as matching_router
+from ApiEndpoints.trajectory import router as trajectory_router  # 添加轨迹数据路由
 
 # 设置日志
 setup_logging()
@@ -31,33 +33,10 @@ settings = get_settings()
 # 记录应用启动时间
 start_time = time.time()
 
-# 创建FastAPI应用
-app = FastAPI(
-    title=settings.APP_NAME,
-    description="Backend service for trajectory matching system",
-    version=settings.APP_VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
-
-# 添加CORS中间件
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 注册路由（健康检查、认证、地图匹配）
-app.include_router(health_router)
-app.include_router(auth_router)
-app.include_router(matching_router)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """应用启动事件"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    # 启动事件
     try:
         logger.info("MapTools 后端服务启动中...")
         
@@ -75,12 +54,38 @@ async def startup_event():
     except Exception as e:
         logger.error(f"应用启动失败: {e}")
         raise
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """应用关闭事件"""
+    
+    yield
+    
+    # 关闭事件
     logger.info("MapTools 后端服务正在关闭...")
+
+# 创建FastAPI应用
+app = FastAPI(
+    title=settings.APP_NAME,
+    description="Backend service for trajectory matching system",
+    version=settings.APP_VERSION,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan
+)
+
+# 添加CORS中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 注册路由
+app.include_router(health_router)
+app.include_router(auth_router)
+app.include_router(matching_router)
+app.include_router(trajectory_router)  # 注册轨迹数据路由
+
+
 
 
 @app.get("/")
@@ -112,4 +117,10 @@ async def global_exception_handler(request, exc):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.DEBUG,
+        log_level=settings.LOG_LEVEL.lower()
+    )

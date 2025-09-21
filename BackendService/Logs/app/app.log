@@ -431,3 +431,136 @@ Traceback (most recent call last):
     version = _bcrypt.__about__.__version__
               ^^^^^^^^^^^^^^^^^
 AttributeError: module 'bcrypt' has no attribute '__about__'
+{"timestamp": "2025-09-20 23:13:34", "logger": "main", "level": "INFO", "file": "main.py", "line": 64, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-20 23:13:34", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-20 23:13:34", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-20 23:13:34", "logger": "main", "level": "INFO", "file": "main.py", "line": 73, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-20 23:13:34", "logger": "main", "level": "INFO", "file": "main.py", "line": 75, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-20 23:14:07", "logger": "main", "level": "INFO", "file": "main.py", "line": 64, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-20 23:14:07", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-20 23:14:07", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-20 23:14:07", "logger": "main", "level": "INFO", "file": "main.py", "line": 73, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-20 23:14:07", "logger": "main", "level": "INFO", "file": "main.py", "line": 75, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-20 23:16:58", "logger": "main", "level": "INFO", "file": "main.py", "line": 64, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-20 23:16:58", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-20 23:16:58", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-20 23:16:58", "logger": "main", "level": "INFO", "file": "main.py", "line": 73, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-20 23:16:58", "logger": "main", "level": "INFO", "file": "main.py", "line": 75, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-20 23:23:46", "logger": "main", "level": "INFO", "file": "main.py", "line": 64, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-20 23:23:46", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-20 23:23:46", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-20 23:23:46", "logger": "main", "level": "INFO", "file": "main.py", "line": 73, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-20 23:23:46", "logger": "main", "level": "INFO", "file": "main.py", "line": 75, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-20 23:25:47", "logger": "main", "level": "INFO", "file": "main.py", "line": 64, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-20 23:25:47", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-20 23:25:47", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-20 23:25:47", "logger": "main", "level": "INFO", "file": "main.py", "line": 73, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-20 23:25:47", "logger": "main", "level": "INFO", "file": "main.py", "line": 75, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-20 23:30:01", "logger": "main", "level": "INFO", "file": "main.py", "line": 64, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-20 23:30:01", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-20 23:30:01", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-20 23:30:01", "logger": "main", "level": "INFO", "file": "main.py", "line": 73, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-20 23:30:01", "logger": "main", "level": "INFO", "file": "main.py", "line": 75, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-20 23:30:01", "logger": "main", "level": "INFO", "file": "main.py", "line": 85, "message": "MapTools 后端服务正在关闭..."}
+{"timestamp": "2025-09-20 23:31:14", "logger": "main", "level": "INFO", "file": "main.py", "line": 64, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-20 23:31:14", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-20 23:31:14", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-20 23:31:14", "logger": "main", "level": "INFO", "file": "main.py", "line": 73, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-20 23:31:14", "logger": "main", "level": "INFO", "file": "main.py", "line": 75, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-20 23:31:14", "logger": "main", "level": "INFO", "file": "main.py", "line": 85, "message": "MapTools 后端服务正在关闭..."}
+{"timestamp": "2025-09-20 23:33:45", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-20 23:33:45", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-20 23:33:45", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-20 23:33:45", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-20 23:33:45", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-20 23:39:27", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-20 23:39:27", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-20 23:39:27", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-20 23:39:27", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-20 23:39:27", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-20 23:40:55", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-20 23:40:55", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-20 23:40:55", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-20 23:40:55", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-20 23:40:55", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-20 23:55:10", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-20 23:55:10", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-20 23:55:10", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-20 23:55:10", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-20 23:55:10", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 00:27:59", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 00:27:59", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 00:27:59", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 00:27:59", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 00:27:59", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 00:31:19", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 00:31:19", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 00:31:19", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 00:31:19", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 00:31:19", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 00:37:04", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 00:37:04", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 00:37:04", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 00:37:04", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 00:37:04", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 00:44:09", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 00:44:10", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 00:44:10", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 00:44:10", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 00:44:10", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 00:49:23", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 00:49:23", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 00:49:23", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 00:49:23", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 00:49:23", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 00:51:24", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 00:51:24", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 00:51:24", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 00:51:24", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 00:51:24", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 00:54:33", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 00:54:33", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 00:54:33", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 00:54:33", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 00:54:33", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 18:16:49", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 18:16:50", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 18:16:50", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 18:16:50", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 18:16:50", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 19:27:43", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 19:27:43", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 19:27:43", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 19:27:43", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 19:27:43", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 19:36:59", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 19:36:59", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 19:36:59", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 19:36:59", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 19:36:59", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 19:43:26", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 19:43:26", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 19:43:26", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 19:43:26", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 19:43:26", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 21:53:59", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 21:53:59", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 21:53:59", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 21:53:59", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 21:53:59", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 21:57:38", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 21:57:38", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 21:57:38", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 21:57:38", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 21:57:38", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 21:58:54", "logger": "passlib.handlers.bcrypt", "level": "WARNING", "file": "bcrypt.py", "line": 622, "message": "(trapped) error reading bcrypt version"}
+Traceback (most recent call last):
+  File "D:\Project\MapTools\BackendService\.venv\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+{"timestamp": "2025-09-21 22:00:54", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 22:00:54", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 22:00:54", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 22:00:54", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 22:00:54", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}

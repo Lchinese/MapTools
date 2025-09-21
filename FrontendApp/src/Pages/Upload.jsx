@@ -3,7 +3,6 @@ import {
   Card, 
   Upload, 
   Form, 
-  Input, 
   Button, 
   message, 
   Progress,
@@ -22,7 +21,6 @@ import { useNavigate } from 'react-router-dom';
 
 const { Title, Paragraph } = Typography;
 const { Dragger } = Upload;
-const { TextArea } = Input;
 
 const UploadPage = () => {
   const navigate = useNavigate();

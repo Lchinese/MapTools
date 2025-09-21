@@ -12,9 +12,9 @@ const useMapStore = create((set, get) => ({
   roadNetwork: null,
   
   // 显示选项
-  showOriginal: true,
+  showOriginal: false,
   showMatched: true,
-  showRoadNetwork: false,
+  showRoadNetwork: true,
   
   // 地图操作
   setCenter: (center) => set({ center }),
@@ -27,6 +27,9 @@ const useMapStore = create((set, get) => ({
   setRoadNetwork: (network) => set({ roadNetwork: network }),
   
   // 显示选项操作
+  setShowOriginal: (show) => set({ showOriginal: show }),
+  setShowMatched: (show) => set({ showMatched: show }),
+  setShowRoadNetwork: (show) => set({ showRoadNetwork: show }),
   toggleOriginal: () => set(state => ({ showOriginal: !state.showOriginal })),
   toggleMatched: () => set(state => ({ showMatched: !state.showMatched })),
   toggleRoadNetwork: () => set(state => ({ showRoadNetwork: !state.showRoadNetwork })),
@@ -53,9 +56,9 @@ const useMapStore = create((set, get) => ({
     originalTrajectory: null,
     matchedTrajectory: null,
     roadNetwork: null,
-    showOriginal: true,
+    showOriginal: false,
     showMatched: true,
-    showRoadNetwork: false,
+    showRoadNetwork: true,
   }),
 }));
 

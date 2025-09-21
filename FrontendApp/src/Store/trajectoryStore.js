@@ -1,13 +1,55 @@
 import { create } from 'zustand';
+import { trajectoryAPI } from '../Services/api';
 
 const useTrajectoryStore = create((set, get) => ({
   // 状态
   trajectories: [],
+  originalTrajectories: {}, // 原始轨迹数据 {plateNumber: trajectoryPoints}
   currentTrajectory: null,
   matchingTasks: [],
   currentTask: null,
   loading: false,
   error: null,
+  
+  // 分页信息
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    totalCount: 0,
+    totalPages: 0
+  },
+
+  // 获取原始轨迹数据（从数据库分页查询）
+  fetchOriginalTrajectories: async (page = 1, pageSize = 20, plateNumber = null) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await trajectoryAPI.getOriginalTrajectoryData(page, pageSize, plateNumber);
+      if (response.success) {
+        set({
+          originalTrajectories: response.data,
+          pagination: response.pagination,
+          loading: false
+        });
+        return response.data;
+      } else {
+        throw new Error(response.message || '获取原始轨迹数据失败');
+      }
+    } catch (error) {
+      console.error('获取原始轨迹数据失败:', error);
+      // 即使API调用失败，也设置默认的分页信息
+      set({ 
+        error: error.message, 
+        loading: false,
+        pagination: {
+          page: page,
+          pageSize: pageSize,
+          totalCount: 0,
+          totalPages: 0
+        }
+      });
+      throw error;
+    }
+  },
 
   // 轨迹相关操作（后端接口已移除，以下返回安全默认值）
   fetchTrajectories: async () => {
@@ -53,11 +95,18 @@ const useTrajectoryStore = create((set, get) => ({
   // 重置状态
   reset: () => set({
     trajectories: [],
+    originalTrajectories: {},
     currentTrajectory: null,
     matchingTasks: [],
     currentTask: null,
     loading: false,
     error: null,
+    pagination: {
+      page: 1,
+      pageSize: 20,
+      totalCount: 0,
+      totalPages: 0
+    }
   }),
 }));
 
