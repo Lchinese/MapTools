@@ -48,7 +48,6 @@ UtilityTools/geo_utils.py
 UtilityTools/gps_parser.py
 UtilityTools/query_gps_data.py
 UtilityTools/road_matching.py
-UtilityTools/test_parsing_performance.py
 UtilityTools/validators.py
 backendservice.egg-info/PKG-INFO
 backendservice.egg-info/SOURCES.txt

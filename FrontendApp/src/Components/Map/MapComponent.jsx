@@ -182,18 +182,16 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   const mapRef = useRef();
   const [matchedPoints, setMatchedPoints] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [, setCurrentPage] = useState(1);
   
   const { 
-    trajectoryData, 
-    fetchBatchTrajectoryData
+    trajectoryData
   } = useTrajectoryData();
 
   const {
     originalTrajectories,
     pagination,
-    fetchOriginalTrajectories,
-    loading: originalLoading
+    fetchOriginalTrajectories
   } = useTrajectoryStore();
 
   
@@ -212,7 +210,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   } = useMapStore();
 
   // 使用useCallback稳定fetchOriginalTrajectories函数
-  const stableFetchOriginalTrajectories = useCallback(fetchOriginalTrajectories, []);
+  const stableFetchOriginalTrajectories = useCallback(fetchOriginalTrajectories, [fetchOriginalTrajectories]);
 
   // 加载初始轨迹数据
   useEffect(() => {

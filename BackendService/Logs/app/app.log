@@ -543,3 +543,24 @@ AttributeError: module 'bcrypt' has no attribute '__about__'
 {"timestamp": "2025-09-21 19:43:26", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
 {"timestamp": "2025-09-21 19:43:26", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
 {"timestamp": "2025-09-21 19:43:26", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 21:53:59", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 21:53:59", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 21:53:59", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 21:53:59", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 21:53:59", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 21:57:38", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 21:57:38", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 21:57:38", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 21:57:38", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 21:57:38", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-09-21 21:58:54", "logger": "passlib.handlers.bcrypt", "level": "WARNING", "file": "bcrypt.py", "line": 622, "message": "(trapped) error reading bcrypt version"}
+Traceback (most recent call last):
+  File "D:\Project\MapTools\BackendService\.venv\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+{"timestamp": "2025-09-21 22:00:54", "logger": "main", "level": "INFO", "file": "main.py", "line": 41, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-09-21 22:00:54", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-09-21 22:00:54", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-09-21 22:00:54", "logger": "main", "level": "INFO", "file": "main.py", "line": 50, "message": "数据库表创建完成"}
+{"timestamp": "2025-09-21 22:00:54", "logger": "main", "level": "INFO", "file": "main.py", "line": 52, "message": "MapTools 后端服务启动成功"}
