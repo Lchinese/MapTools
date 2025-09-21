@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Map, TileLayer, Polyline, Marker, Popup } from 'react-leaflet';
 import { ReloadOutlined, SettingOutlined } from '@ant-design/icons';
-import { Card, Checkbox, Button, Space, Typography, Tooltip, Badge } from 'antd';
+import { Card, Checkbox, Button, Space, Typography, Tooltip } from 'antd';
 import L from 'leaflet';
 import { useMapStore } from '../../Store/mapStore';
 import { useTrajectoryStore } from '../../Store/trajectoryStore';
