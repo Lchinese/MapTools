@@ -12,6 +12,7 @@ from UtilityTools.fetch_trajectory_data import (
     fetch_trajectory_data_by_plate,
     fetch_plate_numbers
 )
+import pymongo
 from UtilityTools.road_matching import RoadMatcher
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,71 @@ router = APIRouter(prefix="/trajectory", tags=["轨迹数据"])
 
 # 创建道路匹配器实例
 road_matcher = RoadMatcher()
+
+@router.get("/original")
+async def get_original_trajectory_data(
+    page: int = Query(1, description="页码", ge=1),
+    page_size: int = Query(20, description="每页车辆数量", ge=1, le=100),
+    plate_number: Optional[str] = Query(None, description="指定车牌号")
+):
+    """
+    从数据库获取原始轨迹数据（分页查询）
+    
+    Args:
+        page (int): 页码
+        page_size (int): 每页车辆数量
+        plate_number (str, optional): 指定车牌号
+        
+    Returns:
+        Dict: 原始轨迹数据
+    """
+    try:
+        # 连接到MongoDB
+        client = pymongo.MongoClient('localhost', 27017)
+        db = client['MapTools']
+        collection = db['original_trajectories']
+        
+        # 构建查询条件
+        query = {"type": "original_trajectory"}
+        if plate_number:
+            query["plate_number"] = plate_number
+        
+        # 计算跳过的文档数量
+        skip = (page - 1) * page_size
+        
+        # 查询数据
+        cursor = collection.find(query).skip(skip).limit(page_size)
+        trajectories = list(cursor)
+        
+        # 获取总数
+        total_count = collection.count_documents(query)
+        total_pages = (total_count + page_size - 1) // page_size
+        
+        # 转换为前端需要的格式
+        trajectory_data = {}
+        for doc in trajectories:
+            plate_num = doc['plate_number']
+            trajectory_data[plate_num] = doc['trajectory_points']
+        
+        client.close()
+        
+        logger.info(f"成功获取第 {page} 页原始轨迹数据，共 {len(trajectory_data)} 辆车")
+        
+        return {
+            "success": True,
+            "data": trajectory_data,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_count": total_count,
+                "total_pages": total_pages
+            },
+            "message": f"成功获取第 {page} 页原始轨迹数据"
+        }
+        
+    except Exception as e:
+        logger.error(f"获取原始轨迹数据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取原始轨迹数据失败: {str(e)}")
 
 @router.get("/batch")
 async def get_batch_trajectory_data(

@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Map, TileLayer, Polyline, Marker, Popup } from 'react-leaflet';
 import { ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import { Card, Checkbox, Button, Space, Typography, Tooltip, Badge } from 'antd';
 import L from 'leaflet';
 import { useMapStore } from '../../Store/mapStore';
+import { useTrajectoryStore } from '../../Store/trajectoryStore';
 import { matchingAPI } from '../../Services/api';
 import { useTrajectoryData } from '../../Hooks/useTrajectory';
 import MatchedPoints from './MatchedPoints';
@@ -181,11 +182,20 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   const mapRef = useRef();
   const [matchedPoints, setMatchedPoints] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const {
     trajectoryData,
     fetchBatchTrajectoryData
   } = useTrajectoryData();
+
+  const {
+    originalTrajectories,
+    pagination,
+    fetchOriginalTrajectories,
+    loading: originalLoading
+  } = useTrajectoryStore();
+
 
   const {
     center,
@@ -201,14 +211,17 @@ const MapComponent = ({ height = 400, showControls = true }) => {
     setShowRoadNetwork
   } = useMapStore();
 
+  // 使用useCallback稳定fetchOriginalTrajectories函数
+  const stableFetchOriginalTrajectories = useCallback(fetchOriginalTrajectories, []);
+
   // 加载初始轨迹数据
   useEffect(() => {
     const loadInitialData = async () => {
       try {
         setLoading(true);
         
-        // 加载轨迹数据（启用道路匹配）
-        await fetchBatchTrajectoryData(20, true);
+        // 加载原始轨迹数据（从数据库分页查询）
+        await stableFetchOriginalTrajectories(1, 20);
         
         // 加载匹配点数据
         const response = await matchingAPI.getMatchedPoints();
@@ -223,7 +236,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
     };
 
     loadInitialData();
-  }, [fetchBatchTrajectoryData]);
+  }, [stableFetchOriginalTrajectories]); // 使用稳定的函数引用
 
   // const handleLoadBatch = async (limit, matchToRoads) => {
   //   await fetchBatchTrajectoryData(limit, matchToRoads);
@@ -231,9 +244,10 @@ const MapComponent = ({ height = 400, showControls = true }) => {
 
   // 计算地图边界
   const calculateBounds = () => {
-    if (Object.keys(trajectoryData).length === 0) return null;
+    const dataToUse = showOriginal ? originalTrajectories : trajectoryData;
+    if (Object.keys(dataToUse).length === 0) return null;
     
-    const allPoints = Object.values(trajectoryData).flat();
+    const allPoints = Object.values(dataToUse).flat();
     if (allPoints.length === 0) return null;
 
     const lats = allPoints.map(point => point.latitude);
@@ -249,7 +263,8 @@ const MapComponent = ({ height = 400, showControls = true }) => {
 
   // 渲染车辆轨迹线
   const renderVehicleTrajectories = () => {
-    return Object.entries(trajectoryData).map(([plateNumber, points]) => {
+    const dataToUse = showOriginal ? originalTrajectories : trajectoryData;
+    return Object.entries(dataToUse).map(([plateNumber, points]) => {
       if (points.length < 2) return null;
       
       const positions = points.map(point => [point.latitude, point.longitude]);
@@ -268,7 +283,8 @@ const MapComponent = ({ height = 400, showControls = true }) => {
 
   // 渲染车辆轨迹点
   const renderVehicleTrajectoryPoints = () => {
-    return Object.entries(trajectoryData).map(([plateNumber, points]) => {
+    const dataToUse = showOriginal ? originalTrajectories : trajectoryData;
+    return Object.entries(dataToUse).map(([plateNumber, points]) => {
       return points.map((point, index) => (
         <Marker
           key={`point-${plateNumber}-${index}`}
@@ -433,6 +449,45 @@ const MapComponent = ({ height = 400, showControls = true }) => {
               >
                 <span style={{ color: '#ff4d4f' }}>●</span> 原始轨迹
               </Checkbox>
+              
+              {/* 分页控制 */}
+              {showOriginal && (
+                <div style={{ marginTop: 8, fontSize: '12px' }}>
+                  <div style={{ marginBottom: 4 }}>
+                    第 {pagination.page || 1} 页 / 共 {pagination.total_pages || 0} 页
+                    {pagination.total_count && (
+                      <div style={{ fontSize: '11px', color: '#666', marginTop: 2 }}>
+                        总计 {pagination.total_count} 辆车
+                      </div>
+                    )}
+                  </div>
+                  <Space size="small">
+                    <Button 
+                      size="small" 
+                      disabled={!pagination.page || pagination.page <= 1}
+                      onClick={() => {
+                        const newPage = (pagination.page || 1) - 1;
+                        setCurrentPage(newPage);
+                        fetchOriginalTrajectories(newPage, pagination.page_size || 20);
+                      }}
+                    >
+                      上一页
+                    </Button>
+                    <Button 
+                      size="small" 
+                      disabled={!pagination.total_pages || pagination.page >= pagination.total_pages}
+                      onClick={() => {
+                        const newPage = (pagination.page || 1) + 1;
+                        setCurrentPage(newPage);
+                        fetchOriginalTrajectories(newPage, pagination.pageSize || 20);
+                      }}
+                    >
+                      下一页
+                    </Button>
+                  </Space>
+                </div>
+              )}
+              
               <Checkbox
                 checked={showMatched}
                 onChange={(e) => setShowMatched(e.target.checked)}

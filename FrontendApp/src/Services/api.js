@@ -65,10 +65,16 @@ export const matchingAPI = {
   matchToRoads: (params = {}) => axios.get('http://localhost:8000/matching/match', { params }).then(r => r.data),
   getRoadNetwork: () => axios.get('http://localhost:8000/matching/road-network').then(r => r.data),
   getVehiclesData: (params = {}) => axios.get('http://localhost:8000/matching/vehicles', { params }).then(r => r.data),
+  getMatchedPoints: () => axios.get('http://localhost:8000/matching/match').then(r => r.data),
 };
 
 // 轨迹数据API
 export const trajectoryAPI = {
+  // 从数据库获取原始轨迹数据（分页查询）
+  getOriginalTrajectoryData: (page = 1, pageSize = 20, plateNumber = null) => axios.get('http://localhost:8000/trajectory/original', { 
+    params: { page, page_size: pageSize, plate_number: plateNumber } 
+  }).then(r => r.data),
+  
   // 批量获取指定数量车辆的轨迹数据
   getBatchTrajectoryData: (limit = 50, matchToRoads = false) => axios.get('http://localhost:8000/trajectory/batch', { 
     params: { limit, match_to_roads: matchToRoads } 
