@@ -453,12 +453,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
                 <div style={{ marginTop: 8, fontSize: '12px' }}>
                   <div style={{ marginBottom: 4 }}>
                     第 {pagination.page || 1} 页 / 共 {pagination.total_pages || 0} 页
-                    {pagination.total_count && (
-                      <div style={{ fontSize: '11px', color: '#666', marginTop: 2 }}>
-                        总计 {pagination.total_count} 辆车
-        </div>
-      )}
-    </div>
+                  </div>
                   <Space size="small">
                     <Button 
                       size="small" 
@@ -532,18 +527,12 @@ const MapComponent = ({ height = 400, showControls = true }) => {
             <Space direction="vertical" style={{ width: '100%' }} size="small">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Space>
-                  <span style={{ color: '#1890ff', fontSize: '16px' }}>●</span>
-                  <Typography.Text style={{ fontSize: '13px' }}>道路吸附点</Typography.Text>
-                </Space>
-                <Badge count={matchedPoints.length} style={{ backgroundColor: '#1890ff' }} />
-              </div>
-              
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Space>
                   <span style={{ color: '#52c41a', fontSize: '16px' }}>●</span>
                   <Typography.Text style={{ fontSize: '13px' }}>车辆轨迹点</Typography.Text>
                 </Space>
-                <Badge count={Object.values(trajectoryData).flat().length} style={{ backgroundColor: '#52c41a' }} />
+                <Typography.Text style={{ fontSize: '13px', fontWeight: 'bold', color: '#52c41a' }}>
+                  {Object.values(originalTrajectories).flat().length}
+                </Typography.Text>
               </div>
               
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -551,7 +540,9 @@ const MapComponent = ({ height = 400, showControls = true }) => {
                   <span style={{ color: '#faad14', fontSize: '16px' }}>●</span>
                   <Typography.Text style={{ fontSize: '13px' }}>车辆数量</Typography.Text>
                 </Space>
-                <Badge count={Object.keys(trajectoryData).length} style={{ backgroundColor: '#faad14' }} />
+                <Typography.Text style={{ fontSize: '13px', fontWeight: 'bold', color: '#faad14' }}>
+                  {Object.keys(originalTrajectories).length}
+                </Typography.Text>
               </div>
               
               {loading && (
