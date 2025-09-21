@@ -207,8 +207,8 @@ const MapComponent = ({ height = 400, showControls = true }) => {
       try {
         setLoading(true);
         
-        // 加载轨迹数据
-        await fetchBatchTrajectoryData(20, false);
+        // 加载轨迹数据（启用道路匹配）
+        await fetchBatchTrajectoryData(20, true);
         
         // 加载匹配点数据
         const response = await matchingAPI.getMatchedPoints();
@@ -326,11 +326,11 @@ const MapComponent = ({ height = 400, showControls = true }) => {
           {/* 吸附点 - 只显示匹配到道路上的点 */}
           <MatchedPoints matchedPoints={matchedPoints} />
 
-          {/* 车辆轨迹线 */}
-          {renderVehicleTrajectories()}
+          {/* 车辆轨迹线 - 原始轨迹 */}
+          {showOriginal && renderVehicleTrajectories()}
 
-          {/* 车辆轨迹点 */}
-          {renderVehicleTrajectoryPoints()}
+          {/* 车辆轨迹点 - 原始轨迹点 */}
+          {showOriginal && renderVehicleTrajectoryPoints()}
 
           {/* 原始轨迹 */}
           {showOriginal && originalTrajectory && (

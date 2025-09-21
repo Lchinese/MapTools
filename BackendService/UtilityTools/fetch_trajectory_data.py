@@ -6,6 +6,7 @@
 import pymongo
 from datetime import datetime
 from typing import Dict, List, Any
+from .road_matching import RoadMatcher
 
 
 def connect_to_mongodb(db_name: str = "MapTools", collection_name: str = "gps_points"):
@@ -94,7 +95,8 @@ def fetch_all_trajectory_data(db_name: str = "MapTools", collection_name: str = 
 
 def fetch_trajectory_data_by_plate(plate_number: str, 
                                    db_name: str = "MapTools", 
-                                   collection_name: str = "gps_points") -> Dict[str, List[Dict[str, Any]]]:
+                                   collection_name: str = "gps_points",
+                                   match_to_roads: bool = False) -> Dict[str, List[Dict[str, Any]]]:
     """
     根据车牌号从MongoDB获取轨迹数据
 
@@ -102,6 +104,7 @@ def fetch_trajectory_data_by_plate(plate_number: str,
         plate_number (str): 车牌号
         db_name (str): 数据库名称
         collection_name (str): 集合名称
+        match_to_roads (bool): 是否进行道路匹配
 
     Returns:
         Dict[str, List[Dict[str, Any]]]: 以车牌号为键，轨迹点列表为值的字典
@@ -137,7 +140,48 @@ def fetch_trajectory_data_by_plate(plate_number: str,
             formatted_records.append(formatted_record)
         
         # 按车牌号分组存储
-        return {plate_number: formatted_records}
+        result = {plate_number: formatted_records}
+        
+        # 如果需要进行道路匹配
+        if match_to_roads and formatted_records:
+            try:
+                # 初始化道路匹配器
+                road_matcher = RoadMatcher()
+                
+                # 进行道路匹配
+                matched_points = road_matcher.match_gps_to_roads(formatted_records)
+                
+                # 将匹配结果转换为轨迹点格式
+                matched_trajectory_points = []
+                for matched_point in matched_points:
+                    # 使用匹配后的坐标
+                    trajectory_point = {
+                        'plate_number': matched_point['original_gps']['plate_number'],
+                        'datetime': matched_point['original_gps']['datetime'],
+                        'longitude': matched_point['matched_longitude'],  # 使用匹配后的经度
+                        'latitude': matched_point['matched_latitude'],    # 使用匹配后的纬度
+                        'speed': matched_point['original_gps']['speed'],
+                        'heading': matched_point['original_gps']['heading'],
+                        'is_valid': matched_point['original_gps']['is_valid'],
+                        'source_file': matched_point['original_gps']['source_file'],
+                        # 添加匹配信息
+                        'road_id': matched_point['road_id'],
+                        'road_name': matched_point['road_name'],
+                        'road_type': matched_point['road_type'],
+                        'distance_to_road': matched_point['distance_to_road'],
+                        'matched': True
+                    }
+                    matched_trajectory_points.append(trajectory_point)
+                
+                # 返回匹配后的轨迹
+                return {plate_number: matched_trajectory_points}
+                
+            except Exception as e:
+                print(f"道路匹配失败: {e}")
+                # 如果匹配失败，返回原始轨迹
+                return result
+        
+        return result
         
     except Exception as e:
         print(f"查询数据时出错: {e}")
