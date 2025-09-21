@@ -1,9 +1,10 @@
-📁 MapTools/                      # 轨迹路径匹配系统（模块化架构）
-├── 📁 FrontendApp/               # 前端应用（React - 模块化组件）
+📁 MapTools/                      # 轨迹路径匹配系统（MongoDB数据库版）
+├── 📁 FrontendApp/               # 前端应用（React + Leaflet）
 │   ├── 📁 src/                   # 源代码目录
 │   │   ├── 📁 Components/        # 可复用组件模块
 │   │   │   ├── 📁 Map/           # 地图组件
 │   │   │   │   ├── 📄 MapComponent.jsx
+│   │   │   │   ├── 📄 MapComponent.css
 │   │   │   │   └── 📄 MatchedPoints.jsx
 │   │   │   ├── 📁 Upload/        # 上传组件
 │   │   │   │   └── 📄 FileUpload.jsx
@@ -26,7 +27,7 @@
 │   │   ├── 📁 Utils/             # 工具函数
 │   │   │   ├── 📄 fileUtils.js
 │   │   │   └── 📄 geoUtils.js
-│   │   ├── 📁 Store/             # 状态管理
+│   │   ├── 📁 Store/             # 状态管理（Zustand）
 │   │   │   ├── 📄 mapStore.js
 │   │   │   └── 📄 trajectoryStore.js
 │   │   ├── 📁 Pages/             # 页面组件
@@ -44,12 +45,13 @@
 │   ├── 📄 package.json           # 项目依赖配置
 │   ├── 📄 package-lock.json      # 依赖锁定文件
 │   └── 📄 README.md              # 前端说明文档
-├── 📁 BackendService/            # 后端服务（FastAPI - 分层模块化）
+├── 📁 BackendService/            # 后端服务（FastAPI + MongoDB）
 │   ├── 📁 ApiEndpoints/          # API 路由层
 │   │   ├── 📄 __init__.py
 │   │   ├── 📄 auth.py            # 认证 API
 │   │   ├── 📄 health.py          # 健康检查 API
-│   │   └── 📄 matching.py        # 匹配 API
+│   │   ├── 📄 matching.py        # 匹配 API
+│   │   └── 📄 trajectory.py      # 轨迹 API（分页查询）
 │   ├── 📁 CoreConfig/            # 核心配置层
 │   │   ├── 📄 __init__.py
 │   │   ├── 📄 settings.py        # 配置管理
@@ -59,14 +61,15 @@
 │   │   ├── 📄 __init__.py
 │   │   ├── 📄 base.py            # 基础模型
 │   │   ├── 📄 enums.py           # 公共枚举定义
-│   │   └── 📁 Models/            # 模型定义目录（按功能域拆分）
-│   │       ├── 📄 __init__.py
-│   │       ├── 📄 user.py        # 用户模型
-│   │       ├── 📄 trajectory.py  # 轨迹模型
-│   │       ├── 📄 matching.py    # 匹配模型
-│   │       ├── 📄 road_network.py # 路网模型
-│   │       ├── 📄 file.py        # 文件模型
-│   │       └── 📄 system_log.py  # 系统日志模型
+│   │   ├── 📁 Models/            # SQLAlchemy模型（按功能域拆分）
+│   │   │   ├── 📄 __init__.py
+│   │   │   ├── 📄 user.py        # 用户模型
+│   │   │   ├── 📄 trajectory.py  # 轨迹模型
+│   │   │   ├── 📄 matching.py    # 匹配模型
+│   │   │   ├── 📄 road_network.py # 路网模型
+│   │   │   ├── 📄 file.py        # 文件模型
+│   │   │   └── 📄 system_log.py  # 系统日志模型
+│   │   └── 📁 MongoModels/       # MongoDB模型（空目录，待扩展）
 │   ├── 📁 DataSchemas/           # 数据验证层（Pydantic - 按功能域拆分）
 │   │   ├── 📄 __init__.py
 │   │   ├── 📄 user.py            # 用户验证模型
@@ -97,18 +100,33 @@
 │   │   ├── 📄 __init__.py
 │   │   ├── 📄 file_utils.py      # 文件处理工具
 │   │   ├── 📄 geo_utils.py       # 地理计算工具
-│   │   ├── 📄 gps_parser.py      # GPS 解析工具
-│   │   ├── 📄 road_matching.py   # 道路匹配工具
-│   │   └── 📄 validators.py      # 数据验证工具
+│   │   ├── 📄 gps_parser.py      # GPS 解析工具（MongoDB存储）
+│   │   ├── 📄 road_matching.py   # 道路匹配工具（MongoDB路网）
+│   │   ├── 📄 validators.py      # 数据验证工具
+│   │   ├── 📄 fetch_trajectory_data.py # 轨迹数据获取（分页查询）
+│   │   └── 📄 query_gps_data.py  # GPS数据查询工具
 │   ├── 📁 Tests/                 # 测试模块
 │   │   ├── 📄 __init__.py
 │   │   ├── 📄 run_tests.py       # 测试运行器
 │   │   ├── 📁 unit/              # 单元测试
+│   │   │   ├── 📄 test_geo_utils.py
+│   │   │   ├── 📄 test_matching_algorithm.py
+│   │   │   ├── 📄 test_matching.py
+│   │   │   ├── 📄 test_road_matching.py
+│   │   │   └── 📄 test_trajectory.py
 │   │   └── 📁 integration/       # 集成测试
+│   │       ├── 📄 test_api_comprehensive.py
+│   │       ├── 📄 test_api_quick.py
+│   │       ├── 📄 test_api.py
+│   │       ├── 📄 test_database.py
+│   │       └── 📄 test_tianditu_wfs.py
 │   ├── 📁 scripts/               # 脚本工具
 │   │   ├── 📄 init_database.py   # 数据库初始化
 │   │   ├── 📄 log_cleanup.py     # 日志清理
-│   │   └── 📄 setup_logging.py   # 日志设置
+│   │   ├── 📄 setup_logging.py   # 日志设置
+│   │   ├── 📄 save_gps_parse.py  # GPS数据解析存储脚本
+│   │   ├── 📄 save_original_trajectories.py # 原始轨迹存储脚本
+│   │   └── 📄 save_roads_to_mongodb.py # 路网数据存储脚本
 │   ├── 📁 Logs/                  # 日志存储目录
 │   │   ├── 📁 api/               # API 日志
 │   │   ├── 📁 app/               # 应用日志
@@ -131,6 +149,10 @@
 │   ├── 📄 test_fixes.py          # 测试修复文件
 │   └── 📄 uv.lock                # UV 依赖锁定文件
 ├── 📁 data/                      # 出租车轨迹数据文件（本地存储）
+│   ├── 📁 01/                    # 数据子目录
+│   ├── 📁 02/
+│   ├── 📁 03/
+│   └── 📁 ...                    # 其他数据目录
 ├── 📁 ExternalData/              # 外部数据（天地图 Shapefile）
 ├── 📁 UserUploads/               # 用户上传的轨迹文件
 ├── 📁 Logs/                      # 系统日志存储目录
@@ -153,6 +175,20 @@
 └── 📄 项目架构.txt                # 项目架构描述
 
 ## 📋 架构说明
+
+### 🗄️ 数据库架构（MongoDB版）
+项目采用MongoDB作为主要数据存储，支持地理空间查询和分页：
+
+#### 数据集合
+- **`gps_points`**: 原始GPS点数据，包含地理空间索引
+- **`original_trajectories`**: 原始轨迹数据，按车牌号分页存储
+- **`road_network`**: 路网数据，从天地图WFS服务获取并持久化
+
+#### 数据流程
+1. **数据导入**: `gps_parser.py` 解析本地txt文件 → MongoDB
+2. **轨迹构建**: `save_original_trajectories.py` 构建轨迹 → MongoDB
+3. **路网存储**: `save_roads_to_mongodb.py` 获取路网 → MongoDB
+4. **API查询**: 分页查询轨迹数据，支持按车牌号过滤
 
 ### 🔄 代码拆分优化
 为了降低代码耦合度和提高可维护性，项目进行了以下拆分：
@@ -182,3 +218,4 @@
 - **提高可维护性**: 按功能域组织，修改影响范围小
 - **减少耦合**: 各功能域相对独立
 - **便于协作**: 不同开发者可并行开发不同功能域
+- **MongoDB集成**: 支持地理空间查询和分页，提升查询性能
