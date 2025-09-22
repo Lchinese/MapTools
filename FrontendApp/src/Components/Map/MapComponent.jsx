@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Map, TileLayer, Polyline, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
 import { ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import { Card, Checkbox, Button, Space, Typography, Tooltip } from 'antd';
 import L from 'leaflet';
@@ -18,21 +18,20 @@ L.Icon.Default.mergeOptions({
   shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
 });
 
-// 地图更新组件（react-leaflet 2.x版本）
-const MapUpdater = ({ center, zoom, bounds, mapRef }) => {
+// 地图更新组件（react-leaflet 4.x版本）
+function MapUpdater({ center, zoom, bounds, mapRef }) {
+  const map = useMap();
+  
   useEffect(() => {
-    if (mapRef && mapRef.current) {
-      const map = mapRef.current.leafletElement;
     if (bounds) {
       map.fitBounds(bounds);
-    } else if (center) {
+    } else if (center && zoom) {
       map.setView(center, zoom);
     }
-    }
-  }, [mapRef, center, zoom, bounds]);
+  }, [center, zoom, bounds, map]);
 
   return null;
-};
+}
 
 // 轨迹线组件
 const TrajectoryLine = ({ trajectory, color, weight }) => {
@@ -318,7 +317,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
     <div>
       {/* 地图容器 */}
     <div style={{ height, width: '100%', position: 'relative' }}>
-        <Map
+        <MapContainer
         ref={mapRef}
         center={center}
         zoom={zoom}
@@ -378,7 +377,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
             color="#52c41a"
           />
         )}
-        </Map>
+        </MapContainer>
 
       {/* 重置按钮 - 放在左侧缩放控件下方 */}
       <div style={{
@@ -400,14 +399,13 @@ const MapComponent = ({ height = 400, showControls = true }) => {
                 height: 40,
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 border: 'none',
-                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
               }}
             />
           </Tooltip>
-      </div>
+        </div>
 
         {/* 控制面板 - 放在左下角 */}
       {showControls && (

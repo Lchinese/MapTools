@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -296,6 +296,56 @@ dist
 Dockerfile.dev
 docker-compose.override.yml
 docker-compose.dev.yml
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.jpi
+*.hpi
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IntelliJ IDEA
+*.iml
+*.ipr
+*.iws
+*.idea/
+out/
+.idea/
+
+# Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+
+# NetBeans
+.nb-gradle/
+build/
+.netbeans_automatic_build
+
+# VS Code Java
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/java.compile.complete
+!.vscode/java.test.complete
+launchContext.json
+bin/
 
 # Database
 *.db
