@@ -41,6 +41,7 @@
 │   │   ├── 📄 index.js           # 应用入口
 │   │   └── 📄 index.css          # 全局样式
 │   ├── 📁 public/                # 静态资源目录
+│   ├── 📁 build/                 # 构建输出目录
 │   ├── 📁 node_modules/          # Node.js 依赖包
 │   ├── 📄 package.json           # 项目依赖配置
 │   ├── 📄 package-lock.json      # 依赖锁定文件
@@ -148,6 +149,25 @@
 │   ├── 📄 README.md              # 后端说明文档
 │   ├── 📄 test_fixes.py          # 测试修复文件
 │   └── 📄 uv.lock                # UV 依赖锁定文件
+├── 📁 JavaToolScripts/           # Java工具脚本（GPS数据处理）
+│   ├── 📁 src/                   # Java源代码
+│   │   └── 📁 main/
+│   │       └── 📁 java/
+│   │           └── 📁 com/
+│   │               └── 📁 maptools/
+│   │                   └── 📁 gpstools/
+│   │                       ├── 📄 GPSDataParser.java      # GPS数据解析器
+│   │                       ├── 📄 GPSDataPoint.java       # GPS数据点模型
+│   │                       ├── 📄 GPSDataProcessor.java   # GPS数据处理器
+│   │                       └── 📄 MongoDataStore.java     # MongoDB数据存储
+│   ├── 📁 scripts/               # 批处理脚本
+│   │   ├── 📄 build.bat          # 构建脚本
+│   │   ├── 📄 compile.bat        # 编译脚本
+│   │   ├── 📄 run.bat            # 运行脚本
+│   │   └── 📄 run-all.bat        # 批量运行脚本
+│   ├── 📁 docs/                  # 文档目录
+│   │   └── 📄 README.md          # Java工具说明文档
+│   └── 📄 pom.xml                # Maven项目配置
 ├── 📁 data/                      # 出租车轨迹数据文件（本地存储）
 │   ├── 📁 01/                    # 数据子目录
 │   ├── 📁 02/
@@ -190,6 +210,27 @@
 3. **路网存储**: `save_roads_to_mongodb.py` 获取路网 → MongoDB
 4. **API查询**: 分页查询轨迹数据，支持按车牌号过滤
 
+### 🛠️ 多语言工具集成
+项目采用多语言架构，充分利用不同语言的优势：
+
+#### Java工具脚本（JavaToolScripts）
+- **GPS数据处理**: 高性能的GPS数据解析和处理
+- **MongoDB集成**: 直接与MongoDB数据库交互
+- **批处理支持**: 支持大规模数据批量处理
+- **跨平台**: 通过Maven构建，支持Windows批处理脚本
+
+#### Python后端服务（BackendService）
+- **API服务**: FastAPI提供RESTful API接口
+- **业务逻辑**: 复杂的轨迹匹配算法实现
+- **异步任务**: Celery支持长时间运行的任务
+- **数据验证**: Pydantic提供强大的数据验证
+
+#### React前端应用（FrontendApp）
+- **用户界面**: 现代化的Web用户界面
+- **地图可视化**: Leaflet地图组件展示轨迹和匹配结果
+- **状态管理**: Zustand轻量级状态管理
+- **响应式设计**: 适配不同屏幕尺寸
+
 ### 🔄 代码拆分优化
 为了降低代码耦合度和提高可维护性，项目进行了以下拆分：
 
@@ -213,7 +254,15 @@
   - `system_log.py` - 日志验证 (35行)
   - `matching.py` - 匹配验证 (202行)
 
-### 🎯 拆分优势
+### 🎯 架构优势
+
+#### 多语言架构优势
+- **性能优化**: Java处理大数据量，Python处理复杂业务逻辑，JavaScript提供流畅UI
+- **技术栈匹配**: 每种语言发挥其优势领域
+- **独立部署**: 各组件可独立开发、测试和部署
+- **团队协作**: 不同技能背景的开发者可并行工作
+
+#### 代码拆分优势
 - **降低复杂度**: 单文件行数从400+行降至35-180行
 - **提高可维护性**: 按功能域组织，修改影响范围小
 - **减少耦合**: 各功能域相对独立
