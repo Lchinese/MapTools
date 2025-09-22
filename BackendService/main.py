@@ -6,6 +6,7 @@ MapTools 后端服务主应用
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
 import sys
@@ -84,6 +85,50 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(matching_router)
 app.include_router(trajectory_router)  # 注册轨迹数据路由
+
+# 添加静态文件服务
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# 添加manifest.json的专门路由
+@app.get("/manifest.json")
+async def get_manifest():
+    """提供manifest.json文件"""
+    import json
+    from pathlib import Path
+    
+    manifest_path = Path("static/manifest.json")
+    if manifest_path.exists():
+        with open(manifest_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    else:
+        # 返回默认的manifest
+        return {
+            "short_name": "MapTools",
+            "name": "MapTools - 轨迹匹配系统",
+            "start_url": ".",
+            "display": "standalone",
+            "theme_color": "#000000",
+            "background_color": "#ffffff"
+        }
+
+# 添加favicon.ico的专门路由
+@app.get("/favicon.ico")
+async def get_favicon():
+    """提供favicon.ico文件"""
+    from fastapi.responses import FileResponse
+    from pathlib import Path
+    
+    favicon_path = Path("static/favicon.ico")
+    if favicon_path.exists():
+        return FileResponse(favicon_path)
+    else:
+        # 返回一个简单的响应
+        return {"message": "No favicon available"}
+
+# 添加前端构建文件的静态服务
+frontend_build_path = Path("../FrontendApp/build")
+if frontend_build_path.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_build_path), html=True), name="frontend")
 
 
 

@@ -1,0 +1,359 @@
+# MapTools Backend Service
+
+MapTools轨迹匹配系统的后端服务，基于FastAPI和MongoDB构建。
+
+## 🚀 快速开始
+
+### 环境要求
+
+- Python 3.11+ (推荐 3.13)
+- MongoDB 6.0+
+- Redis (可选，用于Celery任务队列)
+
+### 安装依赖
+
+#### 使用 uv (推荐)
+
+```bash
+# 安装 uv
+pip install uv
+
+# 安装依赖
+uv sync
+
+# 激活虚拟环境
+source .venv/bin/activate  # Linux/macOS
+# 或
+.venv\Scripts\activate     # Windows
+```
+
+#### 使用 pip
+
+```bash
+# 创建虚拟环境
+python -m venv venv
+
+# 激活虚拟环境
+source venv/bin/activate  # Linux/macOS
+# 或
+venv\Scripts\activate     # Windows
+
+# 安装依赖
+pip install -r requirements.txt
+```
+
+### 配置环境变量
+
+```bash
+cp env.example .env
+# 编辑 .env 文件
+```
+
+### 启动服务
+
+```bash
+# 开发模式
+uv run python main.py
+
+# 或使用 uvicorn
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+## 📦 依赖说明
+
+### 核心框架
+
+| 包名 | 版本 | 说明 |
+|------|------|------|
+| fastapi | 0.104.1 | Web框架 |
+| uvicorn[standard] | 0.24.0 | ASGI服务器 |
+| pydantic | 2.5.0 | 数据验证 |
+
+### 数据库相关
+
+| 包名 | 版本 | 说明 |
+|------|------|------|
+| motor | 3.3.2 | MongoDB异步驱动 |
+| pymongo | 4.6.0 | MongoDB同步驱动 |
+| beanie | 1.23.6 | MongoDB ODM |
+
+### 地理空间处理
+
+| 包名 | 版本 | 说明 |
+|------|------|------|
+| geopy | 2.4.1 | 地理编码 |
+| shapely | 2.0.2 | 几何计算 |
+| pyproj | 3.6.1 | 坐标转换 |
+
+### 数据处理
+
+| 包名 | 版本 | 说明 |
+|------|------|------|
+| pandas | 2.1.4 | 数据分析 |
+| numpy | 1.25.2 | 数值计算 |
+| scipy | 1.11.4 | 科学计算 |
+
+### 异步任务
+
+| 包名 | 版本 | 说明 |
+|------|------|------|
+| celery | 5.3.4 | 分布式任务队列 |
+| redis | 5.0.1 | 消息代理 |
+
+### 其他工具
+
+| 包名 | 版本 | 说明 |
+|------|------|------|
+| python-multipart | 0.0.6 | 文件上传 |
+| python-jose[cryptography] | 3.3.0 | JWT认证 |
+| passlib[bcrypt] | 1.7.4 | 密码哈希 |
+| python-dotenv | 1.0.0 | 环境变量 |
+
+## 🏗️ 项目结构
+
+```
+BackendService/
+├── ApiEndpoints/          # API路由层
+│   ├── auth.py           # 认证API
+│   ├── health.py         # 健康检查API
+│   ├── matching.py       # 匹配API
+│   └── trajectory.py     # 轨迹API
+├── BusinessServices/      # 业务逻辑层
+│   ├── file_service.py   # 文件处理服务
+│   ├── matching_service.py # 匹配服务
+│   └── trajectory_service.py # 轨迹服务
+├── CoreConfig/           # 核心配置
+│   ├── database.py       # 数据库配置
+│   ├── logging.py        # 日志配置
+│   └── settings.py       # 应用配置
+├── DataModels/           # 数据模型
+│   ├── Models/           # SQLAlchemy模型
+│   └── MongoModels/      # MongoDB模型
+├── DataSchemas/          # 数据验证
+│   ├── file.py           # 文件验证
+│   ├── matching.py       # 匹配验证
+│   ├── trajectory.py     # 轨迹验证
+│   └── user.py           # 用户验证
+├── MatchingAlgorithms/   # 匹配算法
+│   ├── base.py           # 算法基类
+│   └── Algorithms/       # 算法实现
+├── AsyncTasks/           # 异步任务
+│   ├── celery_app.py     # Celery配置
+│   └── tasks.py          # 任务定义
+├── UtilityTools/         # 工具模块
+│   ├── file_utils.py     # 文件工具
+│   ├── geo_utils.py      # 地理工具
+│   └── validators.py     # 验证工具
+├── Tests/                # 测试模块
+│   ├── unit/             # 单元测试
+│   └── integration/      # 集成测试
+├── scripts/              # 脚本工具
+│   ├── init_database.py  # 数据库初始化
+│   └── setup_logging.py  # 日志设置
+├── Logs/                 # 日志目录
+├── main.py               # 应用入口
+├── pyproject.toml        # 项目配置
+└── requirements.txt      # 依赖列表
+```
+
+## 🔧 配置说明
+
+### 环境变量
+
+创建 `.env` 文件并配置以下变量：
+
+```env
+# 应用配置
+APP_NAME=MapTools
+APP_VERSION=1.0.0
+DEBUG=True
+LOG_LEVEL=INFO
+
+# 数据库配置
+MONGODB_URL=mongodb://localhost:27017
+MONGODB_DATABASE=maptools
+
+# 安全配置
+SECRET_KEY=your-secret-key-here
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=30
+
+# 文件上传配置
+MAX_FILE_SIZE=104857600
+UPLOAD_DIR=UserUploads
+
+# 地图配置
+TIANDITU_TOKEN=your-tianditu-token
+DEFAULT_CENTER_LAT=22.5431
+DEFAULT_CENTER_LNG=114.0579
+DEFAULT_ZOOM=12
+
+# Celery配置 (可选)
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/0
+```
+
+### 数据库初始化
+
+```bash
+# 运行数据库初始化脚本
+python scripts/init_database.py
+
+# 导入路网数据
+python scripts/save_roads_to_mongodb.py
+
+# 导入轨迹数据
+python scripts/save_original_trajectories.py
+```
+
+## 📡 API文档
+
+启动服务后，访问以下地址查看API文档：
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+- **OpenAPI JSON**: http://localhost:8000/openapi.json
+
+### 主要API端点
+
+#### 健康检查
+- `GET /health` - 服务健康状态
+
+#### 认证
+- `POST /auth/login` - 用户登录
+- `POST /auth/register` - 用户注册
+- `POST /auth/refresh` - 刷新令牌
+
+#### 轨迹管理
+- `GET /trajectory/original` - 获取原始轨迹
+- `POST /trajectory/upload` - 上传轨迹文件
+- `DELETE /trajectory/{id}` - 删除轨迹
+
+#### 地图匹配
+- `POST /matching/start` - 开始匹配任务
+- `GET /matching/status/{task_id}` - 获取匹配状态
+- `GET /matching/result/{task_id}` - 获取匹配结果
+
+## 🧪 测试
+
+### 运行测试
+
+```bash
+# 运行所有测试
+python -m pytest Tests/ -v
+
+# 运行单元测试
+python -m pytest Tests/unit/ -v
+
+# 运行集成测试
+python -m pytest Tests/integration/ -v
+
+# 生成覆盖率报告
+python -m pytest Tests/ --cov=. --cov-report=html
+```
+
+### 测试配置
+
+测试使用独立的测试数据库，配置在 `Tests/conftest.py` 中。
+
+## 📊 日志系统
+
+### 日志配置
+
+日志配置在 `CoreConfig/logging.py` 中，支持以下日志级别：
+
+- **API日志**: 记录所有API请求
+- **业务日志**: 记录业务逻辑执行
+- **错误日志**: 记录系统错误
+- **性能日志**: 记录性能指标
+
+### 日志文件
+
+日志文件存储在 `Logs/` 目录下：
+
+```
+Logs/
+├── api/          # API请求日志
+├── app/          # 应用日志
+├── business/     # 业务日志
+├── error/        # 错误日志
+└── performance/  # 性能日志
+```
+
+## 🚀 部署
+
+### Docker部署
+
+```bash
+# 构建镜像
+docker build -t maptools-backend .
+
+# 运行容器
+docker run -d -p 8000:8000 --name maptools-backend maptools-backend
+```
+
+### 生产环境配置
+
+```bash
+# 设置生产环境变量
+export DEBUG=False
+export LOG_LEVEL=WARNING
+
+# 使用Gunicorn运行
+gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+```
+
+## 🔍 监控和调试
+
+### 健康检查
+
+```bash
+curl http://localhost:8000/health
+```
+
+### 日志查看
+
+```bash
+# 查看实时日志
+tail -f Logs/app/app.log
+
+# 查看错误日志
+tail -f Logs/error/error.log
+```
+
+### 性能监控
+
+使用 `Logs/performance/` 目录下的日志文件监控系统性能。
+
+## 🤝 开发指南
+
+### 添加新API
+
+1. 在 `ApiEndpoints/` 创建新的API文件
+2. 在 `BusinessServices/` 实现业务逻辑
+3. 在 `DataSchemas/` 定义请求/响应模型
+4. 在 `main.py` 注册路由
+
+### 添加新算法
+
+1. 在 `MatchingAlgorithms/Algorithms/` 创建算法文件
+2. 继承 `MatchingAlgorithms/base.py` 中的基类
+3. 实现 `match` 方法
+4. 在 `MatchingAlgorithms/__init__.py` 注册算法
+
+### 数据库操作
+
+```python
+from BackendService.CoreConfig.database import get_database
+from BackendService.DataModels.MongoModels import GPSPoint
+
+# 异步操作
+async def get_gps_points():
+    db = await get_database()
+    points = await GPSPoint.find_all().to_list()
+    return points
+```
+
+## 📄 许可证
+
+MIT License

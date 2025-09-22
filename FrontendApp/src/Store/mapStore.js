@@ -12,7 +12,7 @@ const useMapStore = create((set, get) => ({
   roadNetwork: null,
   
   // 显示选项
-  showOriginal: true,
+  showOriginal: false,
   showMatched: true,
   showRoadNetwork: true,
   
@@ -56,7 +56,7 @@ const useMapStore = create((set, get) => ({
     originalTrajectory: null,
     matchedTrajectory: null,
     roadNetwork: null,
-    showOriginal: true,
+    showOriginal: false,
     showMatched: true,
     showRoadNetwork: true,
   }),
