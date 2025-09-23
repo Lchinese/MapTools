@@ -118,7 +118,10 @@ def get_tianditu_config() -> Dict[str, Any]:
     return {
         "api_key": settings.TIANDITU_API_KEY,
         "wgs84_url": f"{settings.TIANDITU_WGS84_URL}?tk={settings.TIANDITU_API_KEY}",
-        "web_mercator_url": f"{settings.TIANDITU_WEB_MERCATOR_URL}?tk={settings.TIANDITU_API_KEY}"
+        "web_mercator_url": f"{settings.TIANDITU_WEB_MERCATOR_URL}?tk={settings.TIANDITU_API_KEY}",
+        "administrative_api_url": "http://api.tianditu.gov.cn/v2/administrative",
+        "driving_api_url": "http://api.tianditu.gov.cn/drive",
+        "wfs_url": "http://gisserver.tianditu.gov.cn/TDTService/wfs"
     }
 
 
