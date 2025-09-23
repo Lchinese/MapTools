@@ -6,3 +6,4 @@ DataModels
 DataSchemas
 MatchingAlgorithms
 UtilityTools
+static
