@@ -5,6 +5,8 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.io.InputStreamReader;
+import java.io.FileInputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -48,7 +50,7 @@ public class GPSDataParser {
         List<GPSDataPoint> gpsPoints = new ArrayList<>();
         String fileName = filePath.substring(filePath.lastIndexOf("\\") + 1);
         
-        try (BufferedReader reader = new BufferedReader(new FileReader(filePath))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(filePath), "UTF-8"))) {
             String line;
             int lineNumber = 0;
             while ((line = reader.readLine()) != null) {

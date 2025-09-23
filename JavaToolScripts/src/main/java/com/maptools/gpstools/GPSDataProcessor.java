@@ -158,7 +158,7 @@ public class GPSDataProcessor {
     }
     
     private void processFiles(File dir, File[] files, String collectionName, MongoDataStore dataStore, ExecutorService executor) {
-        System.out.println("正在处理目录 " + dir.getName() + " 下的 " + files.length + " 个文件");
+        System.out.println("开始处理目录 " + dir.getName() + " 下的 " + files.length + " 个文件");
         
         AtomicInteger fileCounter = new AtomicInteger(0);
         int totalFiles = files.length;
@@ -167,18 +167,40 @@ public class GPSDataProcessor {
         for (File file : files) {
             executor.submit(() -> {
                 try {
+                    // 检查文件是否已经处理过
+                    if (dataStore.isFileProcessed(collectionName, file.getName())) {
+                        int processed = fileCounter.incrementAndGet();
+                        String currentTime = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+                        System.out.println(String.format("[%s] 文件 %d/%d: %s | 已处理，跳过", 
+                            currentTime, processed, totalFiles, file.getName()));
+                        return;
+                    }
+                    
                     GPSDataParser parser = new GPSDataParser();
-                    // 解析文件
-                    java.util.List<GPSDataPoint> points = parser.parseFile(file.getAbsolutePath(), geoFilterEnabled, filterAreaCode);
+                    
+                    // 先解析文件获取统计信息
+                    java.util.List<GPSDataPoint> allPoints = parser.parseFile(file.getAbsolutePath(), false, null);
+                    int totalPoints = allPoints.size();
+                    
+                    // 如果需要地理筛选，进行筛选
+                    java.util.List<GPSDataPoint> validPoints = allPoints;
+                    if (geoFilterEnabled && filterAreaCode != null) {
+                        validPoints = GeoFilter.filterPointsByArea(allPoints, filterAreaCode);
+                    }
+                    int validPointCount = validPoints.size();
                     
                     // 保存到MongoDB
-                    dataStore.saveGPSPoints(points, collectionName, file.getName());
+                    dataStore.saveGPSPoints(validPoints, collectionName, file.getName());
                     
+                    // 输出简洁的处理信息
                     int processed = fileCounter.incrementAndGet();
-                    System.out.println("已完成处理文件 (" + processed + "/" + totalFiles + "): " + file.getName());
+                    String currentTime = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
+                    System.out.println(String.format("[%s] 文件 %d/%d: %s | 总点数: %d | 合法点数: %d", 
+                        currentTime, processed, totalFiles, file.getName(), totalPoints, validPointCount));
+                    
+                    parser.close();
                 } catch (Exception e) {
                     System.err.println("处理文件时出错: " + file.getName() + " - " + e.getMessage());
-                    e.printStackTrace();
                 }
             });
         }

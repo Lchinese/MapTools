@@ -98,7 +98,7 @@ public class MongoDataStore {
                 
                 Document doc = new Document()
                     .append("plate_number", point.getPlateNumber())
-                    .append("datetime", point.getDatetime().atOffset(ZoneOffset.UTC).toInstant().toEpochMilli())
+                    .append("datetime", point.getDatetime().atOffset(ZoneOffset.UTC).toInstant())
                     .append("date", point.getDate())
                     .append("time", point.getTime())
                     .append("record_type", point.getRecordType())
@@ -148,6 +148,25 @@ public class MongoDataStore {
         System.out.println("成功插入点数: " + inserted);
         System.out.println("跳过无效点数: " + skipped);
         System.out.println("总计处理点数: " + (inserted + skipped));
+    }
+    
+    /**
+     * 检查文件是否已经处理过
+     * 
+     * @param collectionName 集合名称
+     * @param fileName 文件名
+     * @return 如果文件已处理过返回true，否则返回false
+     */
+    public boolean isFileProcessed(String collectionName, String fileName) {
+        try {
+            MongoCollection<Document> collection = database.getCollection(collectionName);
+            Document query = new Document("source_file", fileName);
+            Document result = collection.find(query).first();
+            return result != null;
+        } catch (Exception e) {
+            System.err.println("检查文件处理状态时出错: " + e.getMessage());
+            return false;
+        }
     }
     
     public void close() {

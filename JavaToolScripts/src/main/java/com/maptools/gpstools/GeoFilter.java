@@ -17,6 +17,7 @@ import org.locationtech.jts.io.WKTReader;
 import org.locationtech.jts.io.WKTWriter;
 
 import com.mongodb.MongoClient;
+import com.mongodb.MongoClientURI;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
@@ -120,17 +121,26 @@ public class GeoFilter {
     private static MultiPolygon loadBoundaryFromMongoDB(String areaCode) {
         MongoClient mongoClient = null;
         try {
-            mongoClient = new MongoClient(MONGO_CONNECTION_STRING);
+            System.out.println("正在连接MongoDB: " + MONGO_CONNECTION_STRING);
+            mongoClient = new MongoClient(new MongoClientURI(MONGO_CONNECTION_STRING));
+            
+            // 测试连接
+            mongoClient.getDatabase("admin").runCommand(new Document("ping", 1));
+            System.out.println("MongoDB连接成功");
+            
             MongoDatabase database = mongoClient.getDatabase(DATABASE_NAME);
             MongoCollection<Document> collection = database.getCollection(COLLECTION_NAME);
             
             // 查询指定区域代码的边界数据
+            System.out.println("查询区域代码: " + areaCode);
             Document doc = collection.find(Filters.eq("gb_code", areaCode)).first();
             if (doc != null) {
+                System.out.println("找到边界数据: " + doc.getString("name"));
                 // 从GeoJSON格式读取边界数据
                 Document boundaryDoc = (Document) doc.get("boundary");
                 if (boundaryDoc != null) {
                     String type = boundaryDoc.getString("type");
+                    System.out.println("边界类型: " + type);
                     if ("MultiPolygon".equals(type)) {
                         // 解析MultiPolygon
                         List<List<List<List<Double>>>> coordinates = 
@@ -152,9 +162,12 @@ public class GeoFilter {
                             polygons.add(polygon);
                         }
                         
+                        System.out.println("成功解析边界数据，多边形数量: " + polygons.size());
                         return geometryFactory.createMultiPolygon(polygons.toArray(new Polygon[0]));
                     }
                 }
+            } else {
+                System.out.println("未找到区域代码 " + areaCode + " 的边界数据");
             }
         } catch (Exception e) {
             System.err.println("从MongoDB加载边界数据时出错: " + e.getMessage());
@@ -178,7 +191,7 @@ public class GeoFilter {
     public static void saveBoundaryToMongoDB(String areaCode, String areaName, MultiPolygon boundary) {
         MongoClient mongoClient = null;
         try {
-            mongoClient = new MongoClient(MONGO_CONNECTION_STRING);
+            mongoClient = new MongoClient(new MongoClientURI(MONGO_CONNECTION_STRING));
             MongoDatabase database = mongoClient.getDatabase(DATABASE_NAME);
             MongoCollection<Document> collection = database.getCollection(COLLECTION_NAME);
             
@@ -239,35 +252,16 @@ public class GeoFilter {
      * @return 在深圳范围内的GPS轨迹点列表
      */
     public static List<GPSDataPoint> filterPointsInShenzhen(List<GPSDataPoint> points) {
-        // 首先尝试从数据库获取精确的深圳市边界
+        // 强制从数据库获取精确的深圳市边界
         MultiPolygon shenzhenBoundary = getAreaBoundaryFromCache(config.getDefaultAreaCode());
         if (shenzhenBoundary != null) {
+            System.out.println("使用数据库中的精确深圳边界数据进行筛选");
             return filterPointsByMultiPolygon(points, shenzhenBoundary);
         }
         
-        // 如果没有精确边界数据，则使用默认的边界框
-        List<GPSDataPoint> filteredPoints = new ArrayList<>();
-        
-        // 创建一个简单的深圳市边界框（实际应用中应从API获取精确边界）
-        Coordinate[] coordinates = new Coordinate[] {
-            new Coordinate(SHENZHEN_MIN_LNG, SHENZHEN_MIN_LAT),
-            new Coordinate(SHENZHEN_MAX_LNG, SHENZHEN_MIN_LAT),
-            new Coordinate(SHENZHEN_MAX_LNG, SHENZHEN_MAX_LAT),
-            new Coordinate(SHENZHEN_MIN_LNG, SHENZHEN_MAX_LAT),
-            new Coordinate(SHENZHEN_MIN_LNG, SHENZHEN_MIN_LAT)
-        };
-        
-        LinearRing ring = geometryFactory.createLinearRing(coordinates);
-        Polygon shenzhenPolygon = geometryFactory.createPolygon(ring, null);
-        
-        for (GPSDataPoint point : points) {
-            Point p = geometryFactory.createPoint(new Coordinate(point.getLongitude(), point.getLatitude()));
-            if (shenzhenPolygon.contains(p)) {
-                filteredPoints.add(point);
-            }
-        }
-        
-        return filteredPoints;
+        // 如果数据库中没有边界数据，报错并返回空列表
+        System.err.println("错误：数据库中未找到深圳边界数据，请先运行InitializeAdministrativeAreas初始化边界数据");
+        return new ArrayList<>();
     }
     
     /**
