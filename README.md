@@ -25,7 +25,7 @@ MapTools/
 ├── JavaToolScripts/       # Java数据处理工具
 ├── data/                  # 轨迹数据文件
 ├── ExternalData/          # 外部数据（天地图）
-├── UserUploads/           # 用户上传文件
+├── UserUploads/           # 用户上传的GPS原始点文件
 ├── Docs/                  # 项目文档
 └── docker-compose.yml     # 容器编排配置
 ```

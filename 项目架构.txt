@@ -174,7 +174,7 @@
 │   ├── 📁 03/
 │   └── 📁 ...                    # 其他数据目录
 ├── 📁 ExternalData/              # 外部数据（天地图 Shapefile）
-├── 📁 UserUploads/               # 用户上传的轨迹文件
+├── 📁 UserUploads/               # 用户上传的GPS原始点文件
 ├── 📁 Logs/                      # 系统日志存储目录
 ├── 📁 Docs/                      # 项目文档存放
 │   ├── 📄 API规范文档.md          # API 规范文档

@@ -72,11 +72,11 @@ const UploadPage = () => {
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
-        <Title level={2}>上传文件</Title>
+        <Title level={2}>上传GPS原始点文件</Title>
         <Paragraph>
-          当前版本未启用后端上传与匹配接口，上传操作仅为占位演示。
+          当前版本未启用后端上传与匹配接口，GPS原始点文件上传操作仅为占位演示。
         </Paragraph>
-        <Alert type="info" showIcon message="提示" description="启用后端接口后可恢复完整上传与匹配流程。" />
+        <Alert type="info" showIcon message="提示" description="启用后端接口后可恢复GPS原始点文件上传与轨迹匹配流程。" />
       </div>
 
       <Row gutter={[24, 24]}>
