@@ -18,3 +18,15 @@ gpxpy==1.5.0
 numpy==1.24.4
 pandas==2.1.4
 psutil==5.9.6
+
+# MongoDB相关依赖
+pymongo==4.6.0
+motor==3.3.2
+beanie==1.23.6
+
+# 地理空间处理
+shapely==2.0.2
+geopandas==0.14.1
+
+# HTTP客户端
+httpx==0.25.2
