@@ -6,9 +6,9 @@ MapTools轨迹匹配系统的Java数据处理工具，用于高性能的GPS数�
 
 ### 环境要求
 
-- Java 11+ (推荐 17+)
+- Java 8+ (使用Maven编译)
 - Maven 3.6+
-- MongoDB 6.0+
+- MongoDB 3.0+
 
 ### 安装依赖
 
@@ -16,11 +16,11 @@ MapTools轨迹匹配系统的Java数据处理工具，用于高性能的GPS数�
 # 进入Java工具目录
 cd JavaToolScripts
 
-# 安装依赖
-mvn clean install
+# 安装依赖并打包
+mvn clean package
 
 # 或跳过测试安装
-mvn clean install -DskipTests
+mvn clean package -DskipTests
 ```
 
 ### 运行工具
@@ -29,15 +29,11 @@ mvn clean install -DskipTests
 # 编译项目
 mvn compile
 
-# 运行所有工具
-./scripts/run-all.bat  # Windows
-# 或
-./scripts/run-all.sh   # Linux/macOS
+# 打包项目
+mvn package
 
-# 运行单个工具
-./scripts/run.bat      # Windows
-# 或
-./scripts/run.sh       # Linux/macOS
+# 运行数据处理工具
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.GPSDataProcessor <data_directory>
 ```
 
 ## 📦 依赖说明
@@ -46,43 +42,30 @@ mvn compile
 
 | 包名 | 版本 | 说明 |
 |------|------|------|
-| maven-compiler-plugin | 3.11.0 | Java编译插件 |
-| maven-surefire-plugin | 3.1.2 | 测试运行插件 |
-| maven-jar-plugin | 3.3.0 | JAR打包插件 |
+| maven-compiler-plugin | 3.8.1 | Java编译插件 |
+| maven-jar-plugin | 3.2.0 | JAR打包插件 |
+| maven-shade-plugin | 3.2.4 | JAR打包插件 |
 
 ### MongoDB驱动
 
 | 包名 | 版本 | 说明 |
 |------|------|------|
-| mongodb-driver-sync | 4.10.2 | MongoDB同步驱动 |
-| mongodb-driver-core | 4.10.2 | MongoDB核心驱动 |
-| bson | 4.10.2 | BSON数据处理 |
+| mongo-java-driver | 3.12.11 | MongoDB驱动 |
 
 ### 地理空间处理
 
 | 包名 | 版本 | 说明 |
 |------|------|------|
-| geotools-core | 30.0 | 地理空间工具核心 |
-| geotools-main | 30.0 | 主要功能模块 |
-| geotools-geometry | 30.0 | 几何处理模块 |
-| geotools-referencing | 30.0 | 坐标参考系统 |
-| geotools-metadata | 30.0 | 元数据处理 |
+| geotools-main | 24.0 | 地理空间工具核心 |
+| geotools-geojson | 24.0 | GeoJSON处理 |
+| geotools-geometry | 24.0 | 几何处理模块 |
+| jts-core | 1.17.1 | JTS拓扑套件 |
 
 ### 数据处理
 
 | 包名 | 版本 | 说明 |
 |------|------|------|
-| commons-csv | 1.10.0 | CSV文件处理 |
-| commons-io | 2.11.0 | IO工具类 |
-| commons-lang3 | 3.12.0 | 通用工具类 |
-
-### 日志处理
-
-| 包名 | 版本 | 说明 |
-|------|------|------|
-| slf4j-api | 2.0.9 | 日志接口 |
-| logback-classic | 1.4.11 | 日志实现 |
-| logback-core | 1.4.11 | 日志核心 |
+| gson | 2.8.9 | JSON处理 |
 
 ## 🏗️ 项目结构
 
@@ -90,27 +73,24 @@ mvn compile
 JavaToolScripts/
 ├── src/
 │   └── main/
-│       └── java/
-│           └── com/
-│               └── maptools/
-│                   └── gpstools/
-│                       ├── GPSDataParser.java      # GPS数据解析器
-│                       ├── GPSDataPoint.java       # GPS数据点模型
-│                       ├── GPSDataProcessor.java   # GPS数据处理器
-│                       └── MongoDataStore.java     # MongoDB数据存储
-├── scripts/
-│   ├── build.bat          # 构建脚本 (Windows)
-│   ├── build.sh           # 构建脚本 (Linux/macOS)
-│   ├── compile.bat        # 编译脚本 (Windows)
-│   ├── compile.sh         # 编译脚本 (Linux/macOS)
-│   ├── run.bat            # 运行脚本 (Windows)
-│   ├── run.sh             # 运行脚本 (Linux/macOS)
-│   ├── run-all.bat        # 批量运行脚本 (Windows)
-│   └── run-all.sh         # 批量运行脚本 (Linux/macOS)
-├── docs/
-│   └── README.md          # 文档
-├── pom.xml                # Maven配置
-└── target/                # 构建输出目录
+│       ├── java/
+│       │   └── com/
+│       │       └── maptools/
+│       │           └── gpstools/
+│       │               ├── ConfigManager.java          # 配置管理器
+│       │               ├── GPSDataPoint.java           # GPS数据点模型
+│       │               ├── GPSDataParser.java          # GPS数据解析器
+│       │               ├── GPSDataProcessor.java       # GPS数据处理器
+│       │               ├── GeoFilter.java              # 地理筛选器
+│       │               ├── MongoDataStore.java         # MongoDB数据存储
+│       │               ├── APIRateLimiter.java         # API频率限制器
+│       │               ├── InitializeAdministrativeAreas.java  # 初始化行政区划数据
+│       │               └── UpdateAdministrativeAreas.java      # 更新行政区划数据
+│       └── resources/
+│           ├── application.properties                  # 配置文件
+│           └── application.properties.example          # 配置文件示例
+├── pom.xml                                            # Maven配置
+└── target/                                            # 构建输出目录
 ```
 
 ## 🔧 配置说明
@@ -119,8 +99,8 @@ JavaToolScripts/
 
 ```xml
 <properties>
-    <maven.compiler.source>11</maven.compiler.source>
-    <maven.compiler.target>11</maven.compiler.target>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 </properties>
 
@@ -128,43 +108,62 @@ JavaToolScripts/
     <!-- MongoDB驱动 -->
     <dependency>
         <groupId>org.mongodb</groupId>
-        <artifactId>mongodb-driver-sync</artifactId>
-        <version>4.10.2</version>
+        <artifactId>mongo-java-driver</artifactId>
+        <version>3.12.11</version>
     </dependency>
     
     <!-- 地理空间处理 -->
     <dependency>
         <groupId>org.geotools</groupId>
         <artifactId>gt-main</artifactId>
-        <version>30.0</version>
+        <version>24.0</version>
     </dependency>
     
     <!-- 其他依赖... -->
 </dependencies>
 ```
 
-### 数据库配置
+### 配置文件
 
-在代码中配置MongoDB连接：
+复制配置文件示例并根据需要进行修改：
 
-```java
-// MongoDB连接配置
-String connectionString = "mongodb://localhost:27017";
-String databaseName = "maptools";
-String collectionName = "gps_points";
+```bash
+cp src/main/resources/application.properties.example src/main/resources/application.properties
+```
+
+配置参数说明：
+
+```properties
+# MongoDB配置
+mongodb.connection.string=mongodb://localhost:27017
+mongodb.database.name=MapTools
+
+# 天地图API配置
+tianditu.api.key=your_real_tianditu_api_key_here
+tianditu.admin.api.url=http://api.tianditu.gov.cn/v2/administrative
+
+# 地理筛选配置
+default.area.code=156440300
+default.area.name=深圳市
+
+# API请求频率控制
+api.rate.limit.min.interval=1000
+api.rate.limit.daily.max=10000
+
+# 日志配置
+log.directory=logs
 ```
 
 ## 📋 工具说明
 
 ### 1. GPSDataParser
 
-GPS数据解析器，支持多种格式的GPS数据文件。
+GPS数据解析器，支持解析特定格式的GPS数据文件。
 
 **功能特性：**
-- 支持CSV、TXT格式
-- 自动识别数据格式
-- 数据验证和清洗
-- 批量处理支持
+- 支持特定格式的TXT文件
+- 解析经纬度、时间、车牌号等信息
+- 数据验证
 
 **使用方法：**
 ```java
@@ -179,262 +178,142 @@ GPS数据点模型，表示单个GPS坐标点。
 **属性：**
 - `latitude`: 纬度
 - `longitude`: 经度
-- `timestamp`: 时间戳
-- `altitude`: 海拔高度
-- `speed`: 速度
-- `heading`: 方向角
-
-**示例：**
-```java
-GPSDataPoint point = new GPSDataPoint();
-point.setLatitude(22.5431);
-point.setLongitude(114.0579);
-point.setTimestamp(System.currentTimeMillis());
-```
+- `plateNumber`: 车牌号
+- `datetime`: 时间
 
 ### 3. GPSDataProcessor
 
-GPS数据处理器，提供数据清洗和预处理功能。
+GPS数据处理器，提供数据处理和筛选功能。
 
 **功能特性：**
-- 数据去重
-- 异常值检测
-- 数据插值
-- 轨迹平滑
+- 递归处理目录中的所有数据文件
+- 地理区域筛选（基于行政区划边界）
+- 数据存储到MongoDB
 
 **使用方法：**
-```java
-GPSDataProcessor processor = new GPSDataProcessor();
-List<GPSDataPoint> cleanedPoints = processor.cleanData(rawPoints);
+```bash
+# 处理数据目录中的所有文件，不进行地理筛选
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.GPSDataProcessor <data_directory> --no-filter
+
+# 处理数据目录中的所有文件，使用默认区域筛选
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.GPSDataProcessor <data_directory> --filter-area=156440300
 ```
 
-### 4. MongoDataStore
+### 4. GeoFilter
+
+地理筛选器，提供基于行政区划边界的地理筛选功能。
+
+**功能特性：**
+- 点是否在指定区域内的判断
+- 基于行政区划代码的批量筛选
+- 边界数据缓存到MongoDB
+- 使用天地图API获取行政区划边界
+
+### 5. MongoDataStore
 
 MongoDB数据存储类，负责数据的持久化存储。
 
 **功能特性：**
-- 批量插入
-- 地理空间索引
-- 数据查询
-- 连接池管理
+- 连接MongoDB
+- 插入GPS点数据
+- 存储行政区划边界数据
+- 创建地理空间索引
 
-**使用方法：**
-```java
-MongoDataStore store = new MongoDataStore();
-store.connect("mongodb://localhost:27017", "maptools");
-store.insertGPSPoints(points);
-```
+### 6. APIRateLimiter
+
+API频率限制器，控制对天地图API的请求频率。
+
+**功能特性：**
+- 请求间隔控制（避免请求过于频繁）
+- 每日请求次数限制
+- 自动等待机制
+
+### 7. InitializeAdministrativeAreas
+
+初始化行政区划数据工具，创建行政区划数据集合。
+
+### 8. UpdateAdministrativeAreas
+
+更新行政区划边界数据工具，从天地图API获取最新的行政区划边界数据。
 
 ## 🚀 使用示例
 
 ### 完整的数据处理流程
 
-```java
-public class DataProcessingExample {
-    public static void main(String[] args) {
-        try {
-            // 1. 解析GPS数据
-            GPSDataParser parser = new GPSDataParser();
-            List<GPSDataPoint> rawPoints = parser.parseFile("data/input.txt");
-            
-            // 2. 数据清洗
-            GPSDataProcessor processor = new GPSDataProcessor();
-            List<GPSDataPoint> cleanedPoints = processor.cleanData(rawPoints);
-            
-            // 3. 存储到MongoDB
-            MongoDataStore store = new MongoDataStore();
-            store.connect("mongodb://localhost:27017", "maptools");
-            store.insertGPSPoints(cleanedPoints);
-            
-            System.out.println("数据处理完成，共处理 " + cleanedPoints.size() + " 个点");
-            
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-}
 ```
+# 1. 初始化行政区划数据
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.InitializeAdministrativeAreas
 
-### 批量处理多个文件
+# 2. 更新行政区划边界数据（需要配置天地图API密钥）
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.UpdateAdministrativeAreas
 
-```java
-public class BatchProcessingExample {
-    public static void main(String[] args) {
-        String[] files = {
-            "data/file1.txt",
-            "data/file2.txt",
-            "data/file3.txt"
-        };
-        
-        GPSDataParser parser = new GPSDataParser();
-        GPSDataProcessor processor = new GPSDataProcessor();
-        MongoDataStore store = new MongoDataStore();
-        
-        store.connect("mongodb://localhost:27017", "maptools");
-        
-        for (String file : files) {
-            try {
-                List<GPSDataPoint> points = parser.parseFile(file);
-                List<GPSDataPoint> cleanedPoints = processor.cleanData(points);
-                store.insertGPSPoints(cleanedPoints);
-                System.out.println("处理完成: " + file);
-            } catch (Exception e) {
-                System.err.println("处理失败: " + file + " - " + e.getMessage());
-            }
-        }
-    }
-}
+# 3. 处理GPS数据
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.GPSDataProcessor ../data
 ```
 
 ## 🧪 测试
 
-### 运行测试
+项目中暂无单元测试。可以通过运行实际数据处理来验证功能：
 
-```bash
-# 运行所有测试
-mvn test
-
-# 运行特定测试类
-mvn test -Dtest=GPSDataParserTest
-
-# 生成测试报告
-mvn surefire-report:report
 ```
+# 创建测试数据目录
+mkdir test-data
 
-### 测试配置
+# 复制一些数据文件到测试目录
+cp ../data/01/20160901_001-utf.txt test-data/
 
-测试使用H2内存数据库，配置在 `src/test/resources/` 目录下。
+# 运行处理工具
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.GPSDataProcessor test-data
+```
 
 ## 📊 性能优化
 
 ### 1. 批量处理
 
-```java
-// 使用批量插入提高性能
-List<GPSDataPoint> batch = new ArrayList<>();
-for (GPSDataPoint point : points) {
-    batch.add(point);
-    if (batch.size() >= 1000) {
-        store.insertGPSPoints(batch);
-        batch.clear();
-    }
-}
-if (!batch.isEmpty()) {
-    store.insertGPSPoints(batch);
-}
-```
+工具自动递归处理整个目录结构，批量处理所有数据文件。
 
-### 2. 连接池配置
+### 2. 数据缓存
 
-```java
-// 配置MongoDB连接池
-MongoClientSettings settings = MongoClientSettings.builder()
-    .applyConnectionString(new ConnectionString(connectionString))
-    .applyToConnectionPoolSettings(builder -> 
-        builder.maxSize(20)
-               .minSize(5)
-               .maxWaitTime(30, TimeUnit.SECONDS))
-    .build();
-```
+行政区划边界数据会缓存到MongoDB中，避免重复API请求。
 
-### 3. 内存管理
+### 3. API频率控制
 
-```java
-// 使用流式处理大文件
-public void processLargeFile(String filename) {
-    try (Stream<String> lines = Files.lines(Paths.get(filename))) {
-        lines.forEach(this::processLine);
-    } catch (IOException e) {
-        e.printStackTrace();
-    }
-}
-```
+实现API请求频率控制，避免因请求过于频繁而被限制访问。
 
 ## 🚀 部署
 
 ### 构建JAR文件
 
-```bash
+```
 # 构建可执行JAR
 mvn clean package
-
-# 运行JAR文件
-java -jar target/maptools-java-tools-1.0.0.jar
 ```
 
-### Docker部署
+生成的JAR文件位于 `target/gps-data-processor-1.0-SNAPSHOT.jar`。
 
-```dockerfile
-FROM openjdk:17-jre-slim
+### 运行JAR文件
 
-COPY target/maptools-java-tools-1.0.0.jar app.jar
-
-ENTRYPOINT ["java", "-jar", "app.jar"]
+```
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.GPSDataProcessor <data_directory>
 ```
 
 ## 🔍 监控和调试
 
-### 日志配置
-
-在 `src/main/resources/logback.xml` 中配置日志：
-
-```xml
-<configuration>
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-        </encoder>
-    </appender>
-    
-    <root level="INFO">
-        <appender-ref ref="STDOUT" />
-    </root>
-</configuration>
-```
-
-### 性能监控
-
-```java
-// 添加性能监控
-long startTime = System.currentTimeMillis();
-// ... 处理逻辑 ...
-long endTime = System.currentTimeMillis();
-System.out.println("处理耗时: " + (endTime - startTime) + "ms");
-```
+工具会在控制台输出处理进度和结果，并在logs目录下生成日志文件。
 
 ## 🤝 开发指南
 
 ### 添加新功能
 
 1. 在 `src/main/java/com/maptools/gpstools/` 创建新类
-2. 实现相应的接口或继承基类
-3. 添加单元测试
-4. 更新文档
+2. 实现相应的功能
+3. 更新文档
 
 ### 代码规范
 
-- 使用Java 11+特性
-- 遵循Google Java Style Guide
-- 添加适当的注释和文档
-- 编写单元测试
-
-### 错误处理
-
-```java
-public class ErrorHandlingExample {
-    public void processData(String filename) {
-        try {
-            // 处理逻辑
-        } catch (FileNotFoundException e) {
-            logger.error("文件未找到: " + filename, e);
-        } catch (IOException e) {
-            logger.error("IO错误: " + filename, e);
-        } catch (Exception e) {
-            logger.error("未知错误: " + filename, e);
-        }
-    }
-}
-```
+- 使用Java 8特性
+- 遵循标准Java命名规范
+- 添加适当的注释
 
 ## 📄 许可证
 
