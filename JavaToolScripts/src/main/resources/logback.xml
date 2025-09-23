@@ -1,0 +1,28 @@
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="MONGODB_FILE" class="ch.qos.logback.core.FileAppender">
+        <file>logs/mongodb-debug.log</file>
+        <append>true</append>
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- 将MongoDB驱动的所有日志输出到文件而不是控制台 -->
+    <logger name="org.mongodb" level="INFO" additivity="false">
+        <appender-ref ref="MONGODB_FILE" />
+    </logger>
+    
+    <logger name="com.mongodb" level="INFO" additivity="false">
+        <appender-ref ref="MONGODB_FILE" />
+    </logger>
+    
+    <root level="INFO">
+        <appender-ref ref="STDOUT" />
+    </root>
+</configuration>

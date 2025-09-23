@@ -1,49 +1,31 @@
 package com.maptools.gpstools;
 
 import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
+import java.io.FileReader;
+import java.io.File;
 
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.LinearRing;
 import org.geotools.geometry.jts.JTSFactoryFinder;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonArray;
 
 /**
  * 更新行政区划边界数据
- * 从天地图API获取精确的行政区划边界数据并保存到MongoDB中
- * 实现可行性文档中5.3.3节的技术实现方案
- * 添加了API请求频率控制以避免请求过于频繁
+ * 从本地GeoJSON文件获取精确的行政区划边界数据并保存到MongoDB中
  */
 public class UpdateAdministrativeAreas {
     
     // 使用配置管理器
     private static ConfigManager config = ConfigManager.getInstance();
     
-    // 天地图API密钥
-    private static final String TIANDITU_API_KEY = config.getTiandituApiKey();
-    
-    // 天地图行政区划API地址
-    private static final String TIANDITU_ADMIN_API = config.getTiandituAdminApiUrl();
-    
     public static void main(String[] args) {
         System.out.println("开始更新行政区划边界数据...");
-        
-        // 检查是否超过每日请求限制
-        if (APIRateLimiter.isDailyLimitExceeded()) {
-            System.err.println("已超过每日API请求限制，请明天再试。");
-            return;
-        }
-        
-        System.out.println("今日剩余API请求数: " + APIRateLimiter.getRemainingDailyRequests());
         
         // 更新默认区域边界数据
         updateDefaultAreaBoundary();
@@ -58,131 +40,136 @@ public class UpdateAdministrativeAreas {
         String areaCode = config.getDefaultAreaCode();
         String areaName = config.getDefaultAreaName();
         
-        System.out.println("正在从天地图API获取" + areaName + "边界数据...");
+        System.out.println("正在从本地GeoJSON文件获取" + areaName + "边界数据...");
         
         try {
-            // 等待适当的请求间隔，避免请求过于频繁
-            APIRateLimiter.waitForNextRequest();
+            // 首先尝试从本地GeoJSON文件读取数据
+            MultiPolygon boundary = loadBoundaryFromGeoJSON();
             
-            // 构造API请求URL
-            String url = TIANDITU_ADMIN_API + 
-                "?keyword=" + areaCode +  // 行政区划代码
-                "&childLevel=0" +         // 不获取下级行政区划
-                "&extensions=true" +      // 返回轮廓数据
-                "&tk=" + TIANDITU_API_KEY; // API密钥
-            
-            // 发送HTTP请求
-            String response = sendGetRequest(url);
-            
-            if (response != null && !response.isEmpty()) {
-                // 解析API响应
-                Polygon boundary = parseAdministrativeBoundary(response);
-                
-                if (boundary != null) {
-                    // 保存到MongoDB
-                    GeoFilter.saveBoundaryToMongoDB(areaCode, areaName, boundary);
-                    System.out.println(areaName + "边界数据更新完成。");
-                } else {
-                    System.err.println("解析" + areaName + "边界数据失败。");
-                }
+            if (boundary != null) {
+                // 保存到MongoDB
+                GeoFilter.saveBoundaryToMongoDB(areaCode, areaName, boundary);
+                System.out.println(areaName + "边界数据更新完成。");
             } else {
-                System.err.println("获取" + areaName + "边界数据失败。");
+                System.err.println("从本地GeoJSON文件获取边界数据失败。");
+                // 使用近似边界
+                MultiPolygon approximateBoundary = createApproximateBoundary();
+                GeoFilter.saveBoundaryToMongoDB(areaCode, areaName, approximateBoundary);
+                System.out.println("使用近似边界数据完成更新。");
             }
         } catch (Exception e) {
             System.err.println("更新" + areaName + "边界数据时出错: " + e.getMessage());
             e.printStackTrace();
-        }
-    }
-    
-    /**
-     * 发送GET请求
-     * 
-     * @param urlString 请求URL
-     * @return 响应内容
-     * @throws Exception 请求异常
-     */
-    private static String sendGetRequest(String urlString) throws Exception {
-        URL url = new URL(urlString);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        
-        // 设置请求方法和头部
-        connection.setRequestMethod("GET");
-        connection.setRequestProperty("User-Agent", "MapTools/1.0");
-        connection.setConnectTimeout(10000); // 10秒连接超时
-        connection.setReadTimeout(30000);    // 30秒读取超时
-        
-        // 读取响应
-        int responseCode = connection.getResponseCode();
-        if (responseCode == HttpURLConnection.HTTP_OK) {
-            BufferedReader reader = new BufferedReader(
-                new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8));
-            StringBuilder response = new StringBuilder();
-            String line;
             
-            while ((line = reader.readLine()) != null) {
-                response.append(line);
+            // 出错时使用近似边界
+            try {
+                MultiPolygon approximateBoundary = createApproximateBoundary();
+                GeoFilter.saveBoundaryToMongoDB(areaCode, areaName, approximateBoundary);
+                System.out.println("使用近似边界数据完成更新。");
+            } catch (Exception ex) {
+                System.err.println("使用近似边界数据更新时也出错: " + ex.getMessage());
             }
-            reader.close();
-            
-            return response.toString();
-        } else if (responseCode == 429) {
-            System.err.println("API请求过于频繁，已被限制。请稍后再试。");
-            return null;
-        } else {
-            System.err.println("HTTP请求失败，状态码: " + responseCode);
-            return null;
         }
     }
     
     /**
-     * 解析行政区划边界数据
+     * 从本地GeoJSON文件加载边界数据
      * 
-     * @param jsonResponse API响应JSON字符串
-     * @return 边界多边形
+     * @return 边界多边形或多边形集合
      */
-    private static Polygon parseAdministrativeBoundary(String jsonResponse) {
+    private static MultiPolygon loadBoundaryFromGeoJSON() {
         try {
-            // 解析JSON响应
-            JsonObject jsonObject = JsonParser.parseString(jsonResponse).getAsJsonObject();
+            // 查找GeoJSON文件
+            String[] possiblePaths = {
+                "../深圳市_市.geojson",
+                "../../深圳市_市.geojson",
+                "深圳市_市.geojson",
+                "data/深圳市_市.geojson"
+            };
             
-            // 检查响应状态
-            int status = jsonObject.get("status").getAsInt();
-            if (status != 200) {
-                System.err.println("API响应状态错误: " + status);
+            File geojsonFile = null;
+            for (String path : possiblePaths) {
+                File file = new File(path);
+                if (file.exists()) {
+                    geojsonFile = file;
+                    break;
+                }
+            }
+            
+            if (geojsonFile == null) {
+                System.out.println("未找到深圳市_市.geojson文件");
                 return null;
             }
             
-            // 获取行政区划数据
-            JsonArray districts = jsonObject.getAsJsonObject("data").getAsJsonArray("district");
-            if (districts.size() == 0) {
-                System.err.println("未找到行政区划数据");
+            System.out.println("读取GeoJSON文件: " + geojsonFile.getAbsolutePath());
+            
+            // 读取文件内容
+            StringBuilder content = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new FileReader(geojsonFile))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line);
+                }
+            }
+            
+            // 解析JSON
+            JsonObject jsonObject = JsonParser.parseString(content.toString()).getAsJsonObject();
+            
+            // 获取features数组
+            JsonArray features = jsonObject.getAsJsonArray("features");
+            if (features.size() == 0) {
+                System.err.println("GeoJSON文件中没有要素");
                 return null;
             }
             
-            // 获取第一个行政区划
-            JsonObject district = districts.get(0).getAsJsonObject();
+            // 获取第一个要素
+            JsonObject feature = features.get(0).getAsJsonObject();
+            JsonObject geometry = feature.getAsJsonObject("geometry");
             
-            // 获取边界数据（简化处理，实际应解析MULTIPOLYGON数据）
-            String boundary = district.get("boundary").getAsString();
-            System.out.println("获取到边界数据: " + boundary.substring(0, Math.min(100, boundary.length())) + "...");
+            String type = geometry.get("type").getAsString();
+            if (!"MultiPolygon".equals(type)) {
+                System.err.println("不支持的几何类型: " + type);
+                return null;
+            }
             
-            // 注意：实际项目中需要完整解析boundary字段的MULTIPOLYGON数据
-            // 这里为了演示，我们使用近似边界
-            return createApproximateBoundary();
+            // 解析坐标
+            JsonArray coordinatesArray = geometry.getAsJsonArray("coordinates");
+            Polygon[] polygons = new Polygon[coordinatesArray.size()];
+            
+            GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory(null);
+            
+            for (int i = 0; i < coordinatesArray.size(); i++) {
+                // 获取多边形的第一个环（外环）
+                JsonArray polygonArray = coordinatesArray.get(i).getAsJsonArray().get(0).getAsJsonArray();
+                
+                Coordinate[] coordinates = new Coordinate[polygonArray.size()];
+                for (int j = 0; j < polygonArray.size(); j++) {
+                    JsonArray point = polygonArray.get(j).getAsJsonArray();
+                    double lng = point.get(0).getAsDouble();
+                    double lat = point.get(1).getAsDouble();
+                    coordinates[j] = new Coordinate(lng, lat);
+                }
+                
+                LinearRing ring = geometryFactory.createLinearRing(coordinates);
+                polygons[i] = geometryFactory.createPolygon(ring);
+            }
+            
+            return geometryFactory.createMultiPolygon(polygons);
             
         } catch (Exception e) {
-            System.err.println("解析行政区划边界数据时出错: " + e.getMessage());
+            System.err.println("从GeoJSON文件加载边界数据时出错: " + e.getMessage());
             e.printStackTrace();
             return null;
         }
     }
     
+    
     /**
-     * 创建近似的边界（用于演示）
+     * 创建近似的边界（用于演示或备选方案）
      * 
      * @return 边界多边形
      */
-    private static Polygon createApproximateBoundary() {
+    private static MultiPolygon createApproximateBoundary() {
         // 使用深圳边界坐标范围作为示例
         double MIN_LNG = 113.812401;
         double MAX_LNG = 114.269966;
@@ -202,7 +189,8 @@ public class UpdateAdministrativeAreas {
         
         // 使用GeometryFactory直接创建LinearRing
         LinearRing ring = geometryFactory.createLinearRing(coordinates);
+        Polygon polygon = geometryFactory.createPolygon(ring);
         
-        return geometryFactory.createPolygon(ring);
+        return geometryFactory.createMultiPolygon(new Polygon[] { polygon });
     }
 }

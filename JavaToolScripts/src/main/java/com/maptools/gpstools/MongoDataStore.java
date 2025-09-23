@@ -28,7 +28,8 @@ public class MongoDataStore {
     private ConfigManager config = ConfigManager.getInstance();
     
     public MongoDataStore() {
-        this.mongoClient = new MongoClient(new MongoClientURI(config.getMongoDBConnectionString()));
+        // 使用最简单的MongoDB连接方式
+        this.mongoClient = new MongoClient("localhost", 27017);
         this.database = mongoClient.getDatabase(config.getMongoDBDatabaseName());
         this.totalInserted = new AtomicInteger(0);
         this.totalSkipped = new AtomicInteger(0);
@@ -120,18 +121,6 @@ public class MongoDataStore {
                 totalInserted.addAndGet(documents.size());
             }
         }
-        
-        // 记录文件处理摘要
-        synchronized (this) {
-            if (summaryWriter != null) {
-                summaryWriter.println("文件: " + fileName + 
-                                    ", 总点数: " + fileTotal + 
-                                    ", 插入: " + fileInserted + 
-                                    ", 跳过: " + fileSkipped + 
-                                    ", 保留: " + (fileTotal - fileSkipped));
-                summaryWriter.flush();
-            }
-        }
     }
     
     /**
@@ -159,18 +148,6 @@ public class MongoDataStore {
         System.out.println("成功插入点数: " + inserted);
         System.out.println("跳过无效点数: " + skipped);
         System.out.println("总计处理点数: " + (inserted + skipped));
-        
-        // 记录到摘要日志
-        synchronized (this) {
-            if (summaryWriter != null) {
-                summaryWriter.println("\n=== 处理总结 ===");
-                summaryWriter.println("成功插入点数: " + inserted);
-                summaryWriter.println("跳过无效点数: " + skipped);
-                summaryWriter.println("总计处理点数: " + (inserted + skipped));
-                summaryWriter.println("================\n");
-                summaryWriter.flush();
-            }
-        }
     }
     
     public void close() {

@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.io.FilenameFilter;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -28,7 +29,7 @@ public class GPSDataProcessor {
             System.exit(1);
         }
         
-        String dataDirectory = args[0];
+        String dataPath = args[0];
         GPSDataProcessor processor = new GPSDataProcessor();
         
         // 设置默认区域代码
@@ -44,7 +45,14 @@ public class GPSDataProcessor {
             }
         }
         
-        processor.processData(dataDirectory);
+        File dataFile = new File(dataPath);
+        if (dataFile.exists() && dataFile.isFile()) {
+            // 处理单个文件
+            processor.processSingleFile(dataFile);
+        } else {
+            // 处理目录
+            processor.processData(dataPath);
+        }
     }
     
     public void processData(String dataDirectory) {
@@ -54,11 +62,11 @@ public class GPSDataProcessor {
             return;
         }
         
+        // 保留必要的目录处理信息
+        // 减少初始输出信息
         System.out.println("开始处理目录: " + dir.getName());
         if (geoFilterEnabled) {
             System.out.println("地理筛选已启用，区域代码: " + filterAreaCode);
-        } else {
-            System.out.println("地理筛选已禁用");
         }
         
         // 创建线程池
@@ -67,7 +75,57 @@ public class GPSDataProcessor {
         MongoDataStore dataStore = new MongoDataStore();
         
         try {
-            processDirectory(dir, dataStore, executor);
+            // 处理子目录
+            File[] subDirs = dir.listFiles(File::isDirectory);
+            if (subDirs != null) {
+                for (File subDir : subDirs) {
+                    processDirectory(subDir, dataStore, executor);
+                }
+            }
+            
+            // 处理当前目录下的文件
+            File[] files = dir.listFiles(new FilenameFilter() {
+                public boolean accept(File d, String name) {
+                    return name.endsWith("-utf.txt");
+                }
+            });
+            
+            if (files != null && files.length > 0) {
+                processFiles(dir, files, "gps_points_data", dataStore, executor);
+            }
+        } finally {
+            // 关闭线程池
+            executor.shutdown();
+            try {
+                // 等待所有任务完成
+                if (!executor.awaitTermination(60, TimeUnit.MINUTES)) {
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+            }
+            
+            // 打印处理总结
+            dataStore.printSummary();
+            dataStore.close();
+        }
+    }
+    
+    public void processSingleFile(File file) {
+        System.out.println("开始处理文件: " + file.getName());
+        if (geoFilterEnabled) {
+            System.out.println("地理筛选已启用，区域代码: " + filterAreaCode);
+        }
+        
+        // 创建线程池
+        ExecutorService executor = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
+        
+        MongoDataStore dataStore = new MongoDataStore();
+        
+        try {
+            // 创建包含单个文件的数组
+            File[] files = new File[]{file};
+            processFiles(file.getParentFile(), files, "gps_points_data", dataStore, executor);
         } finally {
             // 关闭线程池
             executor.shutdown();
@@ -87,55 +145,42 @@ public class GPSDataProcessor {
     }
     
     private void processDirectory(File dir, MongoDataStore dataStore, ExecutorService executor) {
-        System.out.println("Processing directory: " + dir.getName());
-        
         // 获取目录名作为集合名 (01, 02, 03等)
         String dirName = dir.getName();
         String collectionName = "gps_points_" + dirName;
         
-        // 修改文件过滤规则，使其能处理sample-utf.txt文件
-        File[] files = dir.listFiles((d, name) -> name.endsWith("-utf.txt") || name.equals("sample-utf.txt"));
-        if (files == null || files.length == 0) {
-            System.out.println("No GPS data files found in " + dir.getName());
-            return;
+        // 修改文件过滤规则，使其能处理所有-utf.txt文件
+        File[] files = dir.listFiles((d, name) -> name.endsWith("-utf.txt"));
+        
+        if (files != null && files.length > 0) {
+            processFiles(dir, files, collectionName, dataStore, executor);
         }
+    }
+    
+    private void processFiles(File dir, File[] files, String collectionName, MongoDataStore dataStore, ExecutorService executor) {
+        System.out.println("正在处理目录 " + dir.getName() + " 下的 " + files.length + " 个文件");
         
-        System.out.println("Found " + files.length + " files in " + dir.getName());
+        AtomicInteger fileCounter = new AtomicInteger(0);
+        int totalFiles = files.length;
         
-        // 计数器，用于跟踪已完成的文件数
-        AtomicInteger completedFiles = new AtomicInteger(0);
-        
-        // 使用线程池处理每个文件
-        for (int i = 0; i < files.length; i++) {
-            final File file = files[i];
-            final int fileIndex = i + 1;
-            
+        // 为每个文件创建处理任务
+        for (File file : files) {
             executor.submit(() -> {
-                GPSDataParser parser = new GPSDataParser();
                 try {
-                    System.out.println("Starting to process file (" + fileIndex + "/" + files.length + "): " + file.getName());
-                    long startTime = System.currentTimeMillis();
-                    
-                    // 解析文件，根据设置决定是否进行地理筛选
+                    GPSDataParser parser = new GPSDataParser();
+                    // 解析文件
                     java.util.List<GPSDataPoint> points = parser.parseFile(file.getAbsolutePath(), geoFilterEnabled, filterAreaCode);
                     
-                    // 保存数据
+                    // 保存到MongoDB
                     dataStore.saveGPSPoints(points, collectionName, file.getName());
                     
-                    long endTime = System.currentTimeMillis();
-                    int completed = completedFiles.incrementAndGet();
-                    System.out.println("Completed processing file (" + fileIndex + "/" + files.length + "): " + file.getName() + 
-                                     " (" + points.size() + " points, " + (endTime - startTime) + "ms)" +
-                                     " [" + completed + "/" + files.length + " files completed]");
-                } catch (IOException e) {
-                    System.err.println("Error processing file (" + fileIndex + "/" + files.length + "): " + file.getName() + " - " + e.getMessage());
-                    completedFiles.incrementAndGet();
-                } finally {
-                    parser.close();
+                    int processed = fileCounter.incrementAndGet();
+                    System.out.println("已完成处理文件 (" + processed + "/" + totalFiles + "): " + file.getName());
+                } catch (Exception e) {
+                    System.err.println("处理文件时出错: " + file.getName() + " - " + e.getMessage());
+                    e.printStackTrace();
                 }
             });
         }
-        
-        System.out.println("All " + files.length + " files submitted to thread pool for processing in " + dir.getName());
     }
 }

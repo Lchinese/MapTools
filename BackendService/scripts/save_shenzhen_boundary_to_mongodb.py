@@ -28,7 +28,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler('../Logs/shenzhen_boundary.log', encoding='utf-8'),
-        logging.StreamHandler()
+        logging.StreamHandler(sys.stdout)
     ]
 )
 logger = logging.getLogger(__name__)
@@ -176,9 +176,16 @@ class ShenzhenBoundaryService:
             center = district_data.get("center", {})
             
             # 将几何数据转换为GeoJSON格式
+            # 确保坐标数组结构正确
+            coordinates = []
+            for polygon in boundary_geom.geoms:
+                # 只取外环坐标，忽略洞
+                exterior_coords = list(polygon.exterior.coords)
+                coordinates.append([exterior_coords])
+            
             geojson_geometry = {
                 "type": "MultiPolygon",
-                "coordinates": [list(polygon.exterior.coords) for polygon in boundary_geom.geoms]
+                "coordinates": coordinates
             }
             
             document = {
@@ -211,14 +218,16 @@ class ShenzhenBoundaryService:
             existing = self.areas_collection.find_one({"gb_code": boundary_doc["gb_code"]})
             
             if existing:
-                # 更新现有数据
+                # 更新现有数据（不包括_id字段）
+                doc_id = existing["_id"]
+                boundary_doc.pop("_id", None)  # 移除_id字段以避免更新错误
                 boundary_doc["updated_at"] = datetime.now()
                 result = self.areas_collection.update_one(
                     {"gb_code": boundary_doc["gb_code"]},
                     {"$set": boundary_doc}
                 )
                 logger.info(f"更新深圳市边界数据: {result.modified_count} 条记录")
-                return str(existing["_id"])
+                return str(doc_id)
             else:
                 # 插入新数据
                 result = self.areas_collection.insert_one(boundary_doc)
@@ -245,8 +254,9 @@ class ShenzhenBoundaryService:
             logger.info("成功创建level字段索引")
             
         except Exception as e:
-            logger.error(f"创建索引失败: {e}")
-            raise
+            logger.warning(f"创建索引失败: {e}")
+            # 继续执行而不中断程序
+            pass
     
     async def verify_boundary_data(self, boundary_doc: Dict) -> bool:
         """验证边界数据的有效性"""
@@ -286,9 +296,15 @@ class ShenzhenBoundaryService:
         """测试点是否在深圳范围内"""
         try:
             # 重新构建几何对象用于测试
-            boundary_geom = MultiPolygon([
-                Polygon(coords) for coords in boundary_doc["boundary"]["coordinates"]
-            ])
+            coordinates = boundary_doc["boundary"]["coordinates"]
+            polygons = []
+            for polygon_coords in coordinates:
+                # polygon_coords[0] 是外环坐标
+                exterior_coords = polygon_coords[0]
+                polygon = Polygon(exterior_coords)
+                polygons.append(polygon)
+            
+            boundary_geom = MultiPolygon(polygons)
             
             logger.info("开始测试点是否在深圳范围内...")
             
