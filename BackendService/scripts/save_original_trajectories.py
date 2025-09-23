@@ -9,6 +9,9 @@ from datetime import datetime
 from typing import Dict, List, Any
 import sys
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 
 # 添加项目根目录到Python路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -33,12 +36,180 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 全局锁用于线程安全的统计
+stats_lock = Lock()
+global_stats = {
+    'total_saved': 0,
+    'total_skipped': 0,
+    'total_processed': 0
+}
+
+
+def process_single_plate(plate_number, source_collection, target_collection, 
+                        source_db_name, collection_name, road_matcher, 
+                        match_to_roads, trajectory_type, existing_plates):
+    """
+    处理单个车牌号的轨迹数据（多线程安全）
+    """
+    try:
+        # 检查是否已存在，避免重复存储
+        if plate_number in existing_plates:
+            with stats_lock:
+                global_stats['total_skipped'] += 1
+            return {'status': 'skipped', 'plate': plate_number}
+        
+        # 使用现有的按车牌查询功能
+        plate_data = fetch_trajectory_data_by_plate(
+            plate_number=plate_number,
+            db_name=source_db_name,
+            collection_name=collection_name,
+            match_to_roads=False  # 先获取原始数据
+        )
+        
+        if not plate_data or plate_number not in plate_data:
+            return {'status': 'no_data', 'plate': plate_number}
+        
+        trajectory_points = plate_data[plate_number]
+        
+        if not trajectory_points:
+            return {'status': 'empty', 'plate': plate_number}
+        
+        # 如果需要进行道路匹配
+        if match_to_roads and road_matcher:
+            try:
+                # 进行道路匹配
+                matched_points = road_matcher.match_gps_to_roads(trajectory_points)
+                
+                # 转换为轨迹点格式
+                matched_trajectory_points = []
+                for matched_point in matched_points:
+                    trajectory_point = {
+                        'plate_number': matched_point['original_gps']['plate_number'],
+                        'datetime': matched_point['original_gps']['datetime'],
+                        'longitude': matched_point['matched_longitude'],
+                        'latitude': matched_point['matched_latitude'],
+                        'speed': matched_point['original_gps']['speed'],
+                        'heading': matched_point['original_gps']['heading'],
+                        'is_valid': matched_point['original_gps']['is_valid'],
+                        'source_file': matched_point['original_gps']['source_file'],
+                        'road_id': matched_point['road_id'],
+                        'road_name': matched_point['road_name'],
+                        'road_type': matched_point['road_type'],
+                        'distance_to_road': matched_point['distance_to_road'],
+                        'matched': True
+                    }
+                    matched_trajectory_points.append(trajectory_point)
+                
+                trajectory_points = matched_trajectory_points
+            except Exception as e:
+                logger.error(f"道路匹配失败 {plate_number}: {e}")
+                return {'status': 'match_error', 'plate': plate_number, 'error': str(e)}
+        
+        # 准备保存的文档
+        trajectory_doc = {
+            "plate_number": plate_number,
+            "trajectory_points": trajectory_points,
+            "point_count": len(trajectory_points),
+            "first_point": trajectory_points[0] if trajectory_points else None,
+            "last_point": trajectory_points[-1] if trajectory_points else None,
+            "time_range": {
+                "start": trajectory_points[0]['datetime'] if trajectory_points else None,
+                "end": trajectory_points[-1]['datetime'] if trajectory_points else None
+            },
+            "bbox": {
+                "min_lon": min(point['longitude'] for point in trajectory_points),
+                "max_lon": max(point['longitude'] for point in trajectory_points),
+                "min_lat": min(point['latitude'] for point in trajectory_points),
+                "max_lat": max(point['latitude'] for point in trajectory_points)
+            },
+            "source": collection_name,
+            "created_at": datetime.now().isoformat(),
+            "type": trajectory_type
+        }
+        
+        # 插入到目标集合
+        target_collection.insert_one(trajectory_doc)
+        
+        with stats_lock:
+            global_stats['total_saved'] += 1
+            global_stats['total_processed'] += 1
+        
+        return {'status': 'success', 'plate': plate_number, 'points': len(trajectory_points)}
+        
+    except Exception as e:
+        logger.error(f"处理车牌号 {plate_number} 时出错: {e}")
+        with stats_lock:
+            global_stats['total_processed'] += 1
+        return {'status': 'error', 'plate': plate_number, 'error': str(e)}
+
+
+def process_plates_multithreaded(all_plates, source_collection, target_collection, 
+                                source_db_name, collection_name, road_matcher, 
+                                match_to_roads, trajectory_type, existing_plates, max_workers):
+    """
+    使用多线程处理车牌号列表
+    """
+    logger.info(f"开始多线程处理 {len(all_plates)} 个车牌号，使用 {max_workers} 个线程")
+    
+    # 使用ThreadPoolExecutor进行多线程处理
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # 提交所有任务
+        future_to_plate = {
+            executor.submit(
+                process_single_plate, 
+                plate_number, 
+                source_collection, 
+                target_collection,
+                source_db_name,
+                collection_name,
+                road_matcher,
+                match_to_roads,
+                trajectory_type,
+                existing_plates
+            ): plate_number for plate_number in all_plates
+        }
+        
+        # 处理完成的任务
+        completed = 0
+        start_time = datetime.now()
+        
+        for future in as_completed(future_to_plate):
+            plate_number = future_to_plate[future]
+            try:
+                result = future.result()
+                completed += 1
+                
+                # 每处理100个车牌号输出一次进度
+                if completed % 100 == 0:
+                    elapsed = datetime.now() - start_time
+                    with stats_lock:
+                        current_saved = global_stats['total_saved']
+                        current_skipped = global_stats['total_skipped']
+                        current_processed = global_stats['total_processed']
+                    
+                    logger.info(f"[{elapsed}] 进度: {completed}/{len(all_plates)} | "
+                              f"已保存: {current_saved} | 跳过: {current_skipped} | 处理: {current_processed}")
+                
+            except Exception as e:
+                logger.error(f"处理车牌号 {plate_number} 时发生异常: {e}")
+                completed += 1
+    
+    # 最终统计
+    with stats_lock:
+        final_saved = global_stats['total_saved']
+        final_skipped = global_stats['total_skipped']
+        final_processed = global_stats['total_processed']
+    
+    logger.info(f"集合 {collection_name} 多线程处理完成: "
+              f"处理 {final_processed} 个车牌 | 保存 {final_saved} 条轨迹 | 跳过 {final_skipped} 个车牌")
+
 
 def save_original_trajectories_to_mongodb(
     source_db_name: str = "MapTools",
     target_db_name: str = "MapTools",
     batch_size: int = 100,
-    match_to_roads: bool = True
+    match_to_roads: bool = True,
+    max_workers: int = 8
 ):
     """
     将GPS轨迹数据保存到MongoDB的original_trajectories_xx集合
@@ -48,6 +219,7 @@ def save_original_trajectories_to_mongodb(
         target_db_name: 目标数据库名称
         batch_size: 批处理大小
         match_to_roads: 是否进行道路匹配（默认True）
+        max_workers: 最大线程数（默认8）
     """
     logger.info("🚀 开始执行轨迹数据保存脚本...")
     
@@ -65,9 +237,13 @@ def save_original_trajectories_to_mongodb(
         target_db = client[target_db_name]
         
         # 3. 处理01到30的所有集合
-        total_saved = 0
-        total_skipped = 0
         start_time = datetime.now()
+        
+        # 重置全局统计
+        with stats_lock:
+            global_stats['total_saved'] = 0
+            global_stats['total_skipped'] = 0
+            global_stats['total_processed'] = 0
         
         for i in range(1, 31):
             collection_suffix = f"{i:02d}"  # 01, 02, 03, ..., 30
@@ -99,99 +275,14 @@ def save_original_trajectories_to_mongodb(
             
             # 获取所有车牌号
             all_plates = source_collection.distinct("plate_number")
-            logger.info(f"从集合 {source_collection_name} 找到 {len(all_plates)} 个车牌号，开始处理...")
+            logger.info(f"从集合 {source_collection_name} 找到 {len(all_plates)} 个车牌号，开始多线程处理...")
             
-            # 分批处理每个车牌号的轨迹数据
-            saved_count = 0
-            skipped_count = 0
-            processed_plates = 0
-            
-            for plate_number in all_plates:
-                try:
-                    # 检查是否已存在，避免重复存储
-                    if plate_number in existing_plates:
-                        skipped_count += 1
-                        continue
-                    
-                    # 使用现有的按车牌查询功能
-                    plate_data = fetch_trajectory_data_by_plate(
-                        plate_number=plate_number,
-                        db_name=source_db_name,
-                        collection_name=source_collection_name,
-                        match_to_roads=False  # 先获取原始数据
-                    )
-                    
-                    if plate_data and plate_number in plate_data:
-                        trajectory_points = plate_data[plate_number]
-                    
-                    if trajectory_points:
-                        # 如果需要进行道路匹配
-                        if match_to_roads and road_matcher:
-                            try:
-                                # 进行道路匹配
-                                matched_points = road_matcher.match_gps_to_roads(trajectory_points)
-                                
-                                # 转换为轨迹点格式
-                                matched_trajectory_points = []
-                                for matched_point in matched_points:
-                                    trajectory_point = {
-                                        'plate_number': matched_point['original_gps']['plate_number'],
-                                        'datetime': matched_point['original_gps']['datetime'],
-                                        'longitude': matched_point['matched_longitude'],
-                                        'latitude': matched_point['matched_latitude'],
-                                        'speed': matched_point['original_gps']['speed'],
-                                        'heading': matched_point['original_gps']['heading'],
-                                        'is_valid': matched_point['original_gps']['is_valid'],
-                                        'source_file': matched_point['original_gps']['source_file'],
-                                        'road_id': matched_point['road_id'],
-                                        'road_name': matched_point['road_name'],
-                                        'road_type': matched_point['road_type'],
-                                        'distance_to_road': matched_point['distance_to_road'],
-                                        'matched': True
-                                    }
-                                    matched_trajectory_points.append(trajectory_point)
-                                
-                                trajectory_points = matched_trajectory_points
-                            except Exception as e:
-                                logger.error(f"道路匹配失败 {plate_number}: {e}")
-                                continue
-                        
-                        # 准备保存的文档
-                        trajectory_doc = {
-                            "plate_number": plate_number,
-                            "trajectory_points": trajectory_points,
-                            "point_count": len(trajectory_points),
-                            "first_point": trajectory_points[0] if trajectory_points else None,
-                            "last_point": trajectory_points[-1] if trajectory_points else None,
-                            "time_range": {
-                                "start": trajectory_points[0]['datetime'] if trajectory_points else None,
-                                "end": trajectory_points[-1]['datetime'] if trajectory_points else None
-                            },
-                            "bbox": {
-                                "min_lon": min(point['longitude'] for point in trajectory_points),
-                                "max_lon": max(point['longitude'] for point in trajectory_points),
-                                "min_lat": min(point['latitude'] for point in trajectory_points),
-                                "max_lat": max(point['latitude'] for point in trajectory_points)
-                            },
-                            "source": "gps_points_collection",
-                            "created_at": datetime.now().isoformat(),
-                            "type": trajectory_type
-                        }
-                        
-                        # 插入到目标集合
-                        target_collection.insert_one(trajectory_doc)
-                        saved_count += 1
-                
-                    processed_plates += 1
-                    
-                    # 每处理100个车牌号输出一次进度
-                    if processed_plates % 100 == 0:
-                        elapsed = datetime.now() - start_time
-                        logger.info(f"[{elapsed}] 进度: {processed_plates}/{len(all_plates)} | 已保存: {saved_count} | 跳过: {skipped_count}")
-                        
-                except Exception as e:
-                    logger.error(f"处理车牌号 {plate_number} 时出错: {e}")
-                    continue
+            # 使用多线程处理车牌号
+            process_plates_multithreaded(
+                all_plates, source_collection, target_collection, 
+                source_db_name, source_collection_name, road_matcher, 
+                match_to_roads, trajectory_type, existing_plates, max_workers
+            )
             
             # 为当前集合创建索引
             logger.info(f"为集合 {target_collection_name} 创建索引...")
@@ -213,7 +304,7 @@ def save_original_trajectories_to_mongodb(
             stats_doc = {
                 "_id": f"metadata_{collection_suffix}",
                 "total_trajectories": collection_saved,
-                "total_plates_processed": processed_plates,
+                "total_plates_processed": global_stats['total_processed'],
                 "saved_at": datetime.now().isoformat(),
                 "source": f"gps_points_{collection_suffix}",
                 "type": "metadata"
@@ -221,15 +312,18 @@ def save_original_trajectories_to_mongodb(
             
             target_collection.insert_one(stats_doc)
             
-            # 累计统计
-            total_saved += collection_saved
-            total_skipped += skipped_count
-            
-            logger.info(f"集合 {source_collection_name} 处理完成: 保存 {saved_count} 条轨迹 | 跳过 {skipped_count} 个车牌")
+            logger.info(f"集合 {source_collection_name} 处理完成")
         
         total_time = datetime.now() - start_time
+        
+        # 获取最终统计
+        with stats_lock:
+            final_saved = global_stats['total_saved']
+            final_skipped = global_stats['total_skipped']
+            final_processed = global_stats['total_processed']
+        
         logger.info("✅ 所有轨迹数据保存完成！")
-        logger.info(f"📊 总计: {total_saved} 条轨迹 | 跳过: {total_skipped} 个车牌 | 耗时: {total_time}")
+        logger.info(f"📊 总计: {final_saved} 条轨迹 | 跳过: {final_skipped} 个车牌 | 处理: {final_processed} 个车牌 | 耗时: {total_time}")
         
         return True
         
@@ -269,11 +363,11 @@ def verify_saved_data():
 
 if __name__ == "__main__":
     logger.info("=" * 50)
-    logger.info("原始轨迹数据保存脚本")
+    logger.info("原始轨迹数据保存脚本（多线程版本）")
     logger.info("=" * 50)
     
-    # 执行保存
-    success = save_original_trajectories_to_mongodb()
+    # 执行保存，使用8个线程
+    success = save_original_trajectories_to_mongodb(max_workers=8)
     
     if success:
         # 验证保存的数据
