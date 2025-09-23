@@ -8,18 +8,42 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class GPSDataProcessor {
-    private static final String MONGO_CONNECTION_STRING = "mongodb://localhost:27017";
-    private static final String DATABASE_NAME = "MapTools";
     private static final int THREAD_POOL_SIZE = 10; // 线程池大小
+    
+    // 使用配置管理器
+    private ConfigManager config = ConfigManager.getInstance();
+    
+    // 是否启用地理筛选
+    private boolean geoFilterEnabled = false;
+    // 筛选的区域代码
+    private String filterAreaCode;
     
     public static void main(String[] args) {
         if (args.length < 1) {
-            System.err.println("Usage: java GPSDataProcessor <data_directory>");
+            System.err.println("Usage: java GPSDataProcessor <data_directory> [options]");
+            System.err.println("Options:");
+            System.err.println("  --filter-area=<area_code>  按行政区划代码筛选轨迹点 (默认: " + 
+                             ConfigManager.getInstance().getDefaultAreaCode() + ")");
+            System.err.println("  --no-filter                禁用地理筛选");
             System.exit(1);
         }
         
         String dataDirectory = args[0];
         GPSDataProcessor processor = new GPSDataProcessor();
+        
+        // 设置默认区域代码
+        processor.filterAreaCode = ConfigManager.getInstance().getDefaultAreaCode();
+        
+        // 解析命令行参数
+        for (int i = 1; i < args.length; i++) {
+            if (args[i].startsWith("--filter-area=")) {
+                processor.geoFilterEnabled = true;
+                processor.filterAreaCode = args[i].substring("--filter-area=".length());
+            } else if ("--no-filter".equals(args[i])) {
+                processor.geoFilterEnabled = false;
+            }
+        }
+        
         processor.processData(dataDirectory);
     }
     
@@ -30,10 +54,17 @@ public class GPSDataProcessor {
             return;
         }
         
+        System.out.println("开始处理目录: " + dir.getName());
+        if (geoFilterEnabled) {
+            System.out.println("地理筛选已启用，区域代码: " + filterAreaCode);
+        } else {
+            System.out.println("地理筛选已禁用");
+        }
+        
         // 创建线程池
         ExecutorService executor = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
         
-        MongoDataStore dataStore = new MongoDataStore(MONGO_CONNECTION_STRING, DATABASE_NAME);
+        MongoDataStore dataStore = new MongoDataStore();
         
         try {
             processDirectory(dir, dataStore, executor);
@@ -85,8 +116,8 @@ public class GPSDataProcessor {
                     System.out.println("Starting to process file (" + fileIndex + "/" + files.length + "): " + file.getName());
                     long startTime = System.currentTimeMillis();
                     
-                    // 解析文件
-                    java.util.List<GPSDataPoint> points = parser.parseFile(file.getAbsolutePath());
+                    // 解析文件，根据设置决定是否进行地理筛选
+                    java.util.List<GPSDataPoint> points = parser.parseFile(file.getAbsolutePath(), geoFilterEnabled, filterAreaCode);
                     
                     // 保存数据
                     dataStore.saveGPSPoints(points, collectionName, file.getName());

@@ -12,26 +12,39 @@ import java.io.PrintWriter;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 public class MongoDataStore {
     private MongoClient mongoClient;
     private MongoDatabase database;
     private PrintWriter logWriter;
+    private PrintWriter summaryWriter;
     private AtomicInteger totalInserted;
     private AtomicInteger totalSkipped;
+    private AtomicInteger totalFiltered;
     
-    public MongoDataStore(String connectionString, String dbName) {
-        this.mongoClient = new MongoClient(new MongoClientURI(connectionString));
-        this.database = mongoClient.getDatabase(dbName);
+    // 使用配置管理器
+    private ConfigManager config = ConfigManager.getInstance();
+    
+    public MongoDataStore() {
+        this.mongoClient = new MongoClient(new MongoClientURI(config.getMongoDBConnectionString()));
+        this.database = mongoClient.getDatabase(config.getMongoDBDatabaseName());
         this.totalInserted = new AtomicInteger(0);
         this.totalSkipped = new AtomicInteger(0);
+        this.totalFiltered = new AtomicInteger(0);
         
         try {
             // 创建日志文件写入器
-            this.logWriter = new PrintWriter(new FileWriter("logs/invalid_data.log", true));
+            String logDir = config.getLogDirectory();
+            Files.createDirectories(Paths.get(logDir));
+            
+            this.logWriter = new PrintWriter(new FileWriter(logDir + "/invalid_data.log", true));
+            this.summaryWriter = new PrintWriter(new FileWriter(logDir + "/processing_summary.log", true));
         } catch (IOException e) {
             System.err.println("无法创建日志文件: " + e.getMessage());
             this.logWriter = null;
+            this.summaryWriter = null;
         }
     }
     
@@ -55,6 +68,7 @@ public class MongoDataStore {
         int batchSize = 1000;
         int fileInserted = 0;
         int fileSkipped = 0;
+        int fileTotal = points.size();
         
         // 分批插入
         for (int i = 0; i < points.size(); i += batchSize) {
@@ -107,32 +121,56 @@ public class MongoDataStore {
             }
         }
         
-        System.out.println("文件 " + fileName + " 成功保存 " + fileInserted + " 条记录，跳过 " + fileSkipped + " 条无效记录");
+        // 记录文件处理摘要
+        synchronized (this) {
+            if (summaryWriter != null) {
+                summaryWriter.println("文件: " + fileName + 
+                                    ", 总点数: " + fileTotal + 
+                                    ", 插入: " + fileInserted + 
+                                    ", 跳过: " + fileSkipped + 
+                                    ", 保留: " + (fileTotal - fileSkipped));
+                summaryWriter.flush();
+            }
+        }
     }
     
     /**
-     * 验证经纬度坐标是否有效
+     * 验证坐标是否有效
+     * 
      * @param longitude 经度
      * @param latitude 纬度
-     * @return 坐标是否有效
+     * @return 如果坐标有效返回true，否则返回false
      */
     private boolean isValidCoordinate(double longitude, double latitude) {
-        // 检查经度是否在有效范围内 (-180 到 180)
-        if (longitude < -180 || longitude > 180) {
-            return false;
-        }
-        
-        // 检查纬度是否在有效范围内 (-90 到 90)
-        if (latitude < -90 || latitude > 90) {
-            return false;
-        }
-        
-        return true;
+        // 检查经纬度是否在合理范围内
+        return (longitude >= -180 && longitude <= 180) && 
+               (latitude >= -90 && latitude <= 90) &&
+               (longitude != 0.0 || latitude != 0.0); // 排除0,0坐标
     }
     
+    /**
+     * 打印处理总结
+     */
     public void printSummary() {
-        System.out.println("总共保存 " + totalInserted.get() + " 条记录");
-        System.out.println("总共跳过 " + totalSkipped.get() + " 条无效记录");
+        int inserted = totalInserted.get();
+        int skipped = totalSkipped.get();
+        
+        System.out.println("\n=== 处理总结 ===");
+        System.out.println("成功插入点数: " + inserted);
+        System.out.println("跳过无效点数: " + skipped);
+        System.out.println("总计处理点数: " + (inserted + skipped));
+        
+        // 记录到摘要日志
+        synchronized (this) {
+            if (summaryWriter != null) {
+                summaryWriter.println("\n=== 处理总结 ===");
+                summaryWriter.println("成功插入点数: " + inserted);
+                summaryWriter.println("跳过无效点数: " + skipped);
+                summaryWriter.println("总计处理点数: " + (inserted + skipped));
+                summaryWriter.println("================\n");
+                summaryWriter.flush();
+            }
+        }
     }
     
     public void close() {
@@ -143,6 +181,10 @@ public class MongoDataStore {
         // 关闭日志文件写入器
         if (logWriter != null) {
             logWriter.close();
+        }
+        
+        if (summaryWriter != null) {
+            summaryWriter.close();
         }
     }
 }

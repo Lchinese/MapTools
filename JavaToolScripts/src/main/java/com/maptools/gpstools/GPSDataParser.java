@@ -24,7 +24,27 @@ public class GPSDataParser {
         }
     }
     
+    /**
+     * 解析GPS数据文件
+     * 
+     * @param filePath 文件路径
+     * @return GPS轨迹点列表
+     * @throws IOException 文件读取异常
+     */
     public List<GPSDataPoint> parseFile(String filePath) throws IOException {
+        return parseFile(filePath, false, null);
+    }
+    
+    /**
+     * 解析GPS数据文件，可选择是否进行地理筛选
+     * 
+     * @param filePath 文件路径
+     * @param filterByArea 是否按区域筛选
+     * @param areaCode 区域代码，如"156440300"代表深圳市
+     * @return GPS轨迹点列表
+     * @throws IOException 文件读取异常
+     */
+    public List<GPSDataPoint> parseFile(String filePath, boolean filterByArea, String areaCode) throws IOException {
         List<GPSDataPoint> gpsPoints = new ArrayList<>();
         String fileName = filePath.substring(filePath.lastIndexOf("\\") + 1);
         
@@ -36,6 +56,21 @@ public class GPSDataParser {
                 GPSDataPoint point = parseLine(line, lineNumber, fileName);
                 if (point != null) {
                     gpsPoints.add(point);
+                }
+            }
+        }
+        
+        // 如果需要按区域筛选，则进行筛选
+        if (filterByArea && areaCode != null && !areaCode.isEmpty()) {
+            int originalCount = gpsPoints.size();
+            gpsPoints = GeoFilter.filterPointsByArea(gpsPoints, areaCode);
+            int filteredCount = gpsPoints.size();
+            
+            // 记录筛选日志
+            synchronized (this) {
+                if (logWriter != null) {
+                    logWriter.println("[" + fileName + "] 地理筛选: 原始点数=" + originalCount + ", 筛选后点数=" + filteredCount);
+                    logWriter.flush();
                 }
             }
         }
@@ -104,46 +139,17 @@ public class GPSDataParser {
     }
     
     /**
-     * 将时间字符串补全为6位数字格式
+     * 补全时间字符串为6位数字格式
+     * 
      * @param timeStr 时间字符串
      * @return 6位数字格式的时间字符串
      */
     private String padTime(String timeStr) {
-        try {
-            // 如果已经是6位数字，直接返回
-            if (timeStr.length() == 6 && timeStr.matches("\\d{6}")) {
-                return timeStr;
-            }
-            
-            // 处理科学计数法等特殊情况
-            if (timeStr.contains(".") || timeStr.contains("E") || timeStr.contains("e")) {
-                double timeValue = Double.parseDouble(timeStr);
-                // 对于非常小的数值（如1.7E-5），当作0处理
-                if (Math.abs(timeValue) < 1) {
-                    return "000000";
-                }
-                // 其他情况转换为整数再处理
-                int timeInt = (int) Math.round(timeValue);
-                return String.format("%06d", timeInt);
-            }
-            
-            // 处理普通的数字字符串
-            int timeValue = Integer.parseInt(timeStr);
-            // 确保不超过6位数
-            if (timeValue > 999999) {
-                timeValue = timeValue % 1000000;
-            }
-            return String.format("%06d", timeValue);
-        } catch (NumberFormatException e) {
-            // 如果解析失败，默认返回000000
-            synchronized (this) {
-                if (logWriter != null) {
-                    logWriter.println("无法解析时间字段: " + timeStr + "，使用默认值000000");
-                    logWriter.flush();
-                }
-            }
-            return "000000";
+        // 确保时间是6位数字格式
+        while (timeStr.length() < 6) {
+            timeStr = "0" + timeStr;
         }
+        return timeStr;
     }
     
     public void close() {
