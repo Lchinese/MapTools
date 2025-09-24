@@ -80,7 +80,15 @@ public class GPSDataParser {
         return gpsPoints;
     }
     
-    private GPSDataPoint parseLine(String line, int lineNumber, String sourceFile) {
+    /**
+     * 解析单行数据
+     * 
+     * @param line 数据行
+     * @param lineNumber 行号
+     * @param sourceFile 源文件名
+     * @return GPS轨迹点对象，如果解析失败返回null
+     */
+    public GPSDataPoint parseLine(String line, int lineNumber, String sourceFile) {
         try {
             String[] parts = line.split(",");
             if (parts.length != 10) {
