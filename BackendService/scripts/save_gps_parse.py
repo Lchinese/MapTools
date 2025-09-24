@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 测试GPS数据解析性能的脚本
 用于测试解析data/01目录中文件的性能
@@ -7,7 +8,12 @@ import time
 import os
 import sys
 import pymongo
-from gps_parser import GPSDataParser
+
+# 添加项目根目录到Python路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# 现在可以从UtilityTools导入gps_parser
+from UtilityTools.gps_parser import GPSDataParser
 
 def get_parsed_files():
     """获取已经解析过的文件列表"""
