@@ -13,10 +13,12 @@ import org.locationtech.jts.geom.LineString;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.lang.ref.SoftReference;
 
 /**
  * Java道路匹配器 - 完全重写，参照Python数据结构
  * 支持多线程处理，避免类型转换问题
+ * 优化内存管理，防止内存泄漏
  */
 public class JavaRoadMatcher {
     
@@ -29,11 +31,15 @@ public class JavaRoadMatcher {
     private List<Map<String, Object>> roads;
     private GeometryFactory geometryFactory;
     private ExecutorService executorService;
+    // 使用SoftReference缓存，允许JVM在内存不足时回收
+    private Map<String, SoftReference<Map<String, Object>>> cache;
+    private final Object cacheLock = new Object();
     
     public JavaRoadMatcher() {
         this.geometryFactory = new GeometryFactory();
         this.executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
         this.roads = new ArrayList<>();
+        this.cache = new ConcurrentHashMap<>();
         loadRoadsFromMongoDB();
     }
     
@@ -51,7 +57,8 @@ public class JavaRoadMatcher {
             
             for (Document roadDoc : roadDocs) {
                 Map<String, Object> road = new HashMap<>();
-                road.put("id", roadDoc.getString("id"));
+                // 修复字段名：使用road_id而不是id
+                road.put("road_id", roadDoc.getString("road_id"));
                 road.put("name", roadDoc.getString("name"));
                 road.put("type", roadDoc.getString("type"));
                 
@@ -74,6 +81,21 @@ public class JavaRoadMatcher {
                             road.put("geometry", lineString);
                         }
                     }
+                } else {
+                    // 如果没有geometry字段，尝试从points字段构建
+                    @SuppressWarnings("unchecked")
+                    List<List<Number>> points = (List<List<Number>>) roadDoc.get("points");
+                    if (points != null && !points.isEmpty()) {
+                        Coordinate[] coords = new Coordinate[points.size()];
+                        for (int i = 0; i < points.size(); i++) {
+                            List<Number> point = points.get(i);
+                            double x = point.get(0).doubleValue();
+                            double y = point.get(1).doubleValue();
+                            coords[i] = new Coordinate(x, y);
+                        }
+                        LineString lineString = geometryFactory.createLineString(coords);
+                        road.put("geometry", lineString);
+                    }
                 }
                 
                 roads.add(road);
@@ -91,8 +113,30 @@ public class JavaRoadMatcher {
      * 找到最近的道路点 - 完全重写，避免类型转换问题
      */
     public Map<String, Object> findClosestRoad(double longitude, double latitude) {
+        // 创建缓存键
+        String cacheKey = longitude + "," + latitude;
+        
+        // 检查缓存
+        synchronized (cacheLock) {
+            SoftReference<Map<String, Object>> ref = cache.get(cacheKey);
+            if (ref != null) {
+                Map<String, Object> cached = ref.get();
+                if (cached != null) {
+                    return cached;
+                } else {
+                    // 清理失效的引用
+                    cache.remove(cacheKey);
+                }
+            }
+        }
+        
         if (roads.isEmpty()) {
-            return createDefaultMatch(longitude, latitude);
+            Map<String, Object> result = createDefaultMatch(longitude, latitude);
+            // 缓存结果
+            synchronized (cacheLock) {
+                cache.put(cacheKey, new SoftReference<>(result));
+            }
+            return result;
         }
         
         Point gpsPoint = geometryFactory.createPoint(new Coordinate(longitude, latitude));
@@ -114,18 +158,26 @@ public class JavaRoadMatcher {
             }
         }
         
+        Map<String, Object> result;
         if (closestRoad != null) {
-            Map<String, Object> result = new HashMap<>();
+            result = new HashMap<>();
             result.put("matched_longitude", Double.valueOf(closestPoint.x));
             result.put("matched_latitude", Double.valueOf(closestPoint.y));
-            result.put("road_id", closestRoad.get("id"));
+            // 修复字段名：使用road_id而不是id
+            result.put("road_id", closestRoad.get("road_id"));
             result.put("road_name", closestRoad.get("name"));
             result.put("road_type", closestRoad.get("type"));
             result.put("distance_to_road", Double.valueOf(minDistance));
-            return result;
         } else {
-            return createDefaultMatch(longitude, latitude);
+            result = createDefaultMatch(longitude, latitude);
         }
+        
+        // 缓存结果
+        synchronized (cacheLock) {
+            cache.put(cacheKey, new SoftReference<>(result));
+        }
+        
+        return result;
     }
     
     /**
@@ -261,6 +313,8 @@ public class JavaRoadMatcher {
      */
     private List<Map<String, Object>> matchGpsToRoadsMultiThread(List<Map<String, Object>> gpsPoints) {
         int batchSize = Math.max(1, gpsPoints.size() / THREAD_POOL_SIZE);
+        // 限制最大批处理大小以控制内存使用
+        batchSize = Math.min(batchSize, 1000);
         List<Future<List<Map<String, Object>>>> futures = new ArrayList<>();
         
         // 分批提交任务
@@ -280,11 +334,16 @@ public class JavaRoadMatcher {
         for (Future<List<Map<String, Object>>> future : futures) {
             try {
                 matchedPoints.addAll(future.get());
+                // 显式置空future以帮助GC
+                future = null;
             } catch (InterruptedException | ExecutionException e) {
                 System.err.println("道路匹配任务执行失败: " + e.getMessage());
                 e.printStackTrace();
             }
         }
+        
+        // 清理futures列表以释放内存
+        futures.clear();
         
         return matchedPoints;
     }
@@ -305,8 +364,18 @@ public class JavaRoadMatcher {
             }
         }
         
+        // 清理缓存
+        synchronized (cacheLock) {
+            cache.clear();
+        }
+        
         if (mongoClient != null) {
             mongoClient.close();
+        }
+        
+        // 清理道路数据以帮助GC
+        if (roads != null) {
+            roads.clear();
         }
     }
 }

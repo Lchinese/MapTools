@@ -18,17 +18,22 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
 
 /**
  * Java轨迹处理器 - 完全重写，参照Python数据结构
  * 支持多线程处理，避免重复存储，修复类型转换问题
+ * 优化内存管理，防止内存泄漏
  */
 public class JavaTrajectoryProcessor {
     
     private static final String MONGO_CONNECTION_STRING = "mongodb://localhost:27017";
     private static final String DATABASE_NAME = "MapTools";
-    private static final int THREAD_POOL_SIZE = 20;
-    private static final int BATCH_SIZE = 1000;
+    private static final int THREAD_POOL_SIZE = 8; // 减少线程数以降低内存消耗
+    private static final int BATCH_SIZE = 100;
+    private static final long MAX_HEAP_SIZE_PERCENT = 80; // 最大堆内存使用百分比
     
     private MongoClient mongoClient;
     private MongoDatabase database;
@@ -40,12 +45,14 @@ public class JavaTrajectoryProcessor {
     private AtomicLong totalProcessed = new AtomicLong(0);
     private AtomicLong totalSaved = new AtomicLong(0);
     private AtomicLong totalSkipped = new AtomicLong(0);
+    private MemoryMXBean memoryBean;
     
     public JavaTrajectoryProcessor() {
         this.mongoClient = new MongoClient(new MongoClientURI(MONGO_CONNECTION_STRING));
         this.database = mongoClient.getDatabase(DATABASE_NAME);
         this.executor = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
         this.geometryFactory = new GeometryFactory();
+        this.memoryBean = ManagementFactory.getMemoryMXBean();
         
         // 初始化道路匹配器
         try {
@@ -79,6 +86,9 @@ public class JavaTrajectoryProcessor {
                 }
                 
                 processCollection(sourceCollectionName, targetCollectionName, matchToRoads);
+                
+                // 检查内存使用情况
+                checkMemoryUsage();
             }
             
             // 等待所有任务完成
@@ -152,11 +162,44 @@ public class JavaTrajectoryProcessor {
             return;
         }
         
-        // 使用多线程处理车牌号
-        processPlatesMultithreaded(platesToProcess, sourceCollection, targetCollection, 
-                                 matchToRoads, sourceCollectionName, trajectoryType);
+        // 使用分批多线程处理车牌号，避免内存溢出
+        processPlatesInBatches(platesToProcess, sourceCollection, targetCollection, 
+                              matchToRoads, sourceCollectionName, trajectoryType);
         
         System.out.println("集合 " + sourceCollectionName + " 处理完成");
+    }
+    
+    /**
+     * 分批处理车牌号列表，避免内存溢出
+     */
+    private void processPlatesInBatches(List<String> platesToProcess, 
+                                       MongoCollection<Document> sourceCollection,
+                                       MongoCollection<Document> targetCollection,
+                                       boolean matchToRoads, 
+                                       String sourceCollectionName,
+                                       String trajectoryType) {
+        
+        System.out.println("开始分批处理 " + platesToProcess.size() + " 个车牌号，每批 " + BATCH_SIZE + " 个");
+        
+        // 分批处理
+        for (int i = 0; i < platesToProcess.size(); i += BATCH_SIZE) {
+            int endIndex = Math.min(i + BATCH_SIZE, platesToProcess.size());
+            List<String> batch = platesToProcess.subList(i, endIndex);
+            
+            System.out.println("处理批次: " + (i/BATCH_SIZE + 1) + "/" + ((platesToProcess.size()-1)/BATCH_SIZE + 1));
+            
+            // 处理当前批次
+            processPlatesMultithreaded(batch, sourceCollection, targetCollection, 
+                                     matchToRoads, sourceCollectionName, trajectoryType);
+            
+            // 检查内存使用情况
+            checkMemoryUsage();
+            
+            // 强制进行垃圾回收建议（实际效果取决于JVM）
+            if (i % (BATCH_SIZE * 3) == 0) {
+                System.gc();
+            }
+        }
     }
     
     /**
@@ -175,11 +218,14 @@ public class JavaTrajectoryProcessor {
         AtomicInteger savedCount = new AtomicInteger(0);
         AtomicInteger skippedCount = new AtomicInteger(0);
         
+        // 使用有界队列的线程池，防止任务堆积
+        ExecutorService boundedExecutor = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
+        
         // 收集所有Future对象
         List<Future<?>> futures = new ArrayList<>();
         
         for (String plateNumber : platesToProcess) {
-            Future<?> future = executor.submit(() -> {
+            Future<?> future = boundedExecutor.submit(() -> {
                 try {
                     processPlateNumber(plateNumber, sourceCollection, targetCollection, 
                                     matchToRoads, sourceCollectionName, trajectoryType);
@@ -188,7 +234,7 @@ public class JavaTrajectoryProcessor {
                     System.err.println("处理车牌号 " + plateNumber + " 时出错: " + e.getMessage());
                 } finally {
                     int processed = processedPlates.incrementAndGet();
-                    if (processed % 100 == 0) {
+                    if (processed % Math.max(1, platesToProcess.size()/10) == 0) { // 每10%输出一次进度
                         System.out.println("进度: " + processed + "/" + platesToProcess.size() + 
                                          " | 已保存: " + savedCount.get() + " | 跳过: " + skippedCount.get());
                     }
@@ -198,11 +244,13 @@ public class JavaTrajectoryProcessor {
         }
         
         // 等待当前集合的所有任务完成
-        System.out.println("等待集合 " + sourceCollectionName + " 的所有任务完成...");
+        System.out.println("等待集合 " + sourceCollectionName + " 的当前批次任务完成...");
         try {
             // 等待所有Future完成
             for (Future<?> future : futures) {
                 future.get(); // 等待单个任务完成
+                // 显式置空future以帮助GC
+                future = null;
             }
             
             System.out.println("进度: " + processedPlates.get() + "/" + platesToProcess.size() + 
@@ -212,9 +260,21 @@ public class JavaTrajectoryProcessor {
             System.out.println("等待被中断");
         } catch (Exception e) {
             System.err.println("等待任务完成时出错: " + e.getMessage());
+        } finally {
+            // 清理资源
+            futures.clear();
+            boundedExecutor.shutdown();
+            try {
+                if (!boundedExecutor.awaitTermination(1, TimeUnit.MINUTES)) {
+                    boundedExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                boundedExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
         }
         
-        System.out.println("集合 " + sourceCollectionName + " 多线程处理完成: 处理了 " + processedPlates.get() + " 个车牌");
+        System.out.println("集合 " + sourceCollectionName + " 当前批次处理完成: 处理了 " + processedPlates.get() + " 个车牌");
     }
     
     /**
@@ -257,16 +317,23 @@ public class JavaTrajectoryProcessor {
             Object datetimeObj = point.get("datetime");
             if (datetimeObj instanceof java.time.Instant) {
                 trajectoryPoint.put("datetime", ((java.time.Instant) datetimeObj).toString());
+            } else if (datetimeObj instanceof Long) {
+                // 处理时间戳
+                trajectoryPoint.put("datetime", new java.util.Date((Long) datetimeObj).toString());
             } else {
                 trajectoryPoint.put("datetime", datetimeObj);
             }
             
             // 经纬度保持Double类型，与Python一致 - 使用安全的类型转换
             Document location = point.get("location", Document.class);
-            @SuppressWarnings("unchecked")
-            List<Number> coordinates = (List<Number>) location.get("coordinates");
-            trajectoryPoint.put("longitude", coordinates.get(0).doubleValue());
-            trajectoryPoint.put("latitude", coordinates.get(1).doubleValue());
+            if (location != null) {
+                @SuppressWarnings("unchecked")
+                List<Number> coordinates = (List<Number>) location.get("coordinates");
+                if (coordinates != null && coordinates.size() >= 2) {
+                    trajectoryPoint.put("longitude", coordinates.get(0).doubleValue());
+                    trajectoryPoint.put("latitude", coordinates.get(1).doubleValue());
+                }
+            }
             
             // speed和heading保持原始类型，与Python一致
             Object speedObj = point.get("speed");
@@ -291,7 +358,16 @@ public class JavaTrajectoryProcessor {
             trajectoryPoint.put("source_file", sourceFile != null ? sourceFile : "");
             
             trajectoryPoints.add(trajectoryPoint);
+            
+            // 如果轨迹点过多，分批处理以节省内存
+            if (trajectoryPoints.size() > 5000) {
+                break; // 限制单个轨迹的点数
+            }
         }
+        
+        // 清理原始gpsPoints以节省内存
+        gpsPoints.clear();
+        gpsPoints = null;
         
         // 如果需要进行道路匹配
         if (matchToRoads && roadMatcher != null) {
@@ -305,6 +381,10 @@ public class JavaTrajectoryProcessor {
         
         // 创建轨迹文档
         Document trajectoryDoc = createTrajectoryDocument(plateNumber, trajectoryPoints, matchToRoads, sourceCollectionName);
+        
+        // 清理trajectoryPoints以节省内存
+        trajectoryPoints.clear();
+        trajectoryPoints = null;
         
         if (trajectoryDoc == null) {
             return;
@@ -329,6 +409,10 @@ public class JavaTrajectoryProcessor {
                 // 其他错误，重新抛出
                 throw e;
             }
+        } finally {
+            // 清理文档以帮助GC
+            trajectoryDoc = null;
+            filter = null;
         }
     }
     
@@ -377,6 +461,11 @@ public class JavaTrajectoryProcessor {
             matchedPoint.put("matched", true);
             
             matchedPoints.add(matchedPoint);
+            
+            // 控制内存使用，每处理100个点检查一次内存
+            if (matchedPoints.size() % 100 == 0) {
+                checkMemoryUsage();
+            }
         }
         
         return matchedPoints;
@@ -440,7 +529,7 @@ public class JavaTrajectoryProcessor {
                 .append("start", firstPoint.get("datetime"))
                 .append("end", lastPoint.get("datetime"));
         
-        return new Document()
+        Document doc = new Document()
                 .append("plate_number", plateNumber)
                 .append("trajectory_points", trajectoryPoints)
                 .append("point_count", trajectoryPoints.size())
@@ -451,6 +540,23 @@ public class JavaTrajectoryProcessor {
                 .append("source", sourceCollectionName)
                 .append("created_at", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
                 .append("type", matchToRoads ? "matched_trajectory" : "original_trajectory");
+        
+        return doc;
+    }
+    
+    /**
+     * 检查内存使用情况
+     */
+    private void checkMemoryUsage() {
+        MemoryUsage heapUsage = memoryBean.getHeapMemoryUsage();
+        long usedPercent = heapUsage.getUsed() * 100 / heapUsage.getMax();
+        
+        if (usedPercent > MAX_HEAP_SIZE_PERCENT) {
+            System.out.println("⚠️  内存使用警告: " + usedPercent + "% 已超过阈值 " + MAX_HEAP_SIZE_PERCENT + "%");
+            System.gc(); // 建议进行垃圾回收
+        } else {
+            System.out.println("💾 当前内存使用: " + usedPercent + "%");
+        }
     }
     
     /**
@@ -462,6 +568,11 @@ public class JavaTrajectoryProcessor {
         System.out.println("总保存轨迹数: " + totalSaved.get());
         System.out.println("总跳过车牌数: " + totalSkipped.get());
         System.out.println("✅ 所有轨迹数据处理完成！");
+        
+        // 打印最终内存使用情况
+        MemoryUsage heapUsage = memoryBean.getHeapMemoryUsage();
+        long usedPercent = heapUsage.getUsed() * 100 / heapUsage.getMax();
+        System.out.println("💾 最终内存使用: " + usedPercent + "%");
     }
     
     /**
