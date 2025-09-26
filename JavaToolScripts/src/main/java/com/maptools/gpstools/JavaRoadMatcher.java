@@ -51,29 +51,23 @@ public class JavaRoadMatcher {
             
             for (Document roadDoc : roadDocs) {
                 Map<String, Object> road = new HashMap<>();
-                road.put("id", roadDoc.getString("id"));
+                road.put("id", roadDoc.getString("road_id"));  // 使用road_id而不是id
                 road.put("name", roadDoc.getString("name"));
                 road.put("type", roadDoc.getString("type"));
                 
-                // 解析GeoJSON几何数据 - 使用安全的类型转换
-                Document geometry = roadDoc.get("geometry", Document.class);
-                if (geometry != null) {
-                    String type = geometry.getString("type");
-                    if ("LineString".equals(type)) {
-                        @SuppressWarnings("unchecked")
-                        List<List<Number>> coordinates = (List<List<Number>>) geometry.get("coordinates");
-                        if (coordinates != null && !coordinates.isEmpty()) {
-                            Coordinate[] coords = new Coordinate[coordinates.size()];
-                            for (int i = 0; i < coordinates.size(); i++) {
-                                List<Number> coord = coordinates.get(i);
-                                double x = coord.get(0).doubleValue();
-                                double y = coord.get(1).doubleValue();
-                                coords[i] = new Coordinate(x, y);
-                            }
-                            LineString lineString = geometryFactory.createLineString(coords);
-                            road.put("geometry", lineString);
-                        }
+                // 解析points字段而不是geometry字段
+                @SuppressWarnings("unchecked")
+                List<List<Number>> points = (List<List<Number>>) roadDoc.get("points");
+                if (points != null && !points.isEmpty()) {
+                    Coordinate[] coords = new Coordinate[points.size()];
+                    for (int i = 0; i < points.size(); i++) {
+                        List<Number> point = points.get(i);
+                        double x = point.get(0).doubleValue();
+                        double y = point.get(1).doubleValue();
+                        coords[i] = new Coordinate(x, y);
                     }
+                    LineString lineString = geometryFactory.createLineString(coords);
+                    road.put("geometry", lineString);
                 }
                 
                 roads.add(road);

@@ -25,10 +25,10 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class JavaTrajectoryProcessor {
     
-    private static final String MONGO_CONNECTION_STRING = "mongodb://localhost:27017";
+    private static final String MONGO_CONNECTION_STRING = "mongodb://localhost:27017/?maxPoolSize=10&minPoolSize=2&maxIdleTimeMS=60000&connectTimeoutMS=60000&socketTimeoutMS=60000&serverSelectionTimeoutMS=60000";
     private static final String DATABASE_NAME = "MapTools";
-    private static final int THREAD_POOL_SIZE = 20;
-    private static final int BATCH_SIZE = 1000;
+    private static final int THREAD_POOL_SIZE = 4;  // 减少线程数避免资源竞争
+    private static final int BATCH_SIZE = 100;      // 减少批量大小
     
     private MongoClient mongoClient;
     private MongoDatabase database;
@@ -118,9 +118,8 @@ public class JavaTrajectoryProcessor {
         MongoCollection<Document> sourceCollection = database.getCollection(sourceCollectionName);
         MongoCollection<Document> targetCollection = database.getCollection(targetCollectionName);
         
-        // 检查源集合中的文档数量
-        long sourceCount = sourceCollection.countDocuments();
-        System.out.println("源集合 " + sourceCollectionName + " 共有 " + sourceCount + " 个GPS点");
+        // 跳过文档数量统计，避免超时
+        System.out.println("源集合 " + sourceCollectionName + " 开始处理...");
         
         // 获取所有车牌号
         List<String> allPlates = sourceCollection.distinct("plate_number", String.class).into(new ArrayList<>());
@@ -130,7 +129,8 @@ public class JavaTrajectoryProcessor {
         String trajectoryType = matchToRoads ? "matched_trajectory" : "original_trajectory";
         Set<String> existingPlates = new HashSet<>();
         targetCollection.find(Filters.eq("type", trajectoryType))
-                .projection(new Document("plate_number", 1))
+                .projection(new Document("plate_number", 1).append("_id", 0))
+                .limit(10000) // 限制查询数量，避免查询过多数据
                 .into(new ArrayList<>())
                 .forEach(doc -> existingPlates.add(doc.getString("plate_number")));
         
@@ -152,9 +152,27 @@ public class JavaTrajectoryProcessor {
             return;
         }
         
-        // 使用多线程处理车牌号
-        processPlatesMultithreaded(platesToProcess, sourceCollection, targetCollection, 
-                                 matchToRoads, sourceCollectionName, trajectoryType);
+        // 分批处理，避免一次性处理太多数据
+        int batchSize = 1000; // 每批处理1000个车牌
+        int totalPlates = platesToProcess.size();
+        int processedCount = 0;
+        
+        while (processedCount < totalPlates) {
+            int endIndex = Math.min(processedCount + batchSize, totalPlates);
+            List<String> batchPlates = platesToProcess.subList(processedCount, endIndex);
+            
+            System.out.println("处理批次: " + (processedCount + 1) + "-" + endIndex + " / " + totalPlates);
+            
+            // 使用多线程处理当前批次
+            processPlatesMultithreaded(batchPlates, sourceCollection, targetCollection, 
+                                     matchToRoads, sourceCollectionName, trajectoryType);
+            
+            processedCount = endIndex;
+            
+            // 批次间强制垃圾回收
+            System.gc();
+            System.out.println("批次处理完成，已处理 " + processedCount + "/" + totalPlates + " 个车牌");
+        }
         
         System.out.println("集合 " + sourceCollectionName + " 处理完成");
     }
@@ -237,8 +255,15 @@ public class JavaTrajectoryProcessor {
             return;
         }
         
-        // 查询该车牌号的所有GPS点
+        // 查询该车牌号的所有GPS点，使用投影减少数据传输
         List<Document> gpsPoints = sourceCollection.find(Filters.eq("plate_number", plateNumber))
+                .projection(new Document("plate_number", 1)
+                    .append("datetime", 1)
+                    .append("location", 1)
+                    .append("speed", 1)
+                    .append("heading", 1)
+                    .append("is_valid", 1)
+                    .append("source_file", 1))
                 .sort(new Document("datetime", 1))
                 .into(new ArrayList<>());
         
