@@ -116,9 +116,23 @@ public class MongoDataStore {
             }
             
             if (!documents.isEmpty()) {
-                collection.insertMany(documents);
-                fileInserted += documents.size();
-                totalInserted.addAndGet(documents.size());
+                try {
+                    collection.insertMany(documents);
+                    fileInserted += documents.size();
+                    totalInserted.addAndGet(documents.size());
+                } catch (Exception e) {
+                    System.err.println("插入数据时出错: " + e.getMessage());
+                    // 出错时逐条插入以确保尽可能多的数据被保存
+                    for (Document doc : documents) {
+                        try {
+                            collection.insertOne(doc);
+                            fileInserted++;
+                            totalInserted.incrementAndGet();
+                        } catch (Exception innerE) {
+                            System.err.println("插入单条数据时出错: " + innerE.getMessage());
+                        }
+                    }
+                }
             }
         }
     }

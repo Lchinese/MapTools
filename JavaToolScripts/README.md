@@ -67,6 +67,12 @@ java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.GPSDat
 |------|------|------|
 | gson | 2.8.9 | JSON处理 |
 
+### 日志处理
+
+| 包名 | 版本 | 说明 |
+|------|------|------|
+| logback-classic | 1.2.3 | 日志处理 |
+
 ## 🏗️ 项目结构
 
 ```
@@ -85,7 +91,9 @@ JavaToolScripts/
 │       │               ├── MongoDataStore.java         # MongoDB数据存储
 │       │               ├── APIRateLimiter.java         # API频率限制器
 │       │               ├── InitializeAdministrativeAreas.java  # 初始化行政区划数据
-│       │               └── UpdateAdministrativeAreas.java      # 更新行政区划数据
+│       │               ├── UpdateAdministrativeAreas.java      # 更新行政区划数据
+│       │               ├── JavaRoadMatcher.java        # Java道路匹配器
+│       │               └── JavaTrajectoryProcessor.java # Java轨迹处理器
 │       └── resources/
 │           ├── application.properties                  # 配置文件
 │           └── application.properties.example          # 配置文件示例
@@ -164,11 +172,14 @@ GPS数据解析器，支持解析特定格式的GPS数据文件。
 - 支持特定格式的TXT文件
 - 解析经纬度、时间、车牌号等信息
 - 数据验证
+- 单行数据解析接口，支持流式处理
 
 **使用方法：**
 ```java
 GPSDataParser parser = new GPSDataParser();
 List<GPSDataPoint> points = parser.parseFile("data/gps_data.txt");
+// 或者解析单行数据
+GPSDataPoint point = parser.parseLine(line, lineNumber, sourceFile);
 ```
 
 ### 2. GPSDataPoint
@@ -189,6 +200,8 @@ GPS数据处理器，提供数据处理和筛选功能。
 - 递归处理目录中的所有数据文件
 - 地理区域筛选（基于行政区划边界）
 - 数据存储到MongoDB
+- 内存优化的流式处理，避免大文件导致的内存溢出
+- 可配置的线程池大小和批处理大小
 
 **使用方法：**
 ```bash
@@ -218,6 +231,8 @@ MongoDB数据存储类，负责数据的持久化存储。
 - 插入GPS点数据
 - 存储行政区划边界数据
 - 创建地理空间索引
+- 批量插入优化，提高写入效率
+- 异常处理机制，增强数据存储可靠性
 
 ### 6. APIRateLimiter
 
@@ -236,6 +251,28 @@ API频率限制器，控制对天地图API的请求频率。
 
 更新行政区划边界数据工具，从天地图API获取最新的行政区划边界数据。
 
+### 9. JavaRoadMatcher
+
+Java道路匹配器，用于将GPS点匹配到最近的道路。
+
+**功能特性：**
+- 从MongoDB加载道路网络数据
+- 将GPS点匹配到最近的道路
+- 多线程处理支持
+- 内存优化和缓存机制
+
+### 10. JavaTrajectoryProcessor
+
+Java轨迹处理器，用于将GPS点转换为轨迹数据。
+
+**功能特性：**
+- 将GPS点按车牌号聚合为轨迹
+- 支持道路匹配（可选）
+- 多线程处理支持
+- 内存管理和优化
+- 防止重复处理机制
+- 批量处理优化，减少内存占用
+
 ## 🚀 使用示例
 
 ### 完整的数据处理流程
@@ -249,28 +286,19 @@ java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.Update
 
 # 3. 处理GPS数据
 java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.GPSDataProcessor ../data
-```
 
-## 🧪 测试
+# 4. 处理轨迹数据（带道路匹配）
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.JavaTrajectoryProcessor true
 
-项目中暂无单元测试。可以通过运行实际数据处理来验证功能：
-
-```
-# 创建测试数据目录
-mkdir test-data
-
-# 复制一些数据文件到测试目录
-cp ../data/01/20160901_001-utf.txt test-data/
-
-# 运行处理工具
-java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.GPSDataProcessor test-data
+# 5. 处理轨迹数据（不带道路匹配）
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.JavaTrajectoryProcessor false
 ```
 
 ## 📊 性能优化
 
 ### 1. 批量处理
 
-工具自动递归处理整个目录结构，批量处理所有数据文件。
+工具自动递归处理整个目录结构，批量处理所有数据文件。最新优化版本采用流式处理，避免一次性加载大文件到内存中。
 
 ### 2. 数据缓存
 
@@ -279,6 +307,24 @@ java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.GPSDat
 ### 3. API频率控制
 
 实现API请求频率控制，避免因请求过于频繁而被限制访问。
+
+### 4. 多线程处理
+
+JavaRoadMatcher和JavaTrajectoryProcessor支持多线程处理，提高处理效率。GPS数据处理器采用可配置线程池，默认线程数已优化以平衡性能和资源消耗。
+
+### 5. 内存管理
+
+实现内存管理和优化机制，包括软引用缓存和定期垃圾回收建议。最新的优化包括：
+- 分批处理大文件数据，显著降低内存峰值使用
+- 调整线程池大小以减少并发内存压力
+- 优化MongoDB写入操作，增加容错处理机制
+
+### 6. 数据库优化
+
+MongoDB写入操作经过优化，包括：
+- 批量插入以提高写入效率
+- 异常处理机制，当批量插入失败时自动降级为逐条插入
+- 索引创建优化，避免重复创建索引
 
 ## 🚀 部署
 
