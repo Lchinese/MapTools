@@ -1,5 +1,0 @@
-[33m7e3d72e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m 更新JavaToolScripts README文档，添加JavaRoadMatcher和JavaTrajectoryProcessor相关信息
-[33m8b22842[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m 优化JavaRoadMatcher和JavaTrajectoryProcessor以改善内存管理并修复字段名问题
-[33mc31d2d5[m feat(BackendService): 优化轨迹数据保存逻辑以提升多集合处理能力
-[33m5f48534[m feat(BackendService): 实现多线程处理轨迹数据以提升性能
-[33m188ea38[m feat(BackendService): 更新轨迹数据保存逻辑以支持多个集合处理
