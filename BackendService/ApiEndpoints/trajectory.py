@@ -311,3 +311,125 @@ async def get_trajectory_summary(
     except Exception as e:
         logger.error(f"获取轨迹摘要信息失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取轨迹摘要信息失败: {str(e)}")
+
+@router.get("/first-day-first-vehicle")
+async def get_first_day_first_vehicle_trajectory():
+    """
+    获取第一天第一辆车的轨迹数据（用于初始化）
+    
+    Returns:
+        Dict: 第一辆车的轨迹数据
+    """
+    try:
+        # 连接到MongoDB
+        client = pymongo.MongoClient('localhost', 27017)
+        db = client['MapTools']
+        
+        # 查找第一个有数据的集合
+        collections = []
+        for i in range(1, 31):  # 检查01到30的集合
+            collection_name = f"original_trajectories_{i:02d}"
+            if collection_name in db.list_collection_names():
+                collection = db[collection_name]
+                # 查找第一个轨迹文档（原始轨迹或匹配轨迹都可以）
+                first_doc = collection.find_one({"type": {"$in": ["original_trajectory", "matched_trajectory"]}})
+                if first_doc:
+                    collections.append((i, collection_name, first_doc))
+                    break
+        
+        if not collections:
+            raise HTTPException(status_code=404, detail="未找到任何轨迹数据")
+        
+        collection_index, collection_name, first_doc = collections[0]
+        plate_number = first_doc['plate_number']
+        trajectory_points = first_doc['trajectory_points']
+        
+        client.close()
+        
+        logger.info(f"成功获取第一天第一辆车 {plate_number} 的轨迹数据，共 {len(trajectory_points)} 个轨迹点")
+        
+        return {
+            "success": True,
+            "plate_number": plate_number,
+            "data": trajectory_points,
+            "collection": collection_name,
+            "point_count": len(trajectory_points),
+            "message": f"成功获取第一天第一辆车 {plate_number} 的轨迹数据"
+        }
+        
+    except Exception as e:
+        logger.error(f"获取第一天第一辆车轨迹数据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取第一天第一辆车轨迹数据失败: {str(e)}")
+
+@router.get("/single-vehicle")
+async def get_single_vehicle_trajectory(
+    plate_number: str = Query(..., description="车牌号"),
+    start_time: str = Query(..., description="开始时间 (YYYY-MM-DD HH:mm:ss)"),
+    end_time: str = Query(..., description="结束时间 (YYYY-MM-DD HH:mm:ss)"),
+    match_to_roads: bool = Query(False, description="是否进行道路匹配")
+):
+    """
+    根据车牌号和时间范围获取单车辆轨迹数据
+    
+    Args:
+        plate_number (str): 车牌号
+        start_time (str): 开始时间
+        end_time (str): 结束时间
+        match_to_roads (bool): 是否进行道路匹配
+        
+    Returns:
+        Dict: 单车辆轨迹数据
+    """
+    try:
+        # 连接到MongoDB
+        client = pymongo.MongoClient('localhost', 27017)
+        db = client['MapTools']
+        
+        # 查找包含该车牌号的集合
+        trajectory_data = None
+        for i in range(1, 31):
+            collection_name = f"original_trajectories_{i:02d}"
+            if collection_name in db.list_collection_names():
+                collection = db[collection_name]
+                doc = collection.find_one({
+                    "plate_number": plate_number,
+                    "type": "matched_trajectory" if match_to_roads else "original_trajectory"
+                })
+                if doc:
+                    trajectory_data = doc['trajectory_points']
+                    break
+        
+        if not trajectory_data:
+            raise HTTPException(status_code=404, detail=f"未找到车牌号为 {plate_number} 的轨迹数据")
+        
+        # 过滤时间范围内的轨迹点
+        from datetime import datetime
+        start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+        end_dt = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
+        
+        filtered_points = []
+        for point in trajectory_data:
+            point_dt = datetime.fromisoformat(point['datetime'].replace('Z', '+00:00'))
+            if start_dt <= point_dt <= end_dt:
+                filtered_points.append(point)
+        
+        client.close()
+        
+        logger.info(f"成功获取车牌号 {plate_number} 在 {start_time} 到 {end_time} 的轨迹数据，共 {len(filtered_points)} 个轨迹点")
+        
+        return {
+            "success": True,
+            "data": filtered_points,
+            "plate_number": plate_number,
+            "time_range": {
+                "start": start_time,
+                "end": end_time
+            },
+            "point_count": len(filtered_points),
+            "match_to_roads": match_to_roads,
+            "message": f"成功获取车牌号 {plate_number} 的轨迹数据"
+        }
+        
+    except Exception as e:
+        logger.error(f"获取单车辆轨迹数据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取单车辆轨迹数据失败: {str(e)}")

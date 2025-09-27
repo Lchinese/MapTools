@@ -216,3 +216,38 @@ async def get_vehicles_data(
     except Exception as e:
         logger.error(f"获取车辆数据失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取车辆数据失败: {str(e)}")
+
+@router.get("/matched-points")
+async def get_matched_points(
+    limit: Optional[int] = Query(100, description="返回的匹配点数量限制")
+):
+    """获取已匹配的GPS点数据"""
+    try:
+        # 获取GPS数据
+        gps_points = gps_parser.parse_sample_data()
+        
+        if not gps_points:
+            raise HTTPException(status_code=404, detail="未找到GPS数据")
+        
+        # 过滤有效点
+        gps_points = gps_parser.filter_valid_points(gps_points)
+        
+        # 限制数量
+        if limit and limit > 0:
+            gps_points = gps_points[:limit]
+        
+        # 进行道路匹配
+        matched_points = road_matcher.match_gps_to_roads(gps_points)
+        
+        logger.info(f"返回 {len(matched_points)} 个匹配点")
+        return {
+            "success": True,
+            "data": {
+                "matched_points": matched_points
+            },
+            "message": f"成功获取 {len(matched_points)} 个匹配点"
+        }
+        
+    except Exception as e:
+        logger.error(f"获取匹配点数据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取匹配点数据失败: {str(e)}")
