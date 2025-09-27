@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { trajectoryAPI } from '../Services/api';
 import { useTrajectoryStore } from '../Store/trajectoryStore';
 import { parseTrajectoryFile } from '../Utils/fileUtils';
@@ -18,6 +18,11 @@ export const useTrajectoryData = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  // 添加调试日志来跟踪trajectoryData的变化
+  useEffect(() => {
+    console.log('useTrajectoryData - trajectoryData变化:', Object.keys(trajectoryData).length, trajectoryData);
+  }, [trajectoryData]);
 
   // 批量获取指定数量车辆的轨迹数据
   const fetchBatchTrajectoryData = useCallback(async (limit = 50, matchToRoads = false) => {
@@ -55,6 +60,8 @@ export const useTrajectoryData = () => {
       if (response.success) {
         // 将单车辆数据转换为与批量数据相同的格式
         const singleVehicleData = { [plateNumber]: response.data };
+        console.log('设置单车辆轨迹数据:', singleVehicleData);
+        console.log('轨迹点数量:', response.data.length);
         setTrajectoryData(singleVehicleData);
         setPlateNumbers([plateNumber]);
       } else {

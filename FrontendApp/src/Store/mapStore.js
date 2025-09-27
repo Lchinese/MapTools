@@ -12,7 +12,7 @@ const useMapStore = create((set, get) => ({
   roadNetwork: null,
   
   // 显示选项
-  showOriginal: false,
+  showOriginal: true,
   showMatched: true,
   showRoadNetwork: true,
   

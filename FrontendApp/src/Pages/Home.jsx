@@ -18,7 +18,7 @@ const { Title, Paragraph } = Typography;
 
 const Home = () => {
   const navigate = useNavigate();
-  const { fetchSingleVehicleTrajectory } = useTrajectoryData();
+  const { fetchSingleVehicleTrajectory, trajectoryData } = useTrajectoryData();
   const [loading, setLoading] = useState(false);
   const [plateNumber, setPlateNumber] = useState('');
   const [startDateTime, setStartDateTime] = useState(dayjs('2016-09-01 00:00'));
@@ -26,6 +26,7 @@ const Home = () => {
   const [matchToRoads, setMatchToRoads] = useState(true);
 
   const handleLoadSingleVehicle = async () => {
+    console.log('开始加载单车辆轨迹:', plateNumber, startDateTime.format('YYYY-MM-DD HH:mm:ss'), endDateTime.format('YYYY-MM-DD HH:mm:ss'), matchToRoads);
     if (!plateNumber.trim()) {
       alert('请输入车牌号');
       return;
@@ -33,7 +34,11 @@ const Home = () => {
     
     setLoading(true);
     try {
+      console.log('调用fetchSingleVehicleTrajectory...');
       await fetchSingleVehicleTrajectory(plateNumber, startDateTime, endDateTime, matchToRoads);
+      console.log('fetchSingleVehicleTrajectory调用完成');
+    } catch (error) {
+      console.error('加载轨迹失败:', error);
     } finally {
       setLoading(false);
     }
@@ -161,7 +166,7 @@ const Home = () => {
             }}
             bodyStyle={{ padding: 0, height: 'calc(100% - 57px)' }}
           >
-            <MapComponent height={520} />
+            <MapComponent height={520} trajectoryData={trajectoryData} />
           </Card>
         </Col>
         

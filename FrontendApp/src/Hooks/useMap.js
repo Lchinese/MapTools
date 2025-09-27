@@ -151,7 +151,7 @@ export const useMapEvents = (mapRef) => {
 /**
  * 轨迹数据处理Hook
  */
-export const useTrajectoryData = () => {
+export const useTrajectoryProcessing = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
 

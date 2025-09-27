@@ -6,7 +6,7 @@ import L from 'leaflet';
 import { useMapStore } from '../../Store/mapStore';
 import { useTrajectoryStore } from '../../Store/trajectoryStore';
 import { matchingAPI, trajectoryAPI } from '../../Services/api';
-import { useTrajectoryData } from '../../Hooks/useTrajectory';
+// import { useTrajectoryData } from '../../Hooks/useTrajectory'; // 不再需要，trajectoryData 作为 prop 传入
 import MatchedPoints from './MatchedPoints';
 import 'leaflet/dist/leaflet.css';
 
@@ -177,15 +177,13 @@ const TrajectoryPoints = ({ trajectory, color }) => {
 //   );
 // };
 
-const MapComponent = ({ height = 400, showControls = true }) => {
+const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }) => {
   const mapRef = useRef();
   const [matchedPoints, setMatchedPoints] = useState([]);
   const [loading, setLoading] = useState(false);
   const [, setCurrentPage] = useState(1);
   
-  const { 
-    trajectoryData
-  } = useTrajectoryData();
+  // trajectoryData 现在作为 prop 传入
 
   const {
     originalTrajectories,
@@ -214,10 +212,12 @@ const MapComponent = ({ height = 400, showControls = true }) => {
 
   // 监听单车辆轨迹数据变化，替换初始化的内容
   useEffect(() => {
+    console.log('trajectoryData变化:', Object.keys(trajectoryData).length, trajectoryData);
     if (Object.keys(trajectoryData).length > 0) {
       console.log('检测到新的单车辆轨迹数据:', trajectoryData);
-      // 当有新的单车辆轨迹数据时，替换原始轨迹数据
+      // 当有新的单车辆轨迹数据时，同时更新原始轨迹数据
       setOriginalTrajectories(trajectoryData);
+      console.log('已更新originalTrajectories为:', trajectoryData);
     }
   }, [trajectoryData, setOriginalTrajectories]);
 
@@ -260,7 +260,10 @@ const MapComponent = ({ height = 400, showControls = true }) => {
       }
     };
 
-    loadInitialData();
+    // 只有在没有任何轨迹数据时才加载初始数据
+    if (Object.keys(trajectoryData).length === 0 && Object.keys(originalTrajectories).length === 0) {
+      loadInitialData();
+    }
   }, []); // 只在组件挂载时执行一次
 
   // const handleLoadBatch = async (limit, matchToRoads) => {
@@ -290,11 +293,27 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   // 渲染车辆轨迹线
   const renderVehicleTrajectories = () => {
     // 优先使用单车辆轨迹数据，如果没有则使用原始轨迹数据
-    const dataToUse = Object.keys(trajectoryData).length > 0 ? trajectoryData : originalTrajectories;
+    const hasTrajectoryData = Object.keys(trajectoryData).length > 0;
+    const dataToUse = hasTrajectoryData ? trajectoryData : originalTrajectories;
     
-    console.log('渲染轨迹线 - trajectoryData:', Object.keys(trajectoryData).length, 'originalTrajectories:', Object.keys(originalTrajectories).length, 'dataToUse:', Object.keys(dataToUse).length);
+    console.log('=== 渲染轨迹线调试信息 ===');
+    console.log('trajectoryData长度:', Object.keys(trajectoryData).length);
+    console.log('trajectoryData内容:', trajectoryData);
+    console.log('originalTrajectories长度:', Object.keys(originalTrajectories).length);
+    console.log('originalTrajectories内容:', originalTrajectories);
+    console.log('hasTrajectoryData:', hasTrajectoryData);
+    console.log('dataToUse长度:', Object.keys(dataToUse).length);
+    console.log('dataToUse内容:', dataToUse);
+    console.log('showOriginal状态:', showOriginal);
+    console.log('========================');
+    
+    if (Object.keys(dataToUse).length === 0) {
+      console.log('没有数据可渲染');
+      return null;
+    }
     
     return Object.entries(dataToUse).map(([plateNumber, points]) => {
+      console.log(`渲染车牌 ${plateNumber} 的轨迹，点数:`, points.length);
       if (points.length < 2) return null;
       
       const positions = points.map(point => [point.latitude, point.longitude]);
