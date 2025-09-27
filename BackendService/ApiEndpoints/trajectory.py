@@ -391,10 +391,17 @@ async def get_single_vehicle_trajectory(
             collection_name = f"original_trajectories_{i:02d}"
             if collection_name in db.list_collection_names():
                 collection = db[collection_name]
+                # 先尝试查找指定类型的轨迹
                 doc = collection.find_one({
                     "plate_number": plate_number,
                     "type": "matched_trajectory" if match_to_roads else "original_trajectory"
                 })
+                
+                # 如果没找到，尝试查找任何类型的轨迹
+                if not doc:
+                    doc = collection.find_one({
+                        "plate_number": plate_number
+                    })
                 if doc:
                     trajectory_data = doc['trajectory_points']
                     break
@@ -409,9 +416,25 @@ async def get_single_vehicle_trajectory(
         
         filtered_points = []
         for point in trajectory_data:
-            point_dt = datetime.fromisoformat(point['datetime'].replace('Z', '+00:00'))
-            if start_dt <= point_dt <= end_dt:
-                filtered_points.append(point)
+            try:
+                # 尝试不同的时间格式解析
+                point_datetime = point['datetime']
+                if isinstance(point_datetime, str):
+                    # 如果是字符串，尝试解析
+                    if 'T' in point_datetime:
+                        point_dt = datetime.fromisoformat(point_datetime.replace('Z', '+00:00'))
+                    else:
+                        # 尝试标准格式
+                        point_dt = datetime.strptime(point_datetime, '%Y-%m-%d %H:%M:%S')
+                else:
+                    # 如果已经是datetime对象
+                    point_dt = point_datetime
+                
+                if start_dt <= point_dt <= end_dt:
+                    filtered_points.append(point)
+            except Exception as e:
+                logger.warning(f"解析时间失败: {point.get('datetime')}, 错误: {e}")
+                continue
         
         client.close()
         

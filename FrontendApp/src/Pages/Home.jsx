@@ -21,8 +21,8 @@ const Home = () => {
   const { fetchSingleVehicleTrajectory } = useTrajectoryData();
   const [loading, setLoading] = useState(false);
   const [plateNumber, setPlateNumber] = useState('');
-  const [startDateTime, setStartDateTime] = useState(dayjs('2024-09-01 00:00'));
-  const [endDateTime, setEndDateTime] = useState(dayjs('2024-09-01 23:59'));
+  const [startDateTime, setStartDateTime] = useState(dayjs('2016-09-01 00:00'));
+  const [endDateTime, setEndDateTime] = useState(dayjs('2016-09-01 23:59'));  
   const [matchToRoads, setMatchToRoads] = useState(true);
 
   const handleLoadSingleVehicle = async () => {

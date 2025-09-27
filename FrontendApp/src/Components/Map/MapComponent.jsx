@@ -215,6 +215,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   // 监听单车辆轨迹数据变化，替换初始化的内容
   useEffect(() => {
     if (Object.keys(trajectoryData).length > 0) {
+      console.log('检测到新的单车辆轨迹数据:', trajectoryData);
       // 当有新的单车辆轨迹数据时，替换原始轨迹数据
       setOriginalTrajectories(trajectoryData);
     }
@@ -224,15 +225,19 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
+        console.log('开始加载初始轨迹数据...');
         setLoading(true);
         
         // 加载第一天第一辆车的轨迹数据
         const response = await trajectoryAPI.getFirstDayFirstVehicleTrajectory();
+        console.log('初始轨迹数据响应:', response);
         if (response.success && response.data) {
           // 将单车辆数据转换为与批量数据相同的格式
           const firstVehicleData = { [response.plate_number]: response.data };
+          console.log('设置初始轨迹数据:', firstVehicleData);
           setOriginalTrajectories(firstVehicleData);
         } else {
+          console.log('初始轨迹数据获取失败，尝试备选方案');
           // 如果获取失败，尝试加载原始轨迹数据
           await stableFetchOriginalTrajectories(1, 1);
         }
@@ -256,7 +261,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
     };
 
     loadInitialData();
-  }, [stableFetchOriginalTrajectories]); // 使用稳定的函数引用
+  }, []); // 只在组件挂载时执行一次
 
   // const handleLoadBatch = async (limit, matchToRoads) => {
   //   await fetchBatchTrajectoryData(limit, matchToRoads);
@@ -264,7 +269,8 @@ const MapComponent = ({ height = 400, showControls = true }) => {
 
   // 计算地图边界
   const calculateBounds = () => {
-    const dataToUse = showOriginal ? originalTrajectories : trajectoryData;
+    // 优先使用单车辆轨迹数据，如果没有则使用原始轨迹数据
+    const dataToUse = Object.keys(trajectoryData).length > 0 ? trajectoryData : originalTrajectories;
     if (Object.keys(dataToUse).length === 0) return null;
     
     const allPoints = Object.values(dataToUse).flat();
@@ -283,7 +289,11 @@ const MapComponent = ({ height = 400, showControls = true }) => {
 
   // 渲染车辆轨迹线
   const renderVehicleTrajectories = () => {
-    const dataToUse = showOriginal ? originalTrajectories : trajectoryData;
+    // 优先使用单车辆轨迹数据，如果没有则使用原始轨迹数据
+    const dataToUse = Object.keys(trajectoryData).length > 0 ? trajectoryData : originalTrajectories;
+    
+    console.log('渲染轨迹线 - trajectoryData:', Object.keys(trajectoryData).length, 'originalTrajectories:', Object.keys(originalTrajectories).length, 'dataToUse:', Object.keys(dataToUse).length);
+    
     return Object.entries(dataToUse).map(([plateNumber, points]) => {
       if (points.length < 2) return null;
       
@@ -303,7 +313,8 @@ const MapComponent = ({ height = 400, showControls = true }) => {
 
   // 渲染车辆轨迹点
   const renderVehicleTrajectoryPoints = () => {
-    const dataToUse = showOriginal ? originalTrajectories : trajectoryData;
+    // 优先使用单车辆轨迹数据，如果没有则使用原始轨迹数据
+    const dataToUse = Object.keys(trajectoryData).length > 0 ? trajectoryData : originalTrajectories;
     return Object.entries(dataToUse).map(([plateNumber, points]) => {
       return points.map((point, index) => (
               <Marker
@@ -559,7 +570,7 @@ const MapComponent = ({ height = 400, showControls = true }) => {
                   <Typography.Text style={{ fontSize: '13px' }}>车辆轨迹点</Typography.Text>
                 </Space>
                 <Typography.Text style={{ fontSize: '13px', fontWeight: 'bold', color: '#52c41a' }}>
-                  {Object.values(originalTrajectories).flat().length}
+                  {Object.values(Object.keys(trajectoryData).length > 0 ? trajectoryData : originalTrajectories).flat().length}
                 </Typography.Text>
               </div>
               
