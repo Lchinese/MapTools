@@ -89,6 +89,9 @@ const useTrajectoryStore = create((set, get) => ({
     return null;
   },
 
+  // 设置原始轨迹数据
+  setOriginalTrajectories: (data) => set({ originalTrajectories: data }),
+
   // 清除错误
   clearError: () => set({ error: null }),
 

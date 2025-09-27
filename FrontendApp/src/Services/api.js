@@ -97,4 +97,17 @@ export const trajectoryAPI = {
   getTrajectorySummary: (plateNumber) => axios.get('http://localhost:8000/trajectory/summary', {
     params: { plate_number: plateNumber }
   }).then(r => r.data),
+  
+  // 根据车牌号和时间范围获取单车辆轨迹数据
+  getSingleVehicleTrajectory: (plateNumber, startTime, endTime, matchToRoads = false) => axios.get('http://localhost:8000/trajectory/single-vehicle', {
+    params: { 
+      plate_number: plateNumber,
+      start_time: startTime,
+      end_time: endTime,
+      match_to_roads: matchToRoads
+    }
+  }).then(r => r.data),
+  
+  // 获取第一天第一辆车的轨迹数据（用于初始化）
+  getFirstDayFirstVehicleTrajectory: () => axios.get('http://localhost:8000/trajectory/first-day-first-vehicle').then(r => r.data),
 };

@@ -5,7 +5,7 @@ import { Card, Checkbox, Button, Space, Typography, Tooltip } from 'antd';
 import L from 'leaflet';
 import { useMapStore } from '../../Store/mapStore';
 import { useTrajectoryStore } from '../../Store/trajectoryStore';
-import { matchingAPI } from '../../Services/api';
+import { matchingAPI, trajectoryAPI } from '../../Services/api';
 import { useTrajectoryData } from '../../Hooks/useTrajectory';
 import MatchedPoints from './MatchedPoints';
 import 'leaflet/dist/leaflet.css';
@@ -190,7 +190,8 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   const {
     originalTrajectories,
     pagination,
-    fetchOriginalTrajectories
+    fetchOriginalTrajectories,
+    setOriginalTrajectories
   } = useTrajectoryStore();
 
   
@@ -211,22 +212,44 @@ const MapComponent = ({ height = 400, showControls = true }) => {
   // 使用useCallback稳定fetchOriginalTrajectories函数
   const stableFetchOriginalTrajectories = useCallback(fetchOriginalTrajectories, [fetchOriginalTrajectories]);
 
-  // 加载初始轨迹数据
+  // 监听单车辆轨迹数据变化，替换初始化的内容
+  useEffect(() => {
+    if (Object.keys(trajectoryData).length > 0) {
+      // 当有新的单车辆轨迹数据时，替换原始轨迹数据
+      setOriginalTrajectories(trajectoryData);
+    }
+  }, [trajectoryData, setOriginalTrajectories]);
+
+  // 加载初始轨迹数据（第一天第一辆车）
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-      setLoading(true);
+        setLoading(true);
         
-        // 加载原始轨迹数据（从数据库分页查询）
-        await stableFetchOriginalTrajectories(1, 20);
+        // 加载第一天第一辆车的轨迹数据
+        const response = await trajectoryAPI.getFirstDayFirstVehicleTrajectory();
+        if (response.success && response.data) {
+          // 将单车辆数据转换为与批量数据相同的格式
+          const firstVehicleData = { [response.plate_number]: response.data };
+          setOriginalTrajectories(firstVehicleData);
+        } else {
+          // 如果获取失败，尝试加载原始轨迹数据
+          await stableFetchOriginalTrajectories(1, 1);
+        }
         
         // 加载匹配点数据
-        const response = await matchingAPI.getMatchedPoints();
-        if (response.data && response.data.matched_points) {
-          setMatchedPoints(response.data.matched_points);
+        const matchedResponse = await matchingAPI.getMatchedPoints();
+        if (matchedResponse.data && matchedResponse.data.matched_points) {
+          setMatchedPoints(matchedResponse.data.matched_points);
         }
       } catch (error) {
-        console.error('加载数据失败:', error);
+        console.error('加载初始数据失败:', error);
+        // 如果所有方法都失败，尝试加载原始轨迹数据作为备选
+        try {
+          await stableFetchOriginalTrajectories(1, 1);
+        } catch (fallbackError) {
+          console.error('备选加载也失败:', fallbackError);
+        }
       } finally {
         setLoading(false);
       }
@@ -446,8 +469,8 @@ const MapComponent = ({ height = 400, showControls = true }) => {
                 <span style={{ color: '#ff4d4f' }}>●</span> 原始轨迹
               </Checkbox>
               
-              {/* 分页控制 */}
-              {showOriginal && (
+              {/* 分页控制 - 只在多车辆模式下显示 */}
+              {showOriginal && Object.keys(originalTrajectories).length > 1 && (
                 <div style={{ marginTop: 8, fontSize: '12px' }}>
                   <div style={{ marginBottom: 4 }}>
                     第 {pagination.page || 1} 页 / 共 {pagination.total_pages || 0} 页
@@ -476,6 +499,13 @@ const MapComponent = ({ height = 400, showControls = true }) => {
                       下一页
                     </Button>
                   </Space>
+                </div>
+              )}
+              
+              {/* 单车辆模式提示 */}
+              {showOriginal && Object.keys(originalTrajectories).length === 1 && (
+                <div style={{ marginTop: 8, fontSize: '12px', color: '#1890ff', textAlign: 'center' }}>
+                  单车辆轨迹模式
                 </div>
               )}
               
@@ -533,15 +563,31 @@ const MapComponent = ({ height = 400, showControls = true }) => {
                 </Typography.Text>
               </div>
               
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Space>
-                  <span style={{ color: '#faad14', fontSize: '16px' }}>●</span>
-                  <Typography.Text style={{ fontSize: '13px' }}>车辆数量</Typography.Text>
-                </Space>
-                <Typography.Text style={{ fontSize: '13px', fontWeight: 'bold', color: '#faad14' }}>
-                  {Object.keys(originalTrajectories).length}
-                </Typography.Text>
-              </div>
+              {/* 只在多车辆模式下显示车辆数量 */}
+              {Object.keys(originalTrajectories).length > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Space>
+                    <span style={{ color: '#faad14', fontSize: '16px' }}>●</span>
+                    <Typography.Text style={{ fontSize: '13px' }}>车辆数量</Typography.Text>
+                  </Space>
+                  <Typography.Text style={{ fontSize: '13px', fontWeight: 'bold', color: '#faad14' }}>
+                    {Object.keys(originalTrajectories).length}
+                  </Typography.Text>
+                </div>
+              )}
+              
+              {/* 单车辆模式显示车牌号 */}
+              {Object.keys(originalTrajectories).length === 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Space>
+                    <span style={{ color: '#1890ff', fontSize: '16px' }}>●</span>
+                    <Typography.Text style={{ fontSize: '13px' }}>当前车辆</Typography.Text>
+                  </Space>
+                  <Typography.Text style={{ fontSize: '13px', fontWeight: 'bold', color: '#1890ff' }}>
+                    {Object.keys(originalTrajectories)[0]}
+                  </Typography.Text>
+                </div>
+              )}
               
               {loading && (
                 <div style={{ textAlign: 'center', padding: '8px 0' }}>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Row, Col, Statistic, Typography, Button, Space, Alert, Divider, InputNumber, Checkbox } from 'antd';
+import { Card, Row, Col, Statistic, Typography, Button, Space, Alert, Divider, Input, DatePicker, TimePicker, Checkbox } from 'antd';
 import { 
   UploadOutlined, 
   BarChartOutlined, 
@@ -9,6 +9,7 @@ import {
   RocketOutlined,
   CarOutlined
 } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import MapComponent from '../Components/Map/MapComponent';
 import { useTrajectoryData } from '../Hooks/useTrajectory';
@@ -17,15 +18,22 @@ const { Title, Paragraph } = Typography;
 
 const Home = () => {
   const navigate = useNavigate();
-  const { fetchBatchTrajectoryData } = useTrajectoryData();
+  const { fetchSingleVehicleTrajectory } = useTrajectoryData();
   const [loading, setLoading] = useState(false);
-  const [vehicleCount, setVehicleCount] = useState(0);
-  const [matchToRoads, setMatchToRoads] = useState(false);
+  const [plateNumber, setPlateNumber] = useState('');
+  const [startDateTime, setStartDateTime] = useState(dayjs('2024-09-01 00:00'));
+  const [endDateTime, setEndDateTime] = useState(dayjs('2024-09-01 23:59'));
+  const [matchToRoads, setMatchToRoads] = useState(true);
 
-  const handleLoadBatch = async (limit, matchToRoads) => {
+  const handleLoadSingleVehicle = async () => {
+    if (!plateNumber.trim()) {
+      alert('请输入车牌号');
+      return;
+    }
+    
     setLoading(true);
     try {
-      await fetchBatchTrajectoryData(limit, matchToRoads);
+      await fetchSingleVehicleTrajectory(plateNumber, startDateTime, endDateTime, matchToRoads);
     } finally {
       setLoading(false);
     }
@@ -231,7 +239,7 @@ const Home = () => {
               
               <Divider style={{ margin: '16px 0' }} />
               
-              {/* 批量加载车辆轨迹 */}
+              {/* 加载车辆轨迹 */}
               <div style={{ 
                 padding: '16px', 
                 background: '#f8f9fa', 
@@ -242,22 +250,48 @@ const Home = () => {
                   <div style={{ textAlign: 'center', marginBottom: '8px' }}>
                     <Typography.Text strong style={{ fontSize: '14px', color: '#1890ff' }}>
                       <CarOutlined style={{ marginRight: 4 }} />
-                      批量加载车辆轨迹
+                      加载车辆轨迹
                     </Typography.Text>
                   </div>
                   
                   <div>
                     <Typography.Text style={{ fontSize: '12px', marginBottom: 4, display: 'block' }}>
-                      车辆数量
+                      车牌号
                     </Typography.Text>
-                    <InputNumber
-                      min={1}
-                      max={1000}
-                      value={vehicleCount}
-                      onChange={(value) => setVehicleCount(value || 1)}
+                    <Input
+                      placeholder="请输入车牌号"
+                      value={plateNumber}
+                      onChange={(e) => setPlateNumber(e.target.value)}
                       style={{ width: '100%' }}
                       size="small"
-                      addonAfter="辆"
+                    />
+                  </div>
+
+                  <div>
+                    <Typography.Text style={{ fontSize: '12px', marginBottom: 4, display: 'block' }}>
+                      开始时间
+                    </Typography.Text>
+                    <DatePicker
+                      showTime={{ format: 'HH:mm' }}
+                      format="YYYY-MM-DD HH:mm"
+                      value={startDateTime}
+                      onChange={(date) => setStartDateTime(date)}
+                      style={{ width: '100%' }}
+                      size="small"
+                    />
+                  </div>
+
+                  <div>
+                    <Typography.Text style={{ fontSize: '12px', marginBottom: 4, display: 'block' }}>
+                      结束时间
+                    </Typography.Text>
+                    <DatePicker
+                      showTime={{ format: 'HH:mm' }}
+                      format="YYYY-MM-DD HH:mm"
+                      value={endDateTime}
+                      onChange={(date) => setEndDateTime(date)}
+                      style={{ width: '100%' }}
+                      size="small"
                     />
                   </div>
 
@@ -274,7 +308,7 @@ const Home = () => {
                     type="primary"
                     size="small"
                     loading={loading}
-                    onClick={() => handleLoadBatch(vehicleCount, matchToRoads)}
+                    onClick={handleLoadSingleVehicle}
                     icon={<CarOutlined />}
                     style={{
                       width: '100%',

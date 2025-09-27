@@ -41,6 +41,33 @@ export const useTrajectoryData = () => {
     }
   }, []);
 
+  // 获取单车辆轨迹数据
+  const fetchSingleVehicleTrajectory = useCallback(async (plateNumber, startTime, endTime, matchToRoads = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await trajectoryAPI.getSingleVehicleTrajectory(
+        plateNumber, 
+        startTime.format('YYYY-MM-DD HH:mm:ss'), 
+        endTime.format('YYYY-MM-DD HH:mm:ss'), 
+        matchToRoads
+      );
+      if (response.success) {
+        // 将单车辆数据转换为与批量数据相同的格式
+        const singleVehicleData = { [plateNumber]: response.data };
+        setTrajectoryData(singleVehicleData);
+        setPlateNumbers([plateNumber]);
+      } else {
+        throw new Error(response.message || '获取单车辆轨迹数据失败');
+      }
+    } catch (err) {
+      console.error('获取单车辆轨迹数据失败:', err);
+      setError(err.message || '获取单车辆轨迹数据失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // 分页获取车辆列表
   const fetchVehicleList = useCallback(async (page = 1, pageSize = 10) => {
     setLoading(true);
@@ -143,6 +170,7 @@ export const useTrajectoryData = () => {
     loading,
     error,
     fetchBatchTrajectoryData,
+    fetchSingleVehicleTrajectory,
     fetchVehicleList,
     fetchTrajectoryDataByPlate,
     fetchTrajectorySummary,
