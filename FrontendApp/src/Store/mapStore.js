@@ -12,9 +12,9 @@ const useMapStore = create((set, get) => ({
   roadNetwork: null,
   
   // 显示选项
-  showOriginal: true,
+  showOriginal: false,
   showMatched: true,
-  showRoadNetwork: true,
+  showRoadNetwork: false,
   
   // 地图操作
   setCenter: (center) => set({ center }),
@@ -58,7 +58,7 @@ const useMapStore = create((set, get) => ({
     roadNetwork: null,
     showOriginal: false,
     showMatched: true,
-    showRoadNetwork: true,
+    showRoadNetwork: false,
   }),
 }));
 
