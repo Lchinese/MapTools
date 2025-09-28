@@ -492,3 +492,132 @@ data/
 # 日志文件夹
 Logs/
 BackendService/Logs/
+
+# 地图数据文件（大文件）
+*.geojson
+map.geojson
+深圳市_市.geojson
+
+# 大型数据文件
+*.csv
+*.json
+*.txt
+sample-utf.txt
+
+# 前端构建产物
+FrontendApp/build/
+FrontendApp/dist/
+FrontendApp/.next/
+FrontendApp/out/
+FrontendApp/.env.local
+FrontendApp/.env.development.local
+FrontendApp/.env.test.local
+FrontendApp/.env.production.local
+
+# 后端构建产物
+BackendService/build/
+BackendService/dist/
+BackendService/*.egg-info/
+BackendService/.env
+BackendService/.env.local
+BackendService/.env.development
+BackendService/.env.test
+BackendService/.env.production
+
+# Java 工具脚本构建产物
+JavaToolScripts/target/
+JavaToolScripts/*.class
+JavaToolScripts/logs/
+
+# 系统特定文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# 开发工具配置
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# 包管理器锁文件（可选，根据团队需求）
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# 测试和覆盖率报告
+coverage/
+.nyc_output/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.pytest_cache/
+.hypothesis/
+
+# 性能分析文件
+*.prof
+*.profile
+
+# 内存转储文件
+*.dmp
+*.hprof
+
+# 临时和缓存文件
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.#*
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# 运行时文件
+*.pid
+*.seed
+*.pid.lock
+celerybeat-schedule
+celerybeat.pid
+
+# 数据库相关
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 密钥和证书
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+*.jks
+
+# 备份文件
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+
+# 压缩文件
+*.zip
+*.tar.gz
+*.tar.bz2
+*.rar
+*.7z
