@@ -30,3 +30,7 @@ geopandas==0.14.1
 
 # HTTP客户端
 httpx==0.25.2
+
+# 进度条和工具
+tqdm==4.66.1
+python-dotenv==1.0.0

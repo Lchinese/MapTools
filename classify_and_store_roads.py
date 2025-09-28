@@ -12,6 +12,11 @@ from typing import Dict, List, Any
 import logging
 from tqdm import tqdm
 import hashlib
+import os
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -20,10 +25,11 @@ logger = logging.getLogger(__name__)
 class 道路分类器:
     """道路数据分类器"""
     
-    def __init__(self, mongodb_uri: str = "mongodb://localhost:27017/", database_name: str = "MapTools"):
+    def __init__(self, mongodb_uri: str = None, database_name: str = None):
         """初始化分类器"""
-        self.mongodb_uri = mongodb_uri
-        self.database_name = database_name
+        # 从环境变量读取配置，如果没有则使用默认值
+        self.mongodb_uri = mongodb_uri or os.getenv("MONGODB_URL", "mongodb://localhost:27017/")
+        self.database_name = database_name or os.getenv("MONGODB_DATABASE", "MapTools")
         self.client = None
         self.db = None
         self.已存在要素ID = set()  # 用于防重复
@@ -277,9 +283,9 @@ class 道路分类器:
     def 存储到数据库(self, 分类数据: Dict[str, List], 统计信息: Dict[str, int]):
         """将分类数据存储到MongoDB"""
         try:
-            # 道路集合和非道路集合
-            道路集合名称 = "道路数据"
-            非道路集合名称 = "非道路数据"
+            # 道路集合和非道路集合（从环境变量读取）
+            道路集合名称 = os.getenv("MONGODB_COLLECTION_ROADS", "道路数据")
+            非道路集合名称 = os.getenv("MONGODB_COLLECTION_NON_ROADS", "非道路数据")
             
             # 分别存储道路和非道路数据
             道路数据 = []
@@ -458,8 +464,8 @@ def main():
         return
     
     try:
-        # 处理GeoJSON文件
-        文件路径 = "map.geojson"
+        # 处理GeoJSON文件（从环境变量读取文件路径）
+        文件路径 = os.getenv("GEOJSON_FILE_PATH", "map.geojson")
         成功 = 分类器.处理GeoJSON文件(文件路径)
         
         if 成功:
