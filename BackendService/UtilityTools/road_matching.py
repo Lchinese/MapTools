@@ -41,26 +41,50 @@ class RoadMatcher:
     def _load_roads_from_mongodb(self) -> List[Dict[str, Any]]:
         """从MongoDB加载道路数据"""
         try:
-            # 连接到MongoDB
             client = pymongo.MongoClient('localhost', 27017)
             db = client['MapTools']
-            collection = db['road_network']
+            collection = db['道路数据']  # 使用新的道路数据集合
             
-            # 查询道路数据（排除元数据文档）
-            roads_cursor = collection.find({"type": {"$ne": "metadata"}})
+            roads_cursor = collection.find({"type": "Feature"})
             roads = []
             
             for road_doc in roads_cursor:
-                road = {
-                    'id': road_doc['road_id'],
-                    'name': road_doc['name'],
-                    'type': road_doc['type'],
-                    'points': road_doc['points']
-                }
-                roads.append(road)
+                geometry = road_doc.get('geometry', {})
+                properties = road_doc.get('properties', {})
+                
+                if geometry.get('type') in ['LineString', 'MultiLineString']:
+                    # 提取坐标点
+                    coordinates = geometry.get('coordinates', [])
+                    points = []
+                    
+                    if geometry['type'] == 'LineString':
+                        for coord in coordinates:
+                            if isinstance(coord, list) and len(coord) >= 2:
+                                points.append({
+                                    'longitude': float(coord[0]),
+                                    'latitude': float(coord[1])
+                                })
+                    elif geometry['type'] == 'MultiLineString':
+                        for line in coordinates:
+                            for coord in line:
+                                if isinstance(coord, list) and len(coord) >= 2:
+                                    points.append({
+                                        'longitude': float(coord[0]),
+                                        'latitude': float(coord[1])
+                                    })
+                    
+                    if len(points) >= 2:
+                        road = {
+                            'id': road_doc.get('id', ''),
+                            'name': properties.get('name', '未命名道路'),
+                            'type': properties.get('highway', 'unknown'),
+                            'points': points,
+                            '分类名称': road_doc.get('分类名称', '未知')
+                        }
+                        roads.append(road)
             
             client.close()
-            logger.info(f"从MongoDB加载了 {len(roads)} 条道路数据")
+            logger.info(f"从MongoDB道路数据集合加载了 {len(roads)} 条道路数据")
             return roads
             
         except Exception as e:

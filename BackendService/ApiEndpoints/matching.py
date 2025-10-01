@@ -164,10 +164,31 @@ async def match_gps_to_roads(
         raise HTTPException(status_code=500, detail=f"道路匹配失败: {str(e)}")
 
 @router.get("/road-network", response_model=RoadNetwork)
-async def get_road_network():
+async def get_road_network(
+    limit: Optional[int] = Query(None, description="限制返回的道路数量，用于性能优化"),
+    zoom_level: Optional[int] = Query(None, description="地图缩放级别，用于LOD优化")
+):
     """获取道路网络数据"""
     try:
         roads = road_matcher.roads
+        
+        # 性能优化：根据参数限制道路数量
+        if limit and limit > 0:
+            # 优先返回有名称的道路
+            named_roads = [road for road in roads if road.get('name') and road.get('name') != '未命名道路']
+            unnamed_roads = [road for road in roads if not road.get('name') or road.get('name') == '未命名道路']
+            
+            # 按比例分配
+            named_limit = min(int(limit * 0.7), len(named_roads))
+            unnamed_limit = min(limit - named_limit, len(unnamed_roads))
+            
+            # 确保不超过总限制
+            if named_limit + unnamed_limit > limit:
+                unnamed_limit = limit - named_limit
+            
+            roads = named_roads[:named_limit] + unnamed_roads[:unnamed_limit]
+            logger.info(f"道路网络API优化: 限制为 {len(roads)} 条道路 (有名称: {named_limit}, 无名称: {unnamed_limit})")
+        
         return RoadNetwork(roads=roads)
         
     except Exception as e:

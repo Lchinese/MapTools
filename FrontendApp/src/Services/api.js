@@ -63,7 +63,12 @@ export const healthAPI = {
 export const matchingAPI = {
   getGPSData: (params = {}) => axios.get('http://localhost:8000/matching/gps-data', { params }).then(r => r.data),
   matchToRoads: (params = {}) => axios.get('http://localhost:8000/matching/match', { params }).then(r => r.data),
-  getRoadNetwork: () => axios.get('http://localhost:8000/matching/road-network').then(r => r.data),
+  getRoadNetwork: (limit = null, zoomLevel = null) => {
+    const params = {};
+    if (limit) params.limit = limit;
+    if (zoomLevel) params.zoom_level = zoomLevel;
+    return axios.get('http://localhost:8000/matching/road-network', { params }).then(r => r.data);
+  },
   getVehiclesData: (params = {}) => axios.get('http://localhost:8000/matching/vehicles', { params }).then(r => r.data),
   getMatchedPoints: () => axios.get('http://localhost:8000/matching/match').then(r => r.data),
 };

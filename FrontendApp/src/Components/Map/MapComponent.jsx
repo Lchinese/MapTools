@@ -8,7 +8,9 @@ import { useTrajectoryStore } from '../../Store/trajectoryStore';
 import { matchingAPI, trajectoryAPI } from '../../Services/api';
 // import { useTrajectoryData } from '../../Hooks/useTrajectory'; // 不再需要，trajectoryData 作为 prop 传入
 import MatchedPoints from './MatchedPoints';
+import RoadNetwork from './RoadNetwork';
 import 'leaflet/dist/leaflet.css';
+import './MapComponent.css';
 
 // 修复Leaflet默认图标问题
 delete L.Icon.Default.prototype._getIconUrl;
@@ -388,6 +390,9 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
           bounds={mapBounds} 
             mapRef={mapRef}
         />
+
+        {/* 道路网络 */}
+        <RoadNetwork showRoadNetwork={showRoadNetwork} />
 
         {/* 吸附点 - 只显示匹配到道路上的点 */}
         <MatchedPoints matchedPoints={matchedPoints} />

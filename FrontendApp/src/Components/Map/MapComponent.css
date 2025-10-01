@@ -140,3 +140,40 @@
     stroke-dashoffset: -10;
   }
 }
+
+/* 道路网络样式 */
+.road-network-line {
+  transition: all 0.3s ease;
+}
+
+.road-network-line:hover {
+  stroke-width: 3 !important;
+  opacity: 0.9 !important;
+  z-index: 100;
+}
+
+/* 道路网络加载状态 */
+.road-network-loading {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #666;
+  z-index: 1000;
+}
+
+/* 道路网络统计信息 */
+.road-network-stats {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #666;
+  z-index: 1000;
+}
