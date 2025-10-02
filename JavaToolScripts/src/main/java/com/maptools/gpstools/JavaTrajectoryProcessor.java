@@ -533,9 +533,8 @@ public class JavaTrajectoryProcessor {
         if (usedPercent > 80) {
             System.out.println("⚠️  内存使用警告: " + usedPercent + "% 已超过阈值 80%");
             System.gc(); // 建议进行垃圾回收
-        } else {
-            System.out.println("💾 当前内存使用: " + usedPercent + "%");
         }
+        // 移除正常情况下的内存使用输出
     }
     
     /**
@@ -547,11 +546,6 @@ public class JavaTrajectoryProcessor {
         System.out.println("总保存轨迹数: " + totalSaved.get());
         System.out.println("总跳过车牌数: " + totalSkipped.get());
         System.out.println("✅ 所有轨迹数据处理完成！");
-        
-        // 打印最终内存使用情况
-        MemoryUsage heapUsage = memoryBean.getHeapMemoryUsage();
-        long usedPercent = heapUsage.getUsed() * 100 / heapUsage.getMax();
-        System.out.println("💾 最终内存使用: " + usedPercent + "%");
     }
     
     /**
