@@ -367,10 +367,6 @@ public class JavaTrajectoryProcessor {
         // 创建轨迹文档
         Document trajectoryDoc = createTrajectoryDocument(plateNumber, trajectoryPoints, matchToRoads, sourceCollectionName);
         
-        // 清理trajectoryPoints以节省内存
-        trajectoryPoints.clear();
-        trajectoryPoints = null;
-        
         if (trajectoryDoc == null) {
             return;
         }
@@ -378,6 +374,10 @@ public class JavaTrajectoryProcessor {
         try {
             // 先尝试插入，如果已存在则跳过
             targetCollection.insertOne(trajectoryDoc);
+            
+            // 插入成功后再清理内存
+            trajectoryPoints.clear();
+            trajectoryPoints = null;
             totalProcessed.incrementAndGet();
             totalSaved.incrementAndGet();
         } catch (com.mongodb.MongoWriteException e) {
@@ -508,9 +508,12 @@ public class JavaTrajectoryProcessor {
                 .append("start", firstPoint.get("datetime"))
                 .append("end", lastPoint.get("datetime"));
         
+        // 创建轨迹点的副本，避免引用问题
+        List<Map<String, Object>> trajectoryPointsCopy = new ArrayList<>(trajectoryPoints);
+        
         Document doc = new Document()
                 .append("plate_number", plateNumber)
-                .append("trajectory_points", trajectoryPoints)
+                .append("trajectory_points", trajectoryPointsCopy)
                 .append("point_count", trajectoryPoints.size())
                 .append("first_point", firstPoint)
                 .append("last_point", lastPoint)
