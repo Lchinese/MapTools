@@ -112,35 +112,15 @@ const RoadNetwork = ({ showRoadNetwork }) => {
     }
   };
 
-  // 性能优化：根据缩放级别过滤道路
+  // 显示所有道路，不进行过滤
   const filteredRoadData = useMemo(() => {
     if (!roadData || roadData.length === 0) {
       return [];
     }
 
-    // 根据缩放级别决定显示多少道路
-    let maxRoads = 0;
-    if (debouncedZoom >= 15) {
-      maxRoads = roadData.length; // 高缩放级别显示所有道路
-    } else if (debouncedZoom >= 13) {
-      maxRoads = Math.min(roadData.length, 20000); // 中等缩放级别显示2万条
-    } else if (debouncedZoom >= 11) {
-      maxRoads = Math.min(roadData.length, 10000); // 低缩放级别显示1万条
-    } else {
-      maxRoads = Math.min(roadData.length, 5000); // 很低缩放级别显示5千条
-    }
 
-    // 优先显示有名称的道路
-    const namedRoads = roadData.filter(road => road.name && road.name !== '未命名道路');
-    const unnamedRoads = roadData.filter(road => !road.name || road.name === '未命名道路');
-
-    const selectedRoads = [
-      ...namedRoads.slice(0, Math.min(maxRoads * 0.7, namedRoads.length)),
-      ...unnamedRoads.slice(0, Math.max(0, maxRoads - namedRoads.length))
-    ];
-
-    console.log(`缩放级别: ${debouncedZoom}, 原始道路: ${roadData.length}, 过滤后: ${selectedRoads.length}`);
-    return selectedRoads;
+    console.log(`缩放级别: ${debouncedZoom}, 显示道路: ${roadData.length}`);
+    return roadData;
   }, [roadData, debouncedZoom]);
 
   // 使用useMemo优化道路渲染
@@ -178,12 +158,13 @@ const RoadNetwork = ({ showRoadNetwork }) => {
             return null;
           }).filter(coord => coord !== null);
         } else if (road.geometry.type === 'MultiLineString') {
-          coordinates = road.geometry.coordinates[0].map(coord => {
-            if (Array.isArray(coord) && coord.length >= 2) {
-              return [coord[1], coord[0]]; // [纬度, 经度]
-            }
-            return null;
-          }).filter(coord => coord !== null);
+          // 修复：渲染所有子线段，而不是只渲染第一段
+          coordinates = road.geometry.coordinates
+            .filter(line => Array.isArray(line))
+            .flatMap(line => line
+              .filter(coord => Array.isArray(coord) && coord.length >= 2)
+              .map(coord => [coord[1], coord[0]]) // [纬度, 经度]
+            );
         }
       }
 
@@ -191,33 +172,9 @@ const RoadNetwork = ({ showRoadNetwork }) => {
         return null;
       }
 
-      // 根据道路类型设置不同颜色
-      let roadColor = '#666666';
-      let roadWeight = 1;
-      
-      if (road.分类名称) {
-        switch (road.分类名称) {
-          case '有名称_服务区内部':
-            roadColor = '#ff6b6b';
-            roadWeight = 2;
-            break;
-          case '有名称_非服务区内部':
-            roadColor = '#4ecdc4';
-            roadWeight = 2;
-            break;
-          case '无名称_服务区内部':
-            roadColor = '#ffe66d';
-            roadWeight = 1;
-            break;
-          case '无名称_非服务区内部':
-            roadColor = '#95a5a6';
-            roadWeight = 1;
-            break;
-          default:
-            roadColor = '#666666';
-            roadWeight = 1;
-        }
-      }
+
+      const roadColor = '#4a90e2';  // 统一的蓝色
+      const roadWeight = 1.5;       // 统一的线宽
 
       return (
         <Polyline
