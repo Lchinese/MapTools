@@ -312,7 +312,15 @@ class RoadMatcher:
         matched_points = []
         
         for gps_point in gps_points:
-            gps_coord = (gps_point['longitude'], gps_point['latitude'])
+            # 确保坐标是数值类型
+            try:
+                longitude = float(gps_point['longitude'])
+                latitude = float(gps_point['latitude'])
+            except (ValueError, TypeError) as e:
+                logger.error(f"坐标数据类型错误: longitude={gps_point.get('longitude')}, latitude={gps_point.get('latitude')}, error={e}")
+                continue
+                
+            gps_coord = (longitude, latitude)
             match_result = self.find_closest_road_point(gps_coord)
             
             matched_point = {

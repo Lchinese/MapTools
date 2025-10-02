@@ -233,15 +233,14 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
         // 加载第一天第一辆车的轨迹数据
         const response = await trajectoryAPI.getFirstDayFirstVehicleTrajectory();
         console.log('初始轨迹数据响应:', response);
-        if (response.success && response.data) {
+        if (response.success && response.data && response.data.length > 0) {
           // 将单车辆数据转换为与批量数据相同的格式
           const firstVehicleData = { [response.plate_number]: response.data };
           console.log('设置初始轨迹数据:', firstVehicleData);
           setOriginalTrajectories(firstVehicleData);
+          console.log('✅ 初始轨迹数据加载成功');
         } else {
-          console.log('初始轨迹数据获取失败，尝试备选方案');
-          // 如果获取失败，尝试加载原始轨迹数据
-          await stableFetchOriginalTrajectories(1, 1);
+          console.log('❌ 初始轨迹数据获取失败，无备选方案');
         }
         
         // 加载匹配点数据
@@ -250,13 +249,7 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
           setMatchedPoints(matchedResponse.data.matched_points);
         }
       } catch (error) {
-        console.error('加载初始数据失败:', error);
-        // 如果所有方法都失败，尝试加载原始轨迹数据作为备选
-        try {
-          await stableFetchOriginalTrajectories(1, 1);
-        } catch (fallbackError) {
-          console.error('备选加载也失败:', fallbackError);
-        }
+        console.error('❌ 加载初始数据失败:', error);
       } finally {
         setLoading(false);
       }
