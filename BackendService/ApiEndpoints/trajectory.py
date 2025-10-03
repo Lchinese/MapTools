@@ -456,3 +456,173 @@ async def get_single_vehicle_trajectory(
     except Exception as e:
         logger.error(f"获取单车辆轨迹数据失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取单车辆轨迹数据失败: {str(e)}")
+
+@router.get("/corrected")
+async def get_corrected_trajectory_data(
+    page: int = Query(1, description="页码", ge=1),
+    page_size: int = Query(20, description="每页车辆数量", ge=1, le=100),
+    plate_number: Optional[str] = Query(None, description="指定车牌号")
+):
+    """
+    获取修正轨迹数据
+    """
+    try:
+        client = pymongo.MongoClient('localhost', 27017)
+        db = client['MapTools']
+        
+        # 查找修正轨迹集合
+        corrected_collections = []
+        for i in range(1, 31):
+            collection_name = f"corrected_trajectories_{i:02d}"
+            if collection_name in db.list_collection_names():
+                collection = db[collection_name]
+                if collection.count_documents({}) > 0:
+                    corrected_collections.append(collection)
+        
+        if not corrected_collections:
+            client.close()
+            return {
+                "success": False,
+                "message": "未找到修正轨迹数据",
+                "data": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size
+            }
+        
+        # 获取所有车牌号（与原始轨迹保持一致）
+        all_plate_numbers = []
+        for collection in corrected_collections:
+            plates = collection.distinct("plate_number")
+            all_plate_numbers.extend(plates)
+        
+        # 去重并排序
+        unique_plates = sorted(list(set(all_plate_numbers)))
+        
+        if plate_number:
+            # 查找指定车牌号
+            if plate_number not in unique_plates:
+                client.close()
+                return {
+                    "success": False,
+                    "message": f"未找到车牌号 {plate_number} 的修正轨迹",
+                    "data": [],
+                    "total": 0,
+                    "page": page,
+                    "page_size": page_size
+                }
+            
+            # 获取指定车牌号的修正轨迹
+            trajectory_data = {}
+            for collection in corrected_collections:
+                doc = collection.find_one({"plate_number": plate_number})
+                if doc:
+                    trajectory_points = doc.get("trajectory_points", [])
+                    if trajectory_points:
+                        trajectory_data[plate_number] = trajectory_points
+                        break
+            
+            client.close()
+            return {
+                "success": True,
+                "message": f"成功获取车牌号 {plate_number} 的修正轨迹数据",
+                "data": trajectory_data,
+                "total": 1,
+                "page": 1,
+                "page_size": 1
+            }
+        
+        # 分页获取车牌号
+        total_plates = len(unique_plates)
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+        page_plates = unique_plates[start_idx:end_idx]
+        
+        # 获取这些车牌号的修正轨迹数据
+        trajectory_data = {}
+        for plate in page_plates:
+            for collection in corrected_collections:
+                doc = collection.find_one({"plate_number": plate})
+                if doc:
+                    trajectory_points = doc.get("trajectory_points", [])
+                    if trajectory_points:
+                        trajectory_data[plate] = trajectory_points
+                        break
+        
+        client.close()
+        
+        return {
+            "success": True,
+            "message": f"成功获取第{page}页修正轨迹数据",
+            "data": trajectory_data,
+            "total": total_plates,
+            "page": page,
+            "page_size": page_size
+        }
+        
+    except Exception as e:
+        logger.error(f"获取修正轨迹数据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取修正轨迹数据失败: {str(e)}")
+
+@router.get("/corrected/single-vehicle")
+async def get_single_vehicle_corrected_trajectory(
+    plate_number: str = Query(..., description="车牌号"),
+    start_time: str = Query(..., description="开始时间 (YYYY-MM-DD HH:mm:ss)"),
+    end_time: str = Query(..., description="结束时间 (YYYY-MM-DD HH:mm:ss)")
+):
+    """
+    根据车牌号和时间范围获取单车辆修正轨迹数据
+    """
+    try:
+        client = pymongo.MongoClient('localhost', 27017)
+        db = client['MapTools']
+        
+        # 查找包含该车牌号的修正轨迹集合
+        trajectory_data = None
+        for i in range(1, 31):
+            collection_name = f"corrected_trajectories_{i:02d}"
+            if collection_name in db.list_collection_names():
+                collection = db[collection_name]
+                doc = collection.find_one({"plate_number": plate_number})
+                
+                if doc:
+                    trajectory_points = doc.get("trajectory_points", [])
+                    if trajectory_points:
+                        trajectory_data = trajectory_points
+                        break
+        
+        if not trajectory_data:
+            client.close()
+            return {
+                "success": False,
+                "message": f"未找到车牌号 {plate_number} 的修正轨迹数据",
+                "data": [],
+                "point_count": 0
+            }
+        
+        # 按时间过滤轨迹点
+        filtered_points = []
+        for point in trajectory_data:
+            point_time = point.get("datetime", "")
+            if start_time <= point_time <= end_time:
+                filtered_points.append(point)
+        
+        client.close()
+        
+        logger.info(f"成功获取车牌号 {plate_number} 在 {start_time} 到 {end_time} 的修正轨迹数据，共 {len(filtered_points)} 个轨迹点")
+        
+        return {
+            "success": True,
+            "data": filtered_points,
+            "plate_number": plate_number,
+            "time_range": {
+                "start": start_time,
+                "end": end_time
+            },
+            "point_count": len(filtered_points),
+            "message": f"成功获取车牌号 {plate_number} 的修正轨迹数据"
+        }
+        
+    except Exception as e:
+        logger.error(f"获取单车辆修正轨迹数据失败: {e}")
+        raise HTTPException(status_code=500, detail=f"获取单车辆修正轨迹数据失败: {str(e)}")

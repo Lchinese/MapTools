@@ -5,6 +5,7 @@ const useTrajectoryStore = create((set, get) => ({
   // 状态
   trajectories: [],
   originalTrajectories: {}, // 原始轨迹数据 {plateNumber: trajectoryPoints}
+  correctedTrajectories: {}, // 修正轨迹数据 {plateNumber: trajectoryPoints}
   currentTrajectory: null,
   matchingTasks: [],
   currentTask: null,
@@ -37,6 +38,37 @@ const useTrajectoryStore = create((set, get) => ({
     } catch (error) {
       console.error('获取原始轨迹数据失败:', error);
       // 即使API调用失败，也设置默认的分页信息
+      set({ 
+        error: error.message, 
+        loading: false,
+        pagination: {
+          page: page,
+          pageSize: pageSize,
+          totalCount: 0,
+          totalPages: 0
+        }
+      });
+      throw error;
+    }
+  },
+
+  // 获取修正轨迹数据（从数据库分页查询）
+  fetchCorrectedTrajectories: async (page = 1, pageSize = 20, plateNumber = null) => {
+    set({ loading: true, error: null });
+    try {
+      const response = await trajectoryAPI.getCorrectedTrajectoryData(page, pageSize, plateNumber);
+      if (response.success) {
+        set({
+          correctedTrajectories: response.data,
+          pagination: response.pagination,
+          loading: false
+        });
+        return response.data;
+      } else {
+        throw new Error(response.message || '获取修正轨迹数据失败');
+      }
+    } catch (error) {
+      console.error('获取修正轨迹数据失败:', error);
       set({ 
         error: error.message, 
         loading: false,
@@ -92,6 +124,9 @@ const useTrajectoryStore = create((set, get) => ({
   // 设置原始轨迹数据
   setOriginalTrajectories: (data) => set({ originalTrajectories: data }),
 
+  // 设置修正轨迹数据
+  setCorrectedTrajectories: (data) => set({ correctedTrajectories: data }),
+
   // 清除错误
   clearError: () => set({ error: null }),
 
@@ -99,6 +134,7 @@ const useTrajectoryStore = create((set, get) => ({
   reset: () => set({
     trajectories: [],
     originalTrajectories: {},
+    correctedTrajectories: {},
     currentTrajectory: null,
     matchingTasks: [],
     currentTask: null,

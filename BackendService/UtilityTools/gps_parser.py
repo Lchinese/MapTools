@@ -236,24 +236,36 @@ class GPSDataParser:
             # 从MongoDB获取数据
             client = MongoClient('localhost', 27017, serverSelectionTimeoutMS=5000)
             db = client["MapTools"]
-            collection = db["gps_points"]
             
-            # 获取指定数量的有效GPS点
-            cursor = collection.find({"is_valid": True}).limit(limit)
+            # 查找修正轨迹集合
             gps_points = []
-            
-            for i, record in enumerate(cursor):
-                gps_point = {
-                    'id': i + 1,
-                    'plate_number': record['plate_number'],
-                    'datetime': record['datetime'].strftime('%Y-%m-%dT%H:%M:%S') if isinstance(record['datetime'], datetime) else record['datetime'],
-                    'longitude': record['location']['coordinates'][0],
-                    'latitude': record['location']['coordinates'][1],
-                    'speed': record.get('speed', 0),
-                    'heading': record.get('heading', 0),
-                    'is_valid': record.get('is_valid', False)
-                }
-                gps_points.append(gps_point)
+            for i in range(1, 31):
+                collection_name = f"corrected_trajectories_{i:02d}"
+                if collection_name in db.list_collection_names():
+                    collection = db[collection_name]
+                    # 获取第一个有轨迹点的文档
+                    doc = collection.find_one({"trajectory_points": {"$exists": True, "$ne": []}})
+                    if doc and doc.get("trajectory_points"):
+                        trajectory_points = doc.get("trajectory_points", [])
+                        # 限制数量
+                        if limit and limit > 0:
+                            trajectory_points = trajectory_points[:limit]
+                        
+                        for j, point in enumerate(trajectory_points):
+                            gps_point = {
+                                'id': j + 1,
+                                'plate_number': doc.get('plate_number', ''),
+                                'datetime': point.get('datetime', ''),
+                                'longitude': float(point.get('longitude', 0)),
+                                'latitude': float(point.get('latitude', 0)),
+                                'speed': float(point.get('speed', 0)),
+                                'heading': float(point.get('heading', 0)),
+                                'is_valid': point.get('is_valid', True)
+                            }
+                            gps_points.append(gps_point)
+                        
+                        if gps_points:  # 找到数据就退出
+                            break
             
             client.close()
             logger.info(f"从MongoDB获取了 {len(gps_points)} 个GPS点")

@@ -105,8 +105,41 @@ async def match_gps_to_roads(
 ):
     """将GPS点匹配到道路"""
     try:
-        # 获取GPS数据
-        gps_points = gps_parser.parse_sample_data()
+        # 直接从修正轨迹集合获取GPS数据
+        import pymongo
+        client = pymongo.MongoClient('localhost', 27017)
+        db = client['MapTools']
+        
+        gps_points = []
+        for i in range(1, 31):
+            collection_name = f"corrected_trajectories_{i:02d}"
+            if collection_name in db.list_collection_names():
+                collection = db[collection_name]
+                # 获取第一个有轨迹点的文档
+                doc = collection.find_one({"trajectory_points": {"$exists": True, "$ne": []}})
+                if doc and doc.get("trajectory_points"):
+                    trajectory_points = doc.get("trajectory_points", [])
+                    # 限制数量
+                    if limit and limit > 0:
+                        trajectory_points = trajectory_points[:limit]
+                    
+                    for j, point in enumerate(trajectory_points):
+                        gps_point = {
+                            'id': j + 1,
+                            'plate_number': doc.get('plate_number', ''),
+                            'datetime': point.get('datetime', ''),
+                            'longitude': float(point.get('longitude', 0)),
+                            'latitude': float(point.get('latitude', 0)),
+                            'speed': float(point.get('speed', 0)),
+                            'heading': float(point.get('heading', 0)),
+                            'is_valid': point.get('is_valid', True)
+                        }
+                        gps_points.append(gps_point)
+                    
+                    if gps_points:  # 找到数据就退出
+                        break
+        
+        client.close()
         
         if not gps_points:
             raise HTTPException(status_code=404, detail="未找到GPS数据")

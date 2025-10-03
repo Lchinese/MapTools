@@ -60,18 +60,12 @@ class RoadMatcher:
                     if geometry['type'] == 'LineString':
                         for coord in coordinates:
                             if isinstance(coord, list) and len(coord) >= 2:
-                                points.append({
-                                    'longitude': float(coord[0]),
-                                    'latitude': float(coord[1])
-                                })
+                                points.append((float(coord[1]), float(coord[0])))  # (lat, lon)
                     elif geometry['type'] == 'MultiLineString':
                         for line in coordinates:
                             for coord in line:
                                 if isinstance(coord, list) and len(coord) >= 2:
-                                    points.append({
-                                        'longitude': float(coord[0]),
-                                        'latitude': float(coord[1])
-                                    })
+                                    points.append((float(coord[1]), float(coord[0])))  # (lat, lon)
                     
                     if len(points) >= 2:
                         road = {
@@ -264,7 +258,7 @@ class RoadMatcher:
     
     def find_closest_road_point(self, gps_point: Tuple[float, float]) -> Dict[str, Any]:
         """找到GPS点最近的道路点（简化算法）"""
-        gps_lat, gps_lon = gps_point
+        gps_lon, gps_lat = gps_point  # GPS点是 (lon, lat) 格式
         min_distance = float('inf')
         closest_road = None
         closest_point = None
@@ -275,8 +269,8 @@ class RoadMatcher:
             
             # 检查每个道路点
             for point in road_points:
-                point_lat, point_lon = point
-                distance = self.calculate_distance(gps_point, point)
+                point_lat, point_lon = point  # 道路点是 (lat, lon) 格式
+                distance = self.calculate_distance((gps_lat, gps_lon), point)
                 
                 if distance < min_distance:
                     min_distance = distance
@@ -320,13 +314,13 @@ class RoadMatcher:
                 logger.error(f"坐标数据类型错误: longitude={gps_point.get('longitude')}, latitude={gps_point.get('latitude')}, error={e}")
                 continue
                 
-            gps_coord = (longitude, latitude)
+            gps_coord = (longitude, latitude)  # (lon, lat) 格式
             match_result = self.find_closest_road_point(gps_coord)
             
             matched_point = {
                 'original_gps': gps_point,
-                'matched_longitude': match_result['matched_point'][0],
-                'matched_latitude': match_result['matched_point'][1],
+                'matched_longitude': match_result['matched_point'][1],  # 道路点的lon
+                'matched_latitude': match_result['matched_point'][0],   # 道路点的lat
                 'road_id': match_result['road']['id'],
                 'road_name': match_result['road']['name'],
                 'road_type': match_result['road']['type'],

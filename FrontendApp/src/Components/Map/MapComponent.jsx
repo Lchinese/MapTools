@@ -199,18 +199,19 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
     center,
     zoom,
     originalTrajectory,
-    matchedTrajectory,
+    correctedTrajectory,
     showOriginal,
-    showMatched,
+    showCorrected,
     showRoadNetwork,
     resetMap,
     setShowOriginal,
-    setShowMatched,
-    setShowRoadNetwork
+    setShowCorrected,
+    setShowRoadNetwork,
+    setCorrectedTrajectory
   } = useMapStore();
 
   // 使用useCallback稳定fetchOriginalTrajectories函数
-  const stableFetchOriginalTrajectories = useCallback(fetchOriginalTrajectories, [fetchOriginalTrajectories]);
+  // const stableFetchOriginalTrajectories = useCallback(fetchOriginalTrajectories, [fetchOriginalTrajectories]);
 
   // 监听单车辆轨迹数据变化，替换初始化的内容
   useEffect(() => {
@@ -221,7 +222,7 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
       setOriginalTrajectories(trajectoryData);
       console.log('已更新originalTrajectories为:', trajectoryData);
     }
-  }, [trajectoryData, setOriginalTrajectories]);
+  }, [trajectoryData, setOriginalTrajectories]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 加载初始轨迹数据（第一天第一辆车）
   useEffect(() => {
@@ -233,9 +234,12 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
         // 加载第一天第一辆车的轨迹数据
         const response = await trajectoryAPI.getFirstDayFirstVehicleTrajectory();
         console.log('初始轨迹数据响应:', response);
+        let currentPlateNumber = null;
+        
         if (response.success && response.data && response.data.length > 0) {
           // 将单车辆数据转换为与批量数据相同的格式
           const firstVehicleData = { [response.plate_number]: response.data };
+          currentPlateNumber = response.plate_number;
           console.log('设置初始轨迹数据:', firstVehicleData);
           setOriginalTrajectories(firstVehicleData);
           console.log('✅ 初始轨迹数据加载成功');
@@ -243,10 +247,21 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
           console.log('❌ 初始轨迹数据获取失败，无备选方案');
         }
         
-        // 加载匹配点数据
-        const matchedResponse = await matchingAPI.getMatchedPoints();
-        if (matchedResponse.data && matchedResponse.data.matched_points) {
-          setMatchedPoints(matchedResponse.data.matched_points);
+        // 加载修正轨迹数据（与原始轨迹保持一致的车辆）
+        if (currentPlateNumber) {
+          try {
+            const correctedResponse = await trajectoryAPI.getCorrectedTrajectoryData(1, 1, currentPlateNumber);
+            if (correctedResponse.success && correctedResponse.data && correctedResponse.data[currentPlateNumber]) {
+              const trajectoryPoints = correctedResponse.data[currentPlateNumber];
+              console.log('修正轨迹数据:', trajectoryPoints.length, '个点，车牌:', currentPlateNumber);
+              setCorrectedTrajectory(trajectoryPoints);
+              console.log('✅ 修正轨迹数据加载成功');
+            } else {
+              console.log('❌ 未找到对应车牌号的修正轨迹:', currentPlateNumber);
+            }
+          } catch (error) {
+            console.error('❌ 修正轨迹数据加载失败:', error);
+          }
         }
       } catch (error) {
         console.error('❌ 加载初始数据失败:', error);
@@ -405,10 +420,10 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
           />
         )}
 
-        {/* 匹配轨迹 */}
-        {showMatched && matchedTrajectory && (
+        {/* 修正轨迹 */}
+        {showCorrected && correctedTrajectory && (
           <TrajectoryLine 
-            trajectory={matchedTrajectory} 
+            trajectory={correctedTrajectory} 
             color="#52c41a" 
             weight={4}
           />
@@ -422,9 +437,9 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
           />
         )}
 
-        {showMatched && matchedTrajectory && (
+        {showCorrected && correctedTrajectory && (
           <TrajectoryPoints 
-            trajectory={matchedTrajectory} 
+            trajectory={correctedTrajectory} 
             color="#52c41a"
           />
         )}
@@ -538,18 +553,18 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
               )}
               
               <Checkbox
-                checked={showMatched}
-                onChange={(e) => setShowMatched(e.target.checked)}
+                checked={showCorrected}
+                onChange={(e) => setShowCorrected(e.target.checked)}
                 style={{ fontSize: '13px', width: '100%' }}
               >
-                <span style={{ color: '#52c41a' }}>●</span> 匹配轨迹
+                <span style={{ color: '#52c41a' }}>●</span> 修正轨迹
               </Checkbox>
               <Checkbox
                 checked={showRoadNetwork}
                 onChange={(e) => setShowRoadNetwork(e.target.checked)}
                 style={{ fontSize: '13px', width: '100%' }}
               >
-                <span style={{ color: '#1890ff' }}>●</span> 道路网络
+                <span style={{ color: '#722ed1' }}>●</span> 道路网络
               </Checkbox>
             </Space>
           </Card>

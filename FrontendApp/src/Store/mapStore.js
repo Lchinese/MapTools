@@ -8,12 +8,12 @@ const useMapStore = create((set, get) => ({
   
   // 轨迹数据
   originalTrajectory: null,
-  matchedTrajectory: null,
+  correctedTrajectory: null,
   roadNetwork: null,
   
   // 显示选项
   showOriginal: false,
-  showMatched: true,
+  showCorrected: true,
   showRoadNetwork: false,
   
   // 地图操作
@@ -23,15 +23,15 @@ const useMapStore = create((set, get) => ({
   
   // 轨迹数据操作
   setOriginalTrajectory: (trajectory) => set({ originalTrajectory: trajectory }),
-  setMatchedTrajectory: (trajectory) => set({ matchedTrajectory: trajectory }),
+  setCorrectedTrajectory: (trajectory) => set({ correctedTrajectory: trajectory }),
   setRoadNetwork: (network) => set({ roadNetwork: network }),
   
   // 显示选项操作
   setShowOriginal: (show) => set({ showOriginal: show }),
-  setShowMatched: (show) => set({ showMatched: show }),
+  setShowCorrected: (show) => set({ showCorrected: show }),
   setShowRoadNetwork: (show) => set({ showRoadNetwork: show }),
   toggleOriginal: () => set(state => ({ showOriginal: !state.showOriginal })),
-  toggleMatched: () => set(state => ({ showMatched: !state.showMatched })),
+  toggleCorrected: () => set(state => ({ showCorrected: !state.showCorrected })),
   toggleRoadNetwork: () => set(state => ({ showRoadNetwork: !state.showRoadNetwork })),
   
   // 重置地图到初始位置
