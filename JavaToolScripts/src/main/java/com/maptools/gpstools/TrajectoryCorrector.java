@@ -260,9 +260,9 @@ public class TrajectoryCorrector {
         double endLon = (Double) endPoint.get("longitude");
         double endLat = (Double) endPoint.get("latitude");
         
-        // 计算插值点数量（每100米一个点）
+        // 计算插值点数量（每200米一个点，减少插值点数量）
         double distance = calculateDistance(startLon, startLat, endLon, endLat);
-        int numPoints = Math.max(2, (int) (distance / 100));
+        int numPoints = Math.max(2, Math.min(10, (int) (distance / 200))); // 最多10个插值点
         
         for (int i = 0; i <= numPoints; i++) {
             double ratio = (double) i / numPoints;

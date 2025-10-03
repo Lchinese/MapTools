@@ -145,7 +145,7 @@ public class TrajectoryCorrectionProcessor {
                 processPlateNumber(sourceCollection, targetCollection, plateNumber);
                 
                 long processed = totalProcessed.incrementAndGet();
-                if (processed % 100 == 0) { // 每100个车牌输出一次进度
+                if (processed % 500 == 0) { // 每500个车牌输出一次进度
                     System.out.println("已处理: " + processed + "/" + totalPlates + 
                                      " | 保存: " + totalSaved.get() + " | 跳过: " + totalSkipped.get());
                     checkMemoryUsage();
