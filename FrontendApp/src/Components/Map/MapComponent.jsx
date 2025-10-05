@@ -286,6 +286,12 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
       correctedTrajectoryType: typeof correctedTrajectory
     });
     
+    // 防止重复调用
+    if (osrmLoading) {
+      console.log('OSRM正在处理中，跳过重复调用');
+      return;
+    }
+    
     if (showCorrected && correctedTrajectory && correctedTrajectory.length > 2) {
       const fetchOSRMRoute = async () => {
         setOsrmLoading(true);
@@ -327,54 +333,80 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
     } else {
       setOsrmRoute(null);
     }
-  }, [showCorrected, correctedTrajectory]);
+  }, [showCorrected, correctedTrajectory?.length]);
 
-  // 分批处理OSRM请求
+  // 分批处理OSRM请求（并发版本）
   const processBatchOSRM = async (points) => {
     const batchSize = 100; // 每批最多100个点
     const overlap = 2; // 批次间重叠点数，确保连续性
-    const allCoordinates = [];
     
-    console.log(`开始分批处理 ${points.length} 个点，每批 ${batchSize} 个点`);
+    console.log(`开始并发分批处理 ${points.length} 个点，每批 ${batchSize} 个点`);
     
-    let batchNumber = 1;
+    // 创建所有批次
+    const batches = [];
     for (let i = 0; i < points.length; i += batchSize - overlap) {
       const endIndex = Math.min(i + batchSize, points.length);
       const batch = points.slice(i, endIndex);
-      
-      console.log(`处理批次 ${batchNumber}: 点 ${i} 到 ${endIndex - 1} (${batch.length}个点)`);
-      
-      try {
-        const response = await matchingAPI.getOSRMRoute(batch);
-        
-        if (response && response.success && response.data && response.data.routes && response.data.routes.length > 0) {
-          const route = response.data.routes[0];
-          if (route.geometry && route.geometry.coordinates) {
-            const batchCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-            
-            // 如果不是第一批，去掉重叠部分
-            if (allCoordinates.length > 0) {
-              allCoordinates.push(...batchCoordinates.slice(overlap));
-            } else {
-              allCoordinates.push(...batchCoordinates);
-            }
-            
-            console.log(`批次 ${batchNumber} 完成，返回 ${batchCoordinates.length} 个坐标，当前总坐标数: ${allCoordinates.length}`);
-          }
-        } else {
-          console.warn(`批次 ${batchNumber} 失败: OSRM响应异常`);
-        }
-      } catch (error) {
-        console.error(`批次 ${batchNumber} 错误:`, error);
-      }
-      
-      batchNumber++;
-      
-      // 添加小延迟，避免请求过于频繁
-      await new Promise(resolve => setTimeout(resolve, 100));
+      batches.push({ 
+        index: i, 
+        data: batch, 
+        batchNumber: Math.floor(i / (batchSize - overlap)) + 1,
+        startIndex: i,
+        endIndex: endIndex - 1,
+        length: batch.length
+      });
     }
     
-    console.log(`分批处理完成，实际处理了 ${batchNumber - 1} 个批次，总共 ${allCoordinates.length} 个坐标点`);
+    console.log(`创建了 ${batches.length} 个批次，开始并发处理...`);
+    
+    // 并发处理所有批次
+    const results = await Promise.all(
+      batches.map(async (batch) => {
+        console.log(`启动批次 ${batch.batchNumber}: 点 ${batch.startIndex} 到 ${batch.endIndex} (${batch.length}个点)`);
+        
+        try {
+          const response = await matchingAPI.getOSRMRoute(batch.data);
+          
+          if (response && response.success && response.data && response.data.routes && response.data.routes.length > 0) {
+            const route = response.data.routes[0];
+            if (route.geometry && route.geometry.coordinates) {
+              const batchCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+              console.log(`批次 ${batch.batchNumber} 完成，返回 ${batchCoordinates.length} 个坐标`);
+              return { 
+                success: true, 
+                coordinates: batchCoordinates, 
+                batchNumber: batch.batchNumber,
+                index: batch.index
+              };
+            }
+          }
+          
+          console.warn(`批次 ${batch.batchNumber} 失败: OSRM响应异常`);
+          return { success: false, batchNumber: batch.batchNumber, index: batch.index };
+        } catch (error) {
+          console.error(`批次 ${batch.batchNumber} 错误:`, error);
+          return { success: false, error, batchNumber: batch.batchNumber, index: batch.index };
+        }
+      })
+    );
+    
+    // 合并结果，按顺序排列
+    const allCoordinates = [];
+    const successfulResults = results
+      .filter(result => result.success)
+      .sort((a, b) => a.index - b.index);
+    
+    successfulResults.forEach((result, idx) => {
+      if (idx === 0) {
+        // 第一批，添加所有坐标
+        allCoordinates.push(...result.coordinates);
+      } else {
+        // 后续批次，去掉重叠部分
+        allCoordinates.push(...result.coordinates.slice(overlap));
+      }
+    });
+    
+    console.log(`并发分批处理完成，成功处理了 ${successfulResults.length}/${batches.length} 个批次，总共 ${allCoordinates.length} 个坐标点`);
     return allCoordinates;
   };
 
