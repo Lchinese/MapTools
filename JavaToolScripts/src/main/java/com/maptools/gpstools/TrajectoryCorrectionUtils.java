@@ -8,6 +8,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.FindIterable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.Date;
 
 /**
  * 轨迹修正工具类
@@ -81,15 +82,78 @@ public class TrajectoryCorrectionUtils {
      */
     public static void sortTrajectoryPointsByTime(List<Map<String, Object>> points) {
         points.sort((p1, p2) -> {
-            String time1 = (String) p1.get("datetime");
-            String time2 = (String) p2.get("datetime");
+            Object timeObj1 = p1.get("datetime");
+            Object timeObj2 = p2.get("datetime");
             
-            if (time1 == null && time2 == null) return 0;
-            if (time1 == null) return 1; // null值排在后面
-            if (time2 == null) return -1;
+            if (timeObj1 == null && timeObj2 == null) return 0;
+            if (timeObj1 == null) return 1; // null值排在后面
+            if (timeObj2 == null) return -1;
             
-            return time1.compareTo(time2);
+            try {
+                // 尝试解析时间
+                Date date1 = parseDateTime(timeObj1);
+                Date date2 = parseDateTime(timeObj2);
+                
+                if (date1 == null && date2 == null) return 0;
+                if (date1 == null) return 1;
+                if (date2 == null) return -1;
+                
+                return date1.compareTo(date2);
+            } catch (Exception e) {
+                // 如果解析失败，回退到字符串比较
+                String time1 = timeObj1.toString();
+                String time2 = timeObj2.toString();
+                return time1.compareTo(time2);
+            }
         });
+    }
+    
+    /**
+     * 解析时间对象为Date
+     */
+    private static Date parseDateTime(Object datetimeObj) {
+        if (datetimeObj == null) {
+            return null;
+        }
+        
+        // 如果已经是Date对象，直接返回
+        if (datetimeObj instanceof java.util.Date) {
+            return (java.util.Date) datetimeObj;
+        }
+        
+        // 如果是字符串，尝试解析
+        String datetimeStr = datetimeObj.toString();
+        
+        // 尝试多种时间格式
+        String[] formats = {
+            "EEE MMM dd HH:mm:ss zzz yyyy",  // Date.toString()格式: Thu Sep 01 08:07:20 CST 2016
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd HH:mm:ss.SSS",
+            "yyyy-MM-dd HH:mm:ss"
+        };
+        
+        for (String format : formats) {
+            try {
+                java.text.SimpleDateFormat sdf;
+                if (format.equals("EEE MMM dd HH:mm:ss zzz yyyy")) {
+                    // Date.toString()格式需要ENGLISH locale
+                    sdf = new java.text.SimpleDateFormat(format, java.util.Locale.ENGLISH);
+                } else {
+                    sdf = new java.text.SimpleDateFormat(format);
+                }
+                sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                return sdf.parse(datetimeStr);
+            } catch (Exception e) {
+                // 继续尝试下一个格式
+            }
+        }
+        
+        return null; // 解析失败
     }
     
     /**
