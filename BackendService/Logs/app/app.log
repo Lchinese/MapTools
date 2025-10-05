@@ -82,3 +82,8 @@ Traceback (most recent call last):
               ^^^^^^^^^^^^^^^^^
 AttributeError: module 'bcrypt' has no attribute '__about__'
 {"timestamp": "2025-10-05 14:29:04", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 23:19:12", "logger": "main", "level": "INFO", "file": "main.py", "line": 42, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-10-05 23:19:12", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-10-05 23:19:13", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-10-05 23:19:13", "logger": "main", "level": "INFO", "file": "main.py", "line": 51, "message": "数据库表创建完成"}
+{"timestamp": "2025-10-05 23:19:13", "logger": "main", "level": "INFO", "file": "main.py", "line": 53, "message": "MapTools 后端服务启动成功"}

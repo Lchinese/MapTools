@@ -7,6 +7,8 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import List, Dict, Any, Optional
 import logging
 from pydantic import BaseModel
+import requests
+import json
 
 import sys
 import os
@@ -51,6 +53,10 @@ class MatchingResult(BaseModel):
 class RoadNetwork(BaseModel):
     """道路网络模型"""
     roads: List[Dict[str, Any]]
+
+class OSRMRequest(BaseModel):
+    """OSRM请求模型"""
+    waypoints: List[Dict[str, Any]]
 
 # 全局实例
 gps_parser = GPSDataParser()
@@ -290,3 +296,55 @@ async def get_matched_points(
     except Exception as e:
         logger.error(f"获取匹配点数据失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取匹配点数据失败: {str(e)}")
+
+@router.post("/osrm-route")
+async def get_osrm_route(request: OSRMRequest):
+    """通过OSRM获取路径规划（代理接口）"""
+    try:
+        waypoints = request.waypoints
+        
+        if len(waypoints) < 2:
+            raise HTTPException(status_code=400, detail="至少需要2个路径点")
+        
+        # 构建OSRM请求URL
+        coordinates = []
+        for point in waypoints:
+            longitude = point.get('longitude')
+            latitude = point.get('latitude')
+            if longitude is not None and latitude is not None:
+                coordinates.append(f"{longitude},{latitude}")
+        
+        if len(coordinates) < 2:
+            raise HTTPException(status_code=400, detail="有效的坐标点不足")
+        
+        coordinates_str = ";".join(coordinates)
+        osrm_url = f"http://router.project-osrm.org/route/v1/driving/{coordinates_str}?overview=full&geometries=geojson&steps=false"
+        
+        logger.info(f"OSRM请求URL: {osrm_url}")
+        
+        # 发送请求到OSRM
+        response = requests.get(osrm_url, timeout=10)
+        
+        if response.status_code != 200:
+            logger.error(f"OSRM请求失败，状态码: {response.status_code}")
+            raise HTTPException(status_code=500, detail=f"OSRM服务请求失败: {response.status_code}")
+        
+        # 解析响应
+        osrm_data = response.json()
+        
+        logger.info(f"OSRM响应成功，返回路径数据")
+        return {
+            "success": True,
+            "data": osrm_data,
+            "message": "OSRM路径规划成功"
+        }
+        
+    except requests.exceptions.Timeout:
+        logger.error("OSRM请求超时")
+        raise HTTPException(status_code=504, detail="OSRM服务请求超时")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"OSRM请求异常: {e}")
+        raise HTTPException(status_code=502, detail=f"OSRM服务连接失败: {str(e)}")
+    except Exception as e:
+        logger.error(f"OSRM路径规划失败: {e}")
+        raise HTTPException(status_code=500, detail=f"OSRM路径规划失败: {str(e)}")

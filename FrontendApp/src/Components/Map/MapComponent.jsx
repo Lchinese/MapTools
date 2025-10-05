@@ -184,6 +184,8 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
   const [matchedPoints, setMatchedPoints] = useState([]);
   const [loading, setLoading] = useState(false);
   const [, setCurrentPage] = useState(1);
+  const [osrmRoute, setOsrmRoute] = useState(null);
+  const [osrmLoading, setOsrmLoading] = useState(false);
   
   // trajectoryData 现在作为 prop 传入
 
@@ -275,6 +277,167 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
       loadInitialData();
     }
   }, []); // 只在组件挂载时执行一次
+
+  // OSRM路径规划
+  useEffect(() => {
+    console.log('OSRM useEffect触发:', {
+      showCorrected,
+      correctedTrajectory: correctedTrajectory ? correctedTrajectory.length : 'null',
+      correctedTrajectoryType: typeof correctedTrajectory
+    });
+    
+    if (showCorrected && correctedTrajectory && correctedTrajectory.length > 2) {
+      const fetchOSRMRoute = async () => {
+        setOsrmLoading(true);
+        try {
+          let allCoordinates = [];
+          
+          if (correctedTrajectory.length > 100) {
+            // 超过100个点时进行分批处理
+            console.log('OSRM路径点（分批处理）:', correctedTrajectory.length, '个点');
+            allCoordinates = await processBatchOSRM(correctedTrajectory);
+          } else {
+            // 100个点以内直接处理
+            console.log('OSRM路径点（单次处理）:', correctedTrajectory.length, '个点');
+            const response = await matchingAPI.getOSRMRoute(correctedTrajectory);
+            
+            if (response && response.success && response.data && response.data.routes && response.data.routes.length > 0) {
+              const route = response.data.routes[0];
+              if (route.geometry && route.geometry.coordinates) {
+                allCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+              }
+            }
+          }
+          
+          if (allCoordinates.length > 0) {
+            setOsrmRoute(allCoordinates);
+            console.log('OSRM路径坐标:', allCoordinates.length, '个点');
+          } else {
+            console.warn('OSRM路径规划失败');
+          }
+        } catch (error) {
+          console.error('OSRM路径规划失败:', error);
+          setOsrmRoute(null);
+        } finally {
+          setOsrmLoading(false);
+        }
+      };
+
+      fetchOSRMRoute();
+    } else {
+      setOsrmRoute(null);
+    }
+  }, [showCorrected, correctedTrajectory]);
+
+  // 分批处理OSRM请求
+  const processBatchOSRM = async (points) => {
+    const batchSize = 100; // 每批最多100个点
+    const overlap = 2; // 批次间重叠点数，确保连续性
+    const allCoordinates = [];
+    
+    console.log(`开始分批处理 ${points.length} 个点，每批 ${batchSize} 个点`);
+    
+    let batchNumber = 1;
+    for (let i = 0; i < points.length; i += batchSize - overlap) {
+      const endIndex = Math.min(i + batchSize, points.length);
+      const batch = points.slice(i, endIndex);
+      
+      console.log(`处理批次 ${batchNumber}: 点 ${i} 到 ${endIndex - 1} (${batch.length}个点)`);
+      
+      try {
+        const response = await matchingAPI.getOSRMRoute(batch);
+        
+        if (response && response.success && response.data && response.data.routes && response.data.routes.length > 0) {
+          const route = response.data.routes[0];
+          if (route.geometry && route.geometry.coordinates) {
+            const batchCoordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+            
+            // 如果不是第一批，去掉重叠部分
+            if (allCoordinates.length > 0) {
+              allCoordinates.push(...batchCoordinates.slice(overlap));
+            } else {
+              allCoordinates.push(...batchCoordinates);
+            }
+            
+            console.log(`批次 ${batchNumber} 完成，返回 ${batchCoordinates.length} 个坐标，当前总坐标数: ${allCoordinates.length}`);
+          }
+        } else {
+          console.warn(`批次 ${batchNumber} 失败: OSRM响应异常`);
+        }
+      } catch (error) {
+        console.error(`批次 ${batchNumber} 错误:`, error);
+      }
+      
+      batchNumber++;
+      
+      // 添加小延迟，避免请求过于频繁
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    console.log(`分批处理完成，实际处理了 ${batchNumber - 1} 个批次，总共 ${allCoordinates.length} 个坐标点`);
+    return allCoordinates;
+  };
+
+  // 智能简化路径点（基于距离和方向变化）
+  const getSmartWaypoints = (points) => {
+    console.log('getSmartWaypoints输入:', points.length, '个点');
+    
+    if (points.length <= 2) {
+      return points;
+    }
+
+    const waypoints = [];
+    const maxPoints = 100; // 最大路径点数
+    
+    // 总是添加起点
+    waypoints.push(points[0]);
+    
+    if (points.length <= maxPoints) {
+      // 如果点数不多，直接返回所有点
+      return points;
+    }
+    
+    // 计算简化间隔
+    const interval = Math.max(1, Math.floor(points.length / maxPoints));
+    
+    // 添加关键点（基于间隔）
+    for (let i = interval; i < points.length - 1; i += interval) {
+      waypoints.push(points[i]);
+    }
+    
+    // 总是添加终点
+    waypoints.push(points[points.length - 1]);
+    
+    console.log('getSmartWaypoints输出:', waypoints.length, '个路径点');
+    return waypoints;
+  };
+
+  // 获取路径点（首尾 + 中间关键点）- 保留原函数以防需要
+  const getWaypoints = (points) => {
+    console.log('getWaypoints输入:', points.length, '个点');
+    console.log('第一个点:', points[0]);
+    
+    if (points.length <= 2) {
+      return points;
+    }
+
+    const waypoints = [];
+    
+    // 添加起点
+    waypoints.push(points[0]);
+    
+    // 添加中间点（每N个点取一个）
+    const interval = Math.max(1, Math.floor(points.length / 10)); // 最多10个中间点
+    for (let i = interval; i < points.length - 1; i += interval) {
+      waypoints.push(points[i]);
+    }
+    
+    // 添加终点
+    waypoints.push(points[points.length - 1]);
+    
+    console.log('getWaypoints输出:', waypoints.length, '个路径点');
+    return waypoints;
+  };
 
   // const handleLoadBatch = async (limit, matchToRoads) => {
   //   await fetchBatchTrajectoryData(limit, matchToRoads);
@@ -426,6 +589,22 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
           />
         )}
 
+        {/* OSRM路径规划 */}
+        {showCorrected && osrmRoute && osrmRoute.length > 1 && (
+          <Polyline
+            positions={osrmRoute}
+            color="#ff6b35"
+            weight={3}
+            opacity={0.8}
+            pathOptions={{
+              className: 'osrm-route-line',
+              smoothFactor: 1.0,
+              noClip: false,
+              interactive: false
+            }}
+          />
+        )}
+
         {/* 轨迹点 */}
         {showOriginal && originalTrajectory && (
           <TrajectoryPoints 
@@ -558,6 +737,7 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
                 style={{ fontSize: '13px', width: '100%' }}
               >
                 <span style={{ color: '#52c41a' }}>●</span> 修正轨迹
+                {osrmLoading && <span style={{ color: '#ff6b35', marginLeft: 4 }}> (OSRM规划中...)</span>}
               </Checkbox>
               <Checkbox
                 checked={showRoadNetwork}

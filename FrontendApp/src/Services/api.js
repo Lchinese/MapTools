@@ -71,6 +71,13 @@ export const matchingAPI = {
   },
   getVehiclesData: (params = {}) => axios.get('http://localhost:8000/matching/vehicles', { params }).then(r => r.data),
   getMatchedPoints: () => axios.get('http://localhost:8000/matching/match').then(r => r.data),
+  
+  // OSRM路径规划API（通过后端代理）
+  getOSRMRoute: (waypoints) => {
+    return axios.post('http://localhost:8000/matching/osrm-route', {
+      waypoints: waypoints
+    }).then(r => r.data);
+  },
 };
 
 // 轨迹数据API
