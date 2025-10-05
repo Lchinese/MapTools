@@ -53,3 +53,32 @@
 {"timestamp": "2025-10-03 22:24:09", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
 {"timestamp": "2025-10-03 22:24:09", "logger": "main", "level": "INFO", "file": "main.py", "line": 51, "message": "数据库表创建完成"}
 {"timestamp": "2025-10-03 22:24:09", "logger": "main", "level": "INFO", "file": "main.py", "line": 53, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-10-05 12:16:51", "logger": "main", "level": "INFO", "file": "main.py", "line": 42, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-10-05 12:16:51", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-10-05 12:16:51", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-10-05 12:16:51", "logger": "main", "level": "INFO", "file": "main.py", "line": 51, "message": "数据库表创建完成"}
+{"timestamp": "2025-10-05 12:16:51", "logger": "main", "level": "INFO", "file": "main.py", "line": 53, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-10-05 12:17:34", "logger": "passlib.handlers.bcrypt", "level": "WARNING", "file": "bcrypt.py", "line": 622, "message": "(trapped) error reading bcrypt version"}
+Traceback (most recent call last):
+  File "D:\Project\MapTools\BackendService\.venv\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+{"timestamp": "2025-10-05 14:25:39", "logger": "main", "level": "INFO", "file": "main.py", "line": 42, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-10-05 14:25:39", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-10-05 14:25:39", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-10-05 14:25:39", "logger": "main", "level": "INFO", "file": "main.py", "line": 51, "message": "数据库表创建完成"}
+{"timestamp": "2025-10-05 14:25:39", "logger": "main", "level": "INFO", "file": "main.py", "line": 53, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-10-05 14:28:06", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 14:28:09", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 14:28:15", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 14:28:38", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 14:28:39", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 14:28:41", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 14:28:45", "logger": "passlib.handlers.bcrypt", "level": "WARNING", "file": "bcrypt.py", "line": 622, "message": "(trapped) error reading bcrypt version"}
+Traceback (most recent call last):
+  File "D:\Project\MapTools\BackendService\.venv\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+{"timestamp": "2025-10-05 14:29:04", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}

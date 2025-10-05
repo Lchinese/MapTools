@@ -157,3 +157,10 @@ ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有�
 {"timestamp": "2025-09-18 21:19:50", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 500: 注册失败: 'phone' is an invalid keyword argument for User"}
 {"timestamp": "2025-09-18 21:19:53", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 500: 注册失败: 'phone' is an invalid keyword argument for User"}
 {"timestamp": "2025-09-18 21:38:47", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 无效的认证凭据"}
+{"timestamp": "2025-10-05 14:28:06", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 14:28:09", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 14:28:15", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 14:28:38", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 14:28:39", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 14:28:41", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}
+{"timestamp": "2025-10-05 14:29:04", "logger": "CoreConfig.database", "level": "ERROR", "file": "database.py", "line": 51, "message": "Database session error: 401: 用户名/邮箱或密码错误"}

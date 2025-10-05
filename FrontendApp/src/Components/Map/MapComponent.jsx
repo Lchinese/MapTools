@@ -332,7 +332,7 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
         <Polyline
           key={`trajectory-${plateNumber}`}
           positions={positions}
-          color="#1890ff"
+          color="#ff4d4f"
           weight={3}
           opacity={0.8}
         />
@@ -399,9 +399,6 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
             mapRef={mapRef}
         />
 
-        {/* 道路网络 */}
-        <RoadNetwork showRoadNetwork={showRoadNetwork} />
-
         {/* 吸附点 - 只显示匹配到道路上的点 */}
         <MatchedPoints matchedPoints={matchedPoints} />
 
@@ -443,6 +440,9 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
             color="#52c41a"
           />
         )}
+
+        {/* 道路网络 - 放在最后确保在顶层显示 */}
+        <RoadNetwork showRoadNetwork={showRoadNetwork} />
         </MapContainer>
 
       {/* 重置按钮 - 放在左侧缩放控件下方 */}

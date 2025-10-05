@@ -2,6 +2,23 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Polyline, useMap } from 'react-leaflet';
 import { matchingAPI } from '../../Services/api';
 
+// 添加CSS样式确保道路可见
+const roadStyles = `
+  .road-network-line {
+    stroke: #4a90e2 !important;
+    stroke-width: 1.5px !important;
+    stroke-opacity: 0.6 !important;
+    z-index: 1000 !important;
+  }
+`;
+
+// 注入样式
+if (typeof document !== 'undefined') {
+  const styleElement = document.createElement('style');
+  styleElement.textContent = roadStyles;
+  document.head.appendChild(styleElement);
+}
+
 // 优化的坐标简化函数 - 根据缩放级别减少坐标点数量
 const simplifyCoordinates = (coordinates, zoom) => {
   if (!coordinates || coordinates.length <= 2) {
@@ -204,9 +221,17 @@ const RoadNetwork = ({ showRoadNetwork }) => {
         if (road.points && Array.isArray(road.points)) {
           // 新格式：从MongoDB道路数据集合
           let rawCoordinates = road.points.map(point => {
-            // 确保坐标格式正确 [纬度, 经度]
-            if (typeof point.latitude === 'number' && typeof point.longitude === 'number') {
-              return [point.latitude, point.longitude];
+            // 处理两种可能的格式：
+            // 1. {latitude: number, longitude: number} 对象格式
+            // 2. [lat, lon] 或 (lat, lon) 数组/元组格式
+            if (typeof point === 'object' && point !== null) {
+              if (typeof point.latitude === 'number' && typeof point.longitude === 'number') {
+                return [point.latitude, point.longitude];
+              } else if (Array.isArray(point) && point.length >= 2) {
+                return [point[0], point[1]]; // [lat, lon]
+              }
+            } else if (Array.isArray(point) && point.length >= 2) {
+              return [point[0], point[1]]; // [lat, lon]
             }
             return null;
           }).filter(coord => coord !== null);
@@ -234,11 +259,23 @@ const RoadNetwork = ({ showRoadNetwork }) => {
         }
 
         if (coordinates.length < 2) {
+          console.log(`道路 ${road.id || globalIndex} 坐标点不足，跳过渲染`);
           return null;
         }
 
         const roadColor = '#4a90e2';  // 统一的蓝色
         const roadWeight = 1.5;       // 统一的线宽
+
+        // 调试：打印前几条道路的详细信息
+        if (globalIndex < 3) {
+          console.log(`=== 道路 ${globalIndex} 渲染详情 ===`);
+          console.log('道路ID:', road.id);
+          console.log('坐标数量:', coordinates.length);
+          console.log('前3个坐标:', coordinates.slice(0, 3));
+          console.log('颜色:', roadColor);
+          console.log('线宽:', roadWeight);
+          console.log('========================');
+        }
 
         return (
           <Polyline
@@ -249,9 +286,16 @@ const RoadNetwork = ({ showRoadNetwork }) => {
             opacity={0.6}
             pathOptions={{
               className: 'road-network-line',
-              smoothFactor: 2.0,      // 更大的简化因子
+              smoothFactor: 1.0,      // 减少简化，保持更多细节
               noClip: false,          // 启用裁剪
-              interactive: false      // 禁用交互提升性能
+              interactive: false,     // 禁用交互提升性能
+              pane: 'overlayPane'     // 确保在顶层显示
+            }}
+            style={{
+              zIndex: 1000,           // 高z-index确保在顶层
+              stroke: roadColor,
+              strokeWidth: roadWeight,
+              strokeOpacity: 0.6
             }}
           />
         );
@@ -328,6 +372,7 @@ const RoadNetwork = ({ showRoadNetwork }) => {
 
   return (
     <>
+      
       {renderedRoads}
       {renderingRef.current && (
         <div className="road-network-loading">
