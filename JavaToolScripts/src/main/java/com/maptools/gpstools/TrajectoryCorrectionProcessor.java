@@ -243,10 +243,9 @@ public class TrajectoryCorrectionProcessor {
      * 按原始顺序获取集合中的所有车牌号
      */
     private List<String> getPlateNumbersInOrder(MongoCollection<Document> collection) {
-        List<String> plateNumbers = new ArrayList<>();
+        Set<String> plateNumberSet = new LinkedHashSet<>(); // 使用LinkedHashSet保持顺序并去重
         
         // 按_id排序获取车牌号，保持原始插入顺序
-        // 也可以考虑按时间排序：.sort(new Document("correction_time", 1))
         FindIterable<Document> docs = collection.find()
             .projection(new Document("plate_number", 1))
             .sort(new Document("_id", 1));
@@ -254,11 +253,11 @@ public class TrajectoryCorrectionProcessor {
         for (Document doc : docs) {
             String plateNumber = doc.getString("plate_number");
             if (plateNumber != null && !plateNumber.trim().isEmpty()) {
-                plateNumbers.add(plateNumber);
+                plateNumberSet.add(plateNumber);
             }
         }
         
-        return plateNumbers;
+        return new ArrayList<>(plateNumberSet);
     }
     
     /**

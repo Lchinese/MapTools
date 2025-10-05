@@ -16,7 +16,6 @@ import java.util.Date;
  */
 public class PathPlanner {
     
-    private static final double DISTANCE_THRESHOLD = 500.0; // 500米阈值
     private static final double EARTH_RADIUS = 6371000.0; // 地球半径（米）
     
     // 道路网络图
@@ -166,55 +165,9 @@ public class PathPlanner {
             }
         }
         
-        // 连接不同道路间的交叉点
-        connectIntersections();
+        // 不再连接不同道路间的交叉点
     }
     
-    /**
-     * 连接不同道路间的交叉点
-     */
-    private void connectIntersections() {
-        // 静默连接道路交叉点
-        
-        synchronized(spatialIndexLock) {
-            for (String gridKey : spatialIndex.keySet()) {
-                List<RoadNode> nodesInGrid = spatialIndex.get(gridKey);
-                
-                if (nodesInGrid == null || nodesInGrid.isEmpty()) {
-                    continue;
-                }
-                
-                // 在同一个网格内的节点可能是交叉点
-                for (int i = 0; i < nodesInGrid.size(); i++) {
-                    for (int j = i + 1; j < nodesInGrid.size(); j++) {
-                        RoadNode node1 = nodesInGrid.get(i);
-                        RoadNode node2 = nodesInGrid.get(j);
-                        
-                        if (node1 == null || node2 == null) {
-                            continue;
-                        }
-                        
-                        // 如果是不同道路的节点且距离很近
-                        if (!node1.roadId.equals(node2.roadId)) {
-                            double distance = calculateDistance(node1.longitude, node1.latitude,
-                                                             node2.longitude, node2.latitude);
-                            
-                            if (distance < 50) { // 50米内认为是交叉点
-                                synchronized(node1.neighbors) {
-                                    node1.neighbors.add(node2);
-                                }
-                                synchronized(node2.neighbors) {
-                                    node2.neighbors.add(node1);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // 静默完成
-    }
     
     /**
      * 使用A*算法规划路径（按需加载道路数据）
@@ -300,7 +253,6 @@ public class PathPlanner {
                 Document geometryDoc = doc.get("geometry", Document.class);
                 if (geometryDoc != null) {
                     String type = geometryDoc.getString("type");
-                    @SuppressWarnings("unchecked")
                     List<Object> coordinates = geometryDoc.getList("coordinates", Object.class);
                     
                     if ("LineString".equals(type) && coordinates != null) {
@@ -520,9 +472,8 @@ public class PathPlanner {
             return trajectoryPoints;
         }
         
-        // 获取起始和结束时间
+        // 获取起始时间
         String startTime = (String) originalPoint.get("datetime");
-        String endTime = startTime; // 默认使用相同时间
         
         // 尝试解析时间并计算插值
         long startTimestamp = 0;

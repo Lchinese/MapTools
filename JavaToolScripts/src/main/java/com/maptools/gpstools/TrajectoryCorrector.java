@@ -1,12 +1,7 @@
 package com.maptools.gpstools;
 
-import org.bson.Document;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.FindIterable;
-import org.locationtech.jts.geom.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.text.SimpleDateFormat;
@@ -14,30 +9,23 @@ import java.util.Date;
 
 /**
  * 轨迹修正处理器
- * 检测远距离点并应用路径规划算法进行修正
+ * 检测并移除异常点，进行基本的轨迹清理
  */
 public class TrajectoryCorrector {
     
-    private static final double DISTANCE_THRESHOLD = 500.0; // 500米阈值
-    private static final double SPEED_THRESHOLD = 200.0; // 200km/h以上视为异常速度（更宽松的阈值）
+    private static final double SPEED_THRESHOLD = 120.0; // 120km/h以上视为异常速度（更宽松的阈值）
     private static final double EARTH_RADIUS = 6371000.0; // 地球半径（米）
     
-    private PathPlanner pathPlanner;
     private MongoClient mongoClient;
-    private MongoDatabase database;
     
     // 统计信息
     private AtomicLong totalProcessed = new AtomicLong(0);
-    private AtomicLong totalCorrected = new AtomicLong(0);
     private AtomicLong totalSkipped = new AtomicLong(0);
     private AtomicLong totalDuplicatesRemoved = new AtomicLong(0);
     private AtomicLong totalAnomalousPointsRemoved = new AtomicLong(0);
     
     public TrajectoryCorrector() {
-        this.pathPlanner = new PathPlanner();
         this.mongoClient = MongoClients.create("mongodb://localhost:27017");
-        this.database = mongoClient.getDatabase("MapTools");
-        this.pathPlanner = new PathPlanner(database); // 重新初始化带database的PathPlanner
     }
     
     /**
@@ -59,45 +47,17 @@ public class TrajectoryCorrector {
         List<Map<String, Object>> deduplicatedPoints = removeDuplicatePoints(filteredPoints);
         int afterDeduplication = deduplicatedPoints.size();
         
-        // 第三步：检测远距离点并应用路径规划
-        for (int i = 0; i < deduplicatedPoints.size(); i++) {
-            Map<String, Object> currentPoint = deduplicatedPoints.get(i);
-            correctedPoints.add(currentPoint);
-            
-            // 检查是否需要路径规划
-            if (i < deduplicatedPoints.size() - 1) {
-                Map<String, Object> nextPoint = deduplicatedPoints.get(i + 1);
-                
-                double distance = calculateDistance(
-                    (Double) currentPoint.get("longitude"),
-                    (Double) currentPoint.get("latitude"),
-                    (Double) nextPoint.get("longitude"),
-                    (Double) nextPoint.get("latitude")
-                );
-                
-                if (distance > DISTANCE_THRESHOLD) {
-                    // 对于远距离点，使用简化的线性插值而不是复杂的路径规划
-                    List<Map<String, Object>> interpolatedPoints = createLinearInterpolation(currentPoint, nextPoint);
-                    
-                    // Add interpolated points (excluding start and end points as they are already added)
-                    for (int j = 1; j < interpolatedPoints.size() - 1; j++) {
-                        correctedPoints.add(interpolatedPoints.get(j));
-                    }
-                    
-                    totalCorrected.incrementAndGet();
-                }
-            }
-        }
+        // 第三步：直接添加所有去重后的点，不进行距离检查和插值
+        correctedPoints.addAll(deduplicatedPoints);
         
         totalProcessed.incrementAndGet();
         
         // 调试输出：显示点数量变化
         if (originalCount != correctedPoints.size()) {
-            System.out.println(String.format("轨迹点数量变化: %d -> %d (异常点过滤: %d, 去重: %d, 路径规划增加: %d)", 
+            System.out.println(String.format("轨迹点数量变化: %d -> %d (异常点过滤: %d, 去重: %d)", 
                 originalCount, correctedPoints.size(), 
                 originalCount - afterAnomalousFilter, 
-                afterAnomalousFilter - afterDeduplication,
-                correctedPoints.size() - afterDeduplication));
+                afterAnomalousFilter - afterDeduplication));
         }
         
         return correctedPoints;
@@ -134,8 +94,9 @@ public class TrajectoryCorrector {
                 
                 long timeDiff = calculateTimeDifference(prevPoint, currentPoint);
                 
+                
                 // 检查速度是否异常
-                if (timeDiff > 0) {
+                if (timeDiff > 0 && timeDiff != Long.MAX_VALUE) {
                     double speedKmh = (distance / 1000.0) / (timeDiff / 3600000.0); // km/h
                     if (speedKmh > SPEED_THRESHOLD) {
                         // 只跳过当前异常点，继续处理后续点
@@ -144,6 +105,10 @@ public class TrajectoryCorrector {
                     }
                 } else if (timeDiff == 0 && distance > 5000) {
                     // 时间为0但距离很大（5公里以上），可能是异常点
+                    totalAnomalousPointsRemoved.incrementAndGet();
+                    continue;
+                } else if (timeDiff == Long.MAX_VALUE) {
+                    // 时间解析失败，跳过当前点
                     totalAnomalousPointsRemoved.incrementAndGet();
                     continue;
                 }
@@ -161,18 +126,65 @@ public class TrajectoryCorrector {
      */
     private long calculateTimeDifference(Map<String, Object> point1, Map<String, Object> point2) {
         try {
-            String datetime1 = (String) point1.get("datetime");
-            String datetime2 = (String) point2.get("datetime");
+            Object datetimeObj1 = point1.get("datetime");
+            Object datetimeObj2 = point2.get("datetime");
             
-            if (datetime1 == null || datetime2 == null) {
+            if (datetimeObj1 == null || datetimeObj2 == null) {
                 return Long.MAX_VALUE; // 无法计算时间差时返回最大值
             }
             
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            Date date1 = sdf.parse(datetime1);
-            Date date2 = sdf.parse(datetime2);
+            // 移除调试信息，让脚本正常运行
             
-            return Math.abs(date2.getTime() - date1.getTime());
+            Date date1 = null;
+            Date date2 = null;
+            
+            // 如果已经是Date对象，直接使用
+            if (datetimeObj1 instanceof Date && datetimeObj2 instanceof Date) {
+                date1 = (Date) datetimeObj1;
+                date2 = (Date) datetimeObj2;
+            } else {
+                // 如果是字符串，尝试解析
+                String datetime1 = datetimeObj1.toString();
+                String datetime2 = datetimeObj2.toString();
+                
+                // 尝试多种时间格式，包括Date.toString()格式
+                String[] formats = {
+                    "EEE MMM dd HH:mm:ss zzz yyyy",  // Date.toString()格式: Thu Sep 01 08:07:20 CST 2016
+                    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                    "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+                    "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                    "yyyy-MM-dd'T'HH:mm:ss'Z'",
+                    "yyyy-MM-dd'T'HH:mm:ssXXX",
+                    "yyyy-MM-dd'T'HH:mm:ss",
+                    "yyyy-MM-dd HH:mm:ss.SSS",
+                    "yyyy-MM-dd HH:mm:ss"
+                };
+                
+                for (String format : formats) {
+                    try {
+                        SimpleDateFormat sdf;
+                        if (format.equals("EEE MMM dd HH:mm:ss zzz yyyy")) {
+                            // Date.toString()格式需要ENGLISH locale
+                            sdf = new SimpleDateFormat(format, java.util.Locale.ENGLISH);
+                        } else {
+                            sdf = new SimpleDateFormat(format);
+                        }
+                        sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                        date1 = sdf.parse(datetime1);
+                        date2 = sdf.parse(datetime2);
+                        break;
+                    } catch (Exception e) {
+                        // 继续尝试下一个格式
+                    }
+                }
+            }
+            
+            if (date1 == null || date2 == null) {
+                return Long.MAX_VALUE;
+            }
+            
+            long timeDiff = Math.abs(date2.getTime() - date1.getTime());
+            return timeDiff;
         } catch (Exception e) {
             return Long.MAX_VALUE; // 解析失败时返回最大值
         }
@@ -215,74 +227,6 @@ public class TrajectoryCorrector {
         return Math.abs(lon1 - lon2) < 1e-5 && Math.abs(lat1 - lat2) < 1e-5;
     }
     
-    /**
-     * 应用路径规划算法
-     */
-    private List<Map<String, Object>> applyPathPlanning(Map<String, Object> startPoint, Map<String, Object> endPoint) {
-        Double startLon = (Double) startPoint.get("longitude");
-        Double startLat = (Double) startPoint.get("latitude");
-        Double endLon = (Double) endPoint.get("longitude");
-        Double endLat = (Double) endPoint.get("latitude");
-        
-        if (startLon == null || startLat == null || endLon == null || endLat == null) {
-            return createLinearInterpolation(startPoint, endPoint);
-        }
-        
-        // 使用路径规划算法
-        List<PathPlanner.RoadNode> path = pathPlanner.planPath(startLon, startLat, endLon, endLat);
-        
-        if (path.isEmpty()) {
-            return createLinearInterpolation(startPoint, endPoint);
-        }
-        
-        // 将路径转换为轨迹点
-        List<Map<String, Object>> interpolatedPoints = pathPlanner.convertPathToTrajectoryPoints(path, startPoint);
-        
-        // 确保终点时间正确
-        if (!interpolatedPoints.isEmpty()) {
-            Map<String, Object> lastPoint = interpolatedPoints.get(interpolatedPoints.size() - 1);
-            lastPoint.put("datetime", endPoint.get("datetime"));
-            lastPoint.put("speed", endPoint.get("speed"));
-            lastPoint.put("heading", endPoint.get("heading"));
-        }
-        
-        return interpolatedPoints;
-    }
-    
-    /**
-     * 创建直线插值（备选方案）
-     */
-    private List<Map<String, Object>> createLinearInterpolation(Map<String, Object> startPoint, Map<String, Object> endPoint) {
-        List<Map<String, Object>> interpolatedPoints = new ArrayList<>();
-        
-        double startLon = (Double) startPoint.get("longitude");
-        double startLat = (Double) startPoint.get("latitude");
-        double endLon = (Double) endPoint.get("longitude");
-        double endLat = (Double) endPoint.get("latitude");
-        
-        // 计算插值点数量（每200米一个点，减少插值点数量）
-        double distance = calculateDistance(startLon, startLat, endLon, endLat);
-        int numPoints = Math.max(2, Math.min(10, (int) (distance / 200))); // 最多10个插值点
-        
-        for (int i = 0; i <= numPoints; i++) {
-            double ratio = (double) i / numPoints;
-            
-            Map<String, Object> interpolatedPoint = new HashMap<>();
-            interpolatedPoint.put("longitude", startLon + (endLon - startLon) * ratio);
-            interpolatedPoint.put("latitude", startLat + (endLat - startLat) * ratio);
-            interpolatedPoint.put("plate_number", startPoint.get("plate_number"));
-            interpolatedPoint.put("datetime", startPoint.get("datetime"));
-            interpolatedPoint.put("speed", startPoint.get("speed"));
-            interpolatedPoint.put("heading", startPoint.get("heading"));
-            interpolatedPoint.put("is_valid", true);
-            interpolatedPoint.put("corrected", true);
-            interpolatedPoint.put("source_file", startPoint.get("source_file"));
-            
-            interpolatedPoints.add(interpolatedPoint);
-        }
-        
-        return interpolatedPoints;
-    }
     
     /**
      * 计算两点间距离（米）
@@ -303,7 +247,6 @@ public class TrajectoryCorrector {
     public Map<String, Long> getStatistics() {
         Map<String, Long> stats = new HashMap<>();
         stats.put("totalProcessed", totalProcessed.get());
-        stats.put("totalCorrected", totalCorrected.get());
         stats.put("totalSkipped", totalSkipped.get());
         stats.put("totalDuplicatesRemoved", totalDuplicatesRemoved.get());
         stats.put("totalAnomalousPointsRemoved", totalAnomalousPointsRemoved.get());
@@ -315,7 +258,6 @@ public class TrajectoryCorrector {
      */
     public void resetStatistics() {
         totalProcessed.set(0);
-        totalCorrected.set(0);
         totalSkipped.set(0);
         totalDuplicatesRemoved.set(0);
         totalAnomalousPointsRemoved.set(0);
@@ -325,9 +267,6 @@ public class TrajectoryCorrector {
      * 关闭连接
      */
     public void close() {
-        if (pathPlanner != null) {
-            pathPlanner.clearMemory();
-        }
         if (mongoClient != null) {
             mongoClient.close();
         }
