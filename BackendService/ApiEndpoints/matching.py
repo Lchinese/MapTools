@@ -318,12 +318,16 @@ async def get_osrm_route(request: OSRMRequest):
             raise HTTPException(status_code=400, detail="有效的坐标点不足")
         
         coordinates_str = ";".join(coordinates)
-        osrm_url = f"http://router.project-osrm.org/route/v1/driving/{coordinates_str}?overview=full&geometries=geojson&steps=false"
+        # 允许通过环境变量覆盖 OSRM 基础地址，默认使用官方公共服务
+        osrm_base_url = os.getenv("OSRM_BASE_URL", "http://router.project-osrm.org")
+        osrm_url = f"{osrm_base_url}/route/v1/driving/{coordinates_str}?overview=full&geometries=geojson&steps=false"
         
         logger.info(f"OSRM请求URL: {osrm_url}")
         
-        # 发送请求到OSRM
-        response = requests.get(osrm_url, timeout=10)
+        # 发送请求到OSRM：显式禁用系统代理，避免企业代理/本地代理干扰
+        session = requests.Session()
+        session.trust_env = False  # 不从环境继承 HTTP(S)_PROXY
+        response = session.get(osrm_url, timeout=20, proxies={})
         
         if response.status_code != 200:
             logger.error(f"OSRM请求失败，状态码: {response.status_code}")

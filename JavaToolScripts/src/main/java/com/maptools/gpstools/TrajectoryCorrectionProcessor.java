@@ -6,6 +6,7 @@ import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.FindIterable;
+import com.mongodb.client.model.Filters;
 import com.mongodb.MongoWriteException;
 import java.util.*;
 import java.util.concurrent.*;
@@ -166,8 +167,13 @@ public class TrajectoryCorrectionProcessor {
                                   MongoCollection<Document> targetCollection,
                                   String plateNumber) {
         
-        // 查找原始轨迹
-        Document originalDoc = sourceCollection.find(new Document("plate_number", plateNumber)).first();
+        // 仅使用道路匹配后的轨迹（不回退到原始轨迹）
+        Document originalDoc = sourceCollection
+            .find(Filters.and(
+                Filters.eq("plate_number", plateNumber),
+                Filters.eq("type", "matched_trajectory")
+            ))
+            .first();
         if (originalDoc == null) {
             totalSkipped.incrementAndGet();
             return;
