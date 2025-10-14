@@ -204,10 +204,12 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
     correctedTrajectory,
     showOriginal,
     showCorrected,
+    showOSRMRoute,
     showRoadNetwork,
     resetMap,
     setShowOriginal,
     setShowCorrected,
+    setShowOSRMRoute,
     setShowRoadNetwork,
     setCorrectedTrajectory
   } = useMapStore();
@@ -292,7 +294,7 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
       return;
     }
     
-    if (showCorrected && correctedTrajectory && correctedTrajectory.length > 2) {
+    if (showOSRMRoute && correctedTrajectory && correctedTrajectory.length > 2) {
       const fetchOSRMRoute = async () => {
         setOsrmLoading(true);
         try {
@@ -333,7 +335,7 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
     } else {
       setOsrmRoute(null);
     }
-  }, [showCorrected, correctedTrajectory?.length]);
+  }, [showOSRMRoute, correctedTrajectory?.length]);
 
   // 分批处理OSRM请求（并发版本）
   const processBatchOSRM = async (points) => {
@@ -622,7 +624,7 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
         )}
 
         {/* OSRM路径规划 */}
-        {showCorrected && osrmRoute && osrmRoute.length > 1 && (
+        {showOSRMRoute && osrmRoute && osrmRoute.length > 1 && (
           <Polyline
             positions={osrmRoute}
             color="#ff6b35"
@@ -769,7 +771,14 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
                 style={{ fontSize: '13px', width: '100%' }}
               >
                 <span style={{ color: '#52c41a' }}>●</span> 修正轨迹
-                {osrmLoading && <span style={{ color: '#ff6b35', marginLeft: 4 }}> (OSRM规划中...)</span>}
+              </Checkbox>
+              <Checkbox
+                checked={showOSRMRoute}
+                onChange={(e) => setShowOSRMRoute(e.target.checked)}
+                style={{ fontSize: '13px', width: '100%' }}
+              >
+                <span style={{ color: '#ff6b35' }}>●</span> OSRM规划
+                {osrmLoading && <span style={{ color: '#ff6b35', marginLeft: 4 }}> (规划中...)</span>}
               </Checkbox>
               <Checkbox
                 checked={showRoadNetwork}

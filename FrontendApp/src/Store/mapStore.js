@@ -14,6 +14,7 @@ const useMapStore = create((set, get) => ({
   // 显示选项
   showOriginal: false,
   showCorrected: true,
+  showOSRMRoute: false,
   showRoadNetwork: false,
   
   // 地图操作
@@ -29,9 +30,11 @@ const useMapStore = create((set, get) => ({
   // 显示选项操作
   setShowOriginal: (show) => set({ showOriginal: show }),
   setShowCorrected: (show) => set({ showCorrected: show }),
+  setShowOSRMRoute: (show) => set({ showOSRMRoute: show }),
   setShowRoadNetwork: (show) => set({ showRoadNetwork: show }),
   toggleOriginal: () => set(state => ({ showOriginal: !state.showOriginal })),
   toggleCorrected: () => set(state => ({ showCorrected: !state.showCorrected })),
+  toggleOSRMRoute: () => set(state => ({ showOSRMRoute: !state.showOSRMRoute })),
   toggleRoadNetwork: () => set(state => ({ showRoadNetwork: !state.showRoadNetwork })),
   
   // 重置地图到初始位置
@@ -57,7 +60,8 @@ const useMapStore = create((set, get) => ({
     matchedTrajectory: null,
     roadNetwork: null,
     showOriginal: false,
-    showMatched: true,
+    showCorrected: true,
+    showOSRMRoute: false,
     showRoadNetwork: false,
   }),
 }));
