@@ -141,6 +141,26 @@ export const useTrajectoryData = () => {
     }
   }, []);
 
+  // 获取单车辆修正轨迹数据
+  const fetchSingleVehicleCorrectedTrajectory = useCallback(async (plateNumber, startTime, endTime) => {
+    try {
+      const response = await trajectoryAPI.getSingleVehicleCorrectedTrajectory(
+        plateNumber, 
+        startTime.format('YYYY-MM-DD HH:mm:ss'), 
+        endTime.format('YYYY-MM-DD HH:mm:ss')
+      );
+      if (response.success) {
+        console.log('获取到修正轨迹数据:', response.data.length, '个点');
+        return response.data; // 直接返回修正轨迹数据
+      } else {
+        throw new Error(response.message || '获取单车辆修正轨迹数据失败');
+      }
+    } catch (err) {
+      console.error('获取单车辆修正轨迹数据失败:', err);
+      throw err;
+    }
+  }, []);
+
   // 获取所有车牌号
   const fetchAllPlateNumbers = useCallback(async () => {
     setLoading(true);
@@ -178,6 +198,7 @@ export const useTrajectoryData = () => {
     error,
     fetchBatchTrajectoryData,
     fetchSingleVehicleTrajectory,
+    fetchSingleVehicleCorrectedTrajectory,
     fetchVehicleList,
     fetchTrajectoryDataByPlate,
     fetchTrajectorySummary,

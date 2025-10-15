@@ -574,6 +574,7 @@ async def get_single_vehicle_corrected_trajectory(
     根据车牌号和时间范围获取单车辆修正轨迹数据
     """
     try:
+        # 连接到MongoDB
         client = pymongo.MongoClient('localhost', 27017)
         db = client['MapTools']
         
@@ -586,26 +587,52 @@ async def get_single_vehicle_corrected_trajectory(
                 doc = collection.find_one({"plate_number": plate_number})
                 
                 if doc:
-                    trajectory_points = doc.get("trajectory_points", [])
-                    if trajectory_points:
-                        trajectory_data = trajectory_points
+                    trajectory_data = doc.get("trajectory_points", [])
+                    if trajectory_data:
                         break
         
         if not trajectory_data:
-            client.close()
-            return {
-                "success": False,
-                "message": f"未找到车牌号 {plate_number} 的修正轨迹数据",
-                "data": [],
-                "point_count": 0
-            }
+            raise HTTPException(status_code=404, detail=f"未找到车牌号为 {plate_number} 的修正轨迹数据")
         
-        # 按时间过滤轨迹点
+        # 过滤时间范围内的轨迹点
+        from datetime import datetime
+        start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+        end_dt = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
+        
         filtered_points = []
         for point in trajectory_data:
-            point_time = point.get("datetime", "")
-            if start_time <= point_time <= end_time:
-                filtered_points.append(point)
+            try:
+                # 尝试不同的时间格式解析
+                point_datetime = point['datetime']
+                if isinstance(point_datetime, str):
+                    # 如果是字符串，尝试解析
+                    if 'CST' in point_datetime or 'GMT' in point_datetime:
+                        # 处理英文格式: Fri Sep 02 07:36:57 CST 2016 (Java Date.toString()格式)
+                        import re
+                        # 直接使用正则表达式手动解析
+                        match = re.match(r'(\w{3})\s+(\w{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+\w{3}\s+(\d{4})', point_datetime)
+                        if match:
+                            day_name, month_name, day, hour, minute, second, year = match.groups()
+                            month_map = {'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                                       'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12}
+                            point_dt = datetime(int(year), month_map[month_name], int(day), 
+                                              int(hour), int(minute), int(second))
+                        else:
+                            raise ValueError(f"无法解析时间格式: {point_datetime}")
+                    elif 'T' in point_datetime:
+                        point_dt = datetime.fromisoformat(point_datetime.replace('Z', '+00:00'))
+                    else:
+                        # 尝试标准格式
+                        point_dt = datetime.strptime(point_datetime, '%Y-%m-%d %H:%M:%S')
+                else:
+                    # 如果已经是datetime对象
+                    point_dt = point_datetime
+                
+                if start_dt <= point_dt <= end_dt:
+                    filtered_points.append(point)
+            except Exception as e:
+                logger.warning(f"解析修正轨迹时间失败: {point.get('datetime')}, 错误: {e}")
+                continue
         
         client.close()
         

@@ -18,7 +18,7 @@ const { Title, Paragraph } = Typography;
 
 const Home = () => {
   const navigate = useNavigate();
-  const { fetchSingleVehicleTrajectory, trajectoryData } = useTrajectoryData();
+  const { fetchSingleVehicleTrajectory, fetchSingleVehicleCorrectedTrajectory, trajectoryData } = useTrajectoryData();
   const [loading, setLoading] = useState(false);
   const [plateNumber, setPlateNumber] = useState('');
   const [startDateTime, setStartDateTime] = useState(dayjs('2016-09-01 00:00'));
@@ -36,7 +36,24 @@ const Home = () => {
     try {
       console.log('调用fetchSingleVehicleTrajectory...');
       await fetchSingleVehicleTrajectory(plateNumber, startDateTime, endDateTime, matchToRoads);
-      console.log('fetchSingleVehicleTrajectory调用完成');
+      console.log('✅ 原始轨迹加载完成');
+      
+      // 同时加载修正轨迹
+      console.log('开始加载修正轨迹...');
+      try {
+        const correctedData = await fetchSingleVehicleCorrectedTrajectory(plateNumber, startDateTime, endDateTime);
+        console.log('✅ 修正轨迹加载成功，轨迹点数量:', correctedData.length);
+        
+        // 通过全局方法设置修正轨迹到 mapStore
+        if (window.setCorrectedTrajectory) {
+          window.setCorrectedTrajectory(correctedData);
+          console.log('已设置修正轨迹到地图');
+        }
+      } catch (correctedError) {
+        console.error('❌ 修正轨迹加载失败:', correctedError);
+        console.log('继续显示原始轨迹...');
+      }
+      
     } catch (error) {
       console.error('加载轨迹失败:', error);
     } finally {

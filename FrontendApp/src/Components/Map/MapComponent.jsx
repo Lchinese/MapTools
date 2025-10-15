@@ -214,6 +214,19 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
     setCorrectedTrajectory
   } = useMapStore();
 
+  // 暴露设置修正轨迹的方法到全局，供 Home 组件调用
+  useEffect(() => {
+    window.setCorrectedTrajectory = (trajectoryData) => {
+      console.log('从外部设置修正轨迹数据:', trajectoryData.length, '个点');
+      setCorrectedTrajectory(trajectoryData);
+      setShowCorrected(true); // 自动开启修正轨迹显示
+    };
+    
+    return () => {
+      delete window.setCorrectedTrajectory;
+    };
+  }, [setCorrectedTrajectory, setShowCorrected, setShowOSRMRoute]);
+
   // 使用useCallback稳定fetchOriginalTrajectories函数
   // const stableFetchOriginalTrajectories = useCallback(fetchOriginalTrajectories, [fetchOriginalTrajectories]);
 
