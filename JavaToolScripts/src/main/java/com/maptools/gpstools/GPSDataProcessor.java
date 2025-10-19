@@ -27,9 +27,9 @@ public class GPSDataProcessor {
         if (args.length < 1) {
             System.err.println("Usage: java GPSDataProcessor <data_directory> [options]");
             System.err.println("Options:");
-            System.err.println("  --filter-area=<area_code>  按行政区划代码筛选轨迹点 (默认: " + 
+            System.err.println("  --filter-area=<area_code>  Filter trajectory points by area code (default: " + 
                              ConfigManager.getInstance().getDefaultAreaCode() + ")");
-            System.err.println("  --no-filter                禁用地理筛选");
+            System.err.println("  --no-filter                Disable geographic filtering");
             System.exit(1);
         }
         
@@ -68,9 +68,9 @@ public class GPSDataProcessor {
         
         // 保留必要的目录处理信息
         // 减少初始输出信息
-        System.out.println("开始处理目录: " + dir.getName());
+        System.out.println("Starting to process directory: " + dir.getName());
         if (geoFilterEnabled) {
-            System.out.println("地理筛选已启用，区域代码: " + filterAreaCode);
+            System.out.println("Geographic filtering enabled, area code: " + filterAreaCode);
         }
         
         // 创建线程池
@@ -112,9 +112,9 @@ public class GPSDataProcessor {
     }
     
     public void processSingleFile(File file) {
-        System.out.println("开始处理文件: " + file.getName());
+        System.out.println("Starting to process file: " + file.getName());
         if (geoFilterEnabled) {
-            System.out.println("地理筛选已启用，区域代码: " + filterAreaCode);
+            System.out.println("Geographic filtering enabled, area code: " + filterAreaCode);
         }
         
         // 创建线程池
@@ -158,7 +158,7 @@ public class GPSDataProcessor {
     }
     
     private void processFiles(File dir, File[] files, String collectionName, MongoDataStore dataStore, ExecutorService executor) {
-        System.out.println("开始处理目录 " + dir.getName() + " 下的 " + files.length + " 个文件");
+        System.out.println("Starting to process " + files.length + " files in directory " + dir.getName());
         
         AtomicInteger fileCounter = new AtomicInteger(0);
         int totalFiles = files.length;
@@ -171,7 +171,7 @@ public class GPSDataProcessor {
                     if (dataStore.isFileProcessed(collectionName, file.getName())) {
                         int processed = fileCounter.incrementAndGet();
                         String currentTime = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
-                        System.out.println(String.format("[%s] 文件 %d/%d: %s | 已处理，跳过", 
+                        System.out.println(String.format("[%s] File %d/%d: %s | Already processed, skipping", 
                             currentTime, processed, totalFiles, file.getName()));
                         return;
                     }
@@ -179,7 +179,7 @@ public class GPSDataProcessor {
                     // 使用流式处理避免一次性加载整个文件到内存
                     processFileInBatches(file, collectionName, dataStore, fileCounter, totalFiles);
                 } catch (Exception e) {
-                    System.err.println("处理文件时出错: " + file.getName() + " - " + e.getMessage());
+                    System.err.println("Error processing file: " + file.getName() + " - " + e.getMessage());
                     e.printStackTrace();
                 }
             });
@@ -228,7 +228,7 @@ public class GPSDataProcessor {
             // 输出处理信息
             int processed = fileCounter.incrementAndGet();
             String currentTime = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss"));
-            System.out.println(String.format("[%s] 文件 %d/%d: %s | 总点数: %d | 合法点数: %d", 
+            System.out.println(String.format("[%s] File %d/%d: %s | Total points: %d | Valid points: %d", 
                 currentTime, processed, totalFiles, fileName, totalPoints, validPointCount));
         } finally {
             parser.close();
