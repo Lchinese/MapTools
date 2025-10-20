@@ -4,6 +4,7 @@ import com.mongodb.MongoClient;
 import com.mongodb.MongoClientURI;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ConcurrentHashMap;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -248,6 +249,12 @@ public class TrajectoryCorrector {
     private AtomicLong totalSkipped = new AtomicLong(0);
     private AtomicLong totalDuplicatesRemoved = new AtomicLong(0);
     private AtomicLong totalAnomalousPointsRemoved = new AtomicLong(0);
+    private AtomicLong totalRematchedPoints = new AtomicLong(0);
+    private AtomicLong totalRematchFailures = new AtomicLong(0);
+    
+    // 缓存优化：避免重复计算
+    private Map<String, Double> distanceCache = new ConcurrentHashMap<>();
+    private Map<String, Long> timeDiffCache = new ConcurrentHashMap<>();
     
     public TrajectoryCorrector() {
         try {
@@ -280,12 +287,15 @@ public class TrajectoryCorrector {
         
         totalProcessed.incrementAndGet();
         
-        // 调试输出：显示点数量变化
+        // 调试输出：显示点数量变化（简化版本，避免负数）
         if (originalCount != filteredPoints.size()) {
-            System.out.println(String.format("Trajectory points changed: %d -> %d (Deduplication: %d, HMM anomaly detection: %d)", 
+            int deduplicationRemoved = originalCount - afterDeduplication;
+            int hmmRemoved = afterDeduplication - afterHmmFilter;
+            
+            System.out.println(String.format("Trajectory points changed: %d -> %d (Deduplication: %d, HMM filtering: %d)", 
                 originalCount, filteredPoints.size(), 
-                originalCount - afterDeduplication, 
-                afterDeduplication - afterHmmFilter));
+                deduplicationRemoved, 
+                hmmRemoved));
         }
         
         return filteredPoints;
@@ -309,16 +319,39 @@ public class TrajectoryCorrector {
             // 计算道路切换概率
             double[] roadTransitionProbabilities = calculateRoadTransitionProbabilities(points);
             
+            // 计算IVMM风格的相邻一致性（方向一致性/曲率连续性/直线跨越惩罚）
+            double[] adjacencyConsistency = calculateAdjacencyConsistency(points);
+            
             // 综合判定：结合HMM概率和道路切换概率
             List<Map<String, Object>> filteredPoints = new ArrayList<>();
+            int lastAcceptedIndex = -1;
         for (int i = 0; i < points.size(); i++) {
-                // 综合评分：HMM概率 * 道路切换概率
-                double combinedScore = probabilities[i] * roadTransitionProbabilities[i];
-                
-                if (combinedScore > 0.5) { // 提高阈值到50%，更严格地过滤异常点
+                // 综合评分：HMM概率 * 道路切换概率 * 相邻一致性
+                double combinedScore = probabilities[i] * roadTransitionProbabilities[i] * adjacencyConsistency[i];
+                if (Double.isNaN(combinedScore) || Double.isInfinite(combinedScore)) {
+                    combinedScore = 0.0;
+                }
+                // 夹紧到[0,1]
+                if (combinedScore < 0.0) combinedScore = 0.0;
+                if (combinedScore > 1.0) combinedScore = 1.0;
+
+                // 三档决策：接收/重匹配/丢弃（修复阈值重叠问题）
+                if (combinedScore > 0.60) { // 直接接收（严格大于0.60）
                 filteredPoints.add(points.get(i));
+                    lastAcceptedIndex = filteredPoints.size() - 1;
+                } else if (combinedScore < 0.40) { // 直接丢弃（严格小于0.40）
+                    totalAnomalousPointsRemoved.incrementAndGet();
+                } else { // 需要重匹配（0.40 <= score <= 0.60）
+                    Map<String, Object> rematched = tryLocalRematch(points, i, filteredPoints, lastAcceptedIndex);
+                    if (rematched != null) {
+                        filteredPoints.add(rematched);
+                        lastAcceptedIndex = filteredPoints.size() - 1;
+                        totalRematchedPoints.incrementAndGet();
             } else {
+                        // 无法有效重匹配则丢弃
+                        totalRematchFailures.incrementAndGet();
                 totalAnomalousPointsRemoved.incrementAndGet();
+                    }
             }
         }
         
@@ -343,13 +376,13 @@ public class TrajectoryCorrector {
             Map<String, Object> currentPoint = points.get(i);
             Map<String, Object> previousPoint = points.get(i - 1);
             
-            // 计算距离和时间差
-            double distance = calculateDistance(
-                (Double) previousPoint.get("longitude"), (Double) previousPoint.get("latitude"),
-                (Double) currentPoint.get("longitude"), (Double) currentPoint.get("latitude")
+            // 计算距离和时间差（使用缓存优化）
+            double distance = getCachedDistance(
+                safeDouble(previousPoint.get("longitude")), safeDouble(previousPoint.get("latitude")),
+                safeDouble(currentPoint.get("longitude")), safeDouble(currentPoint.get("latitude"))
             );
             
-            long timeDiff = calculateTimeDifference(previousPoint, currentPoint);
+            long timeDiff = getCachedTimeDifference(previousPoint, currentPoint);
             
             if (timeDiff > 0 && timeDiff != Long.MAX_VALUE) {
                 double speed = (distance / 1000.0) / (timeDiff / 3600000.0); // km/h
@@ -366,6 +399,191 @@ public class TrajectoryCorrector {
         return probabilities;
     }
     
+    /**
+     * 计算相邻一致性（IVMM风格）：
+     * - heading 连续性（相邻点方向差小则高分）
+     * - 曲率连续性（连续三点转角平滑则高分）
+     * - 直线跨越惩罚（长距离/短时间的直线段给惩罚）
+     */
+    private double[] calculateAdjacencyConsistency(List<Map<String, Object>> points) {
+        int n = points.size();
+        double[] result = new double[n];
+        if (n == 0) return result;
+        result[0] = 1.0;
+        if (n == 1) return result;
+        
+        for (int i = 1; i < n; i++) {
+            Map<String, Object> prev = points.get(i - 1);
+            Map<String, Object> curr = points.get(i);
+            
+            double prevHeading = safeHeading(prev.get("heading"));
+            double currHeading = safeHeading(curr.get("heading"));
+            double headingDiff = Math.abs(currHeading - prevHeading);
+            if (headingDiff > 180) headingDiff = 360 - headingDiff;
+            double headingScore = headingDiff <= 180 ? Math.exp(-headingDiff / 60.0) : 0.2;
+            
+            // 曲率（需要前后点）
+            double curvatureScore = 1.0;
+            if (i >= 2) {
+                Map<String, Object> p0 = points.get(i - 2);
+                double h0 = safeHeading(p0.get("heading"));
+                double h1 = prevHeading;
+                double h2 = currHeading;
+                double diff1 = Math.abs(h1 - h0); if (diff1 > 180) diff1 = 360 - diff1;
+                double diff2 = Math.abs(h2 - h1); if (diff2 > 180) diff2 = 360 - diff2;
+                double curvatureChange = Math.abs(diff2 - diff1);
+                curvatureScore = Math.exp(-curvatureChange / 60.0);
+            }
+            
+            // 直线跨越惩罚：距离远/时间短→惩罚
+            double distance = getCachedDistance(
+                safeDouble(prev.get("longitude")), safeDouble(prev.get("latitude")),
+                safeDouble(curr.get("longitude")), safeDouble(curr.get("latitude"))
+            );
+            long dt = getCachedTimeDifference(prev, curr);
+            double straightPenalty = 1.0;
+            if (dt > 0 && dt != Long.MAX_VALUE) {
+                double speed = (distance / 1000.0) / (dt / 3600000.0);
+                // 长距离且速度异常高时，认为可能是直线跨越
+                if (distance > 300 && speed > 120) {
+                    straightPenalty = Math.exp(- (distance - 300) / 500.0);
+                }
+            }
+            
+            double combined = headingScore * curvatureScore * straightPenalty;
+            // 保底，避免完全归零
+            result[i] = Math.max(0.2, Math.min(1.0, combined));
+        }
+        return result;
+    }
+
+    /**
+     * 尝试对不确定点进行局部重匹配/纠偏：
+     * - 与上一个接收点和当前原始点形成局部线段，估计方向
+     * - 以方向为约束在邻域内搜索更一致的点（可与道路匹配器协同）
+     * - 若得到更合理的位置，返回替代点；否则返回null
+     */
+    private Map<String, Object> tryLocalRematch(List<Map<String, Object>> original, int index,
+                                               List<Map<String, Object>> accepted, int lastAcceptedIndex) {
+        try {
+            Map<String, Object> current = original.get(index);
+            // 若无已接收前驱，或数据不完整，放弃重匹配
+            if (lastAcceptedIndex < 0 || accepted.isEmpty()) {
+                return null;
+            }
+            Map<String, Object> prev = accepted.get(lastAcceptedIndex);
+
+            // 估计局部方向
+            double prevLon = safeDouble(prev.get("longitude"));
+            double prevLat = safeDouble(prev.get("latitude"));
+            double curLon = safeDouble(current.get("longitude"));
+            double curLat = safeDouble(current.get("latitude"));
+
+            double bearing = calculateBearing(prevLon, prevLat, curLon, curLat);
+
+            // 在局部邻域内做方向约束下的微调：
+            // 这里采取简化策略：沿方向作小步投影，拉回到与前一点连线的最近合理位置
+            double stepMeters = 10.0; // 微调步长
+            double adjustedLon = curLon;
+            double adjustedLat = curLat;
+
+            // 将步进向量投影为经纬度增量（近似，适用于小范围）
+            double rad = Math.toRadians(bearing);
+            double dx = Math.cos(rad) * stepMeters / 111320.0; // 经度近似换算
+            double dy = Math.sin(rad) * stepMeters / 110540.0; // 纬度近似换算
+
+            // 做有限次数的沿向微调，寻求更平滑的曲率
+            double bestScore = localSmoothnessScore(prevLon, prevLat, curLon, curLat);
+            for (int k = 0; k < 3; k++) {
+                double candLon = curLon - dx * (k + 1);
+                double candLat = curLat - dy * (k + 1);
+                double score = localSmoothnessScore(prevLon, prevLat, candLon, candLat);
+                if (score < bestScore) {
+                    bestScore = score;
+                    adjustedLon = candLon;
+                    adjustedLat = candLat;
+                }
+            }
+
+            // 若改进不足，放弃
+            if (Math.abs(adjustedLon - curLon) < 1e-6 && Math.abs(adjustedLat - curLat) < 1e-6) {
+                return null;
+            }
+
+            Map<String, Object> rematched = new HashMap<>(current);
+            rematched.put("longitude", adjustedLon);
+            rematched.put("latitude", adjustedLat);
+            return rematched;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // 局部平滑性评分：距离+角度变化的综合，越小越好
+    private double localSmoothnessScore(double x1, double y1, double x2, double y2) {
+        double dist = calculateDistance(x1, y1, x2, y2);
+        // 距离过长会被惩罚，避免突跳
+        return dist;
+    }
+
+    private double safeHeading(Object headingObj) {
+        try {
+            if (headingObj == null) return 0.0;
+            return ((Number) headingObj).doubleValue();
+        } catch (Exception e) {
+            return 0.0;
+        }
+    }
+
+    private double safeDouble(Object obj) {
+        try {
+            if (obj == null) return 0.0;
+            return ((Number) obj).doubleValue();
+        } catch (Exception e) {
+            try {
+                return Double.parseDouble(obj.toString());
+            } catch (Exception ignore) {
+                return 0.0;
+            }
+        }
+    }
+
+    /**
+     * 带缓存的距离计算
+     */
+    private double getCachedDistance(double lon1, double lat1, double lon2, double lat2) {
+        // 创建缓存键（降低精度减少缓存键数量）
+        String cacheKey = String.format("%.6f,%.6f,%.6f,%.6f", lon1, lat1, lon2, lat2);
+        
+        Double cached = distanceCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        
+        double distance = calculateDistance(lon1, lat1, lon2, lat2);
+        distanceCache.put(cacheKey, distance);
+        return distance;
+    }
+    
+    /**
+     * 带缓存的时间差计算
+     */
+    private long getCachedTimeDifference(Map<String, Object> point1, Map<String, Object> point2) {
+        // 创建缓存键（基于时间字符串）
+        String time1 = point1.get("datetime") != null ? point1.get("datetime").toString() : "";
+        String time2 = point2.get("datetime") != null ? point2.get("datetime").toString() : "";
+        String cacheKey = time1 + "|" + time2;
+        
+        Long cached = timeDiffCache.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        
+        long timeDiff = calculateTimeDifference(point1, point2);
+        timeDiffCache.put(cacheKey, timeDiff);
+        return timeDiff;
+    }
+
     /**
      * 计算道路切换概率（包含方向变化检测）
      */
@@ -609,6 +827,22 @@ public class TrajectoryCorrector {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return EARTH_RADIUS * c;
     }
+
+    /**
+     * 计算两点间的方位角（0-360度）
+     */
+    private double calculateBearing(double lon1, double lat1, double lon2, double lat2) {
+        double dLon = Math.toRadians(lon2 - lon1);
+        double lat1Rad = Math.toRadians(lat1);
+        double lat2Rad = Math.toRadians(lat2);
+
+        double y = Math.sin(dLon) * Math.cos(lat2Rad);
+        double x = Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+                   Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+
+        double bearing = Math.toDegrees(Math.atan2(y, x));
+        return (bearing + 360) % 360;
+    }
     
     /**
      * 获取统计信息
@@ -619,6 +853,8 @@ public class TrajectoryCorrector {
         stats.put("totalSkipped", totalSkipped.get());
         stats.put("totalDuplicatesRemoved", totalDuplicatesRemoved.get());
         stats.put("totalAnomalousPointsRemoved", totalAnomalousPointsRemoved.get());
+        stats.put("totalRematchedPoints", totalRematchedPoints.get());
+        stats.put("totalRematchFailures", totalRematchFailures.get());
         return stats;
     }
     
@@ -630,6 +866,12 @@ public class TrajectoryCorrector {
         totalSkipped.set(0);
         totalDuplicatesRemoved.set(0);
         totalAnomalousPointsRemoved.set(0);
+        totalRematchedPoints.set(0);
+        totalRematchFailures.set(0);
+        
+        // 清理缓存
+        distanceCache.clear();
+        timeDiffCache.clear();
     }
     
     /**

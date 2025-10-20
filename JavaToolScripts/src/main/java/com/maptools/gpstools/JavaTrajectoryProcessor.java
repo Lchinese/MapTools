@@ -5,6 +5,7 @@ import com.mongodb.MongoClientURI;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.IndexOptions;
 import org.bson.Document;
 
 import java.time.LocalDateTime;
@@ -77,7 +78,8 @@ public class JavaTrajectoryProcessor {
                     continue;
                 }
                 
-                processCollection(sourceCollectionName, targetCollectionName, matchToRoads);
+                // 强制开启道路匹配，不再根据外部参数控制
+                processCollection(sourceCollectionName, targetCollectionName, true);
                 
                 // 检查内存使用情况
                 checkMemoryUsage();
@@ -128,13 +130,17 @@ public class JavaTrajectoryProcessor {
         System.out.println("找到 " + allPlates.size() + " 个车牌号，开始处理...");
         
         // 检查已存在的车牌号，避免重复存储
-        String trajectoryType = matchToRoads ? "matched_trajectory" : "original_trajectory";
+        // 强制使用道路匹配后的类型
+        String trajectoryType = "matched_trajectory";
+        // 确保唯一索引存在（plate_number + type）
+        try {
+            targetCollection.createIndex(new Document("plate_number", 1).append("type", 1),
+                    new IndexOptions().unique(true));
+        } catch (Exception ignored) { }
         Set<String> existingPlates = new HashSet<>();
-        targetCollection.find(Filters.eq("type", trajectoryType))
-                .projection(new Document("plate_number", 1).append("_id", 0))
-                .limit(10000) // 限制查询数量，避免查询过多数据
+        targetCollection.distinct("plate_number", Filters.eq("type", trajectoryType), String.class)
                 .into(new ArrayList<>())
-                .forEach(doc -> existingPlates.add(doc.getString("plate_number")));
+                .forEach(existingPlates::add);
         
         System.out.println("已存在 " + existingPlates.size() + " 个车牌号的轨迹数据");
         
@@ -166,8 +172,9 @@ public class JavaTrajectoryProcessor {
             System.out.println("处理批次: " + (processedCount + 1) + "-" + endIndex + " / " + totalPlates);
             
             // 使用多线程处理当前批次
+            // 强制进行道路匹配
             processPlatesMultithreaded(batchPlates, sourceCollection, targetCollection, 
-                                     matchToRoads, sourceCollectionName, trajectoryType);
+                                     true, sourceCollectionName, trajectoryType);
             
             processedCount = endIndex;
             
@@ -205,8 +212,9 @@ public class JavaTrajectoryProcessor {
         for (String plateNumber : platesToProcess) {
             Future<?> future = boundedExecutor.submit(() -> {
                 try {
+                    // 强制进行道路匹配
                     processPlateNumber(plateNumber, sourceCollection, targetCollection, 
-                                    matchToRoads, sourceCollectionName, trajectoryType);
+                                    true, sourceCollectionName, trajectoryType);
                     savedCount.incrementAndGet();
                 } catch (Exception e) {
                     System.err.println("处理车牌号 " + plateNumber + " 时出错: " + e.getMessage());
@@ -343,11 +351,6 @@ public class JavaTrajectoryProcessor {
             trajectoryPoint.put("source_file", sourceFile != null ? sourceFile : "");
             
             trajectoryPoints.add(trajectoryPoint);
-            
-            // 如果轨迹点过多，分批处理以节省内存
-            if (trajectoryPoints.size() > 5000) {
-                break; // 限制单个轨迹的点数
-            }
         }
         
         // 清理原始gpsPoints以节省内存
@@ -355,7 +358,8 @@ public class JavaTrajectoryProcessor {
         gpsPoints = null;
         
         // 如果需要进行道路匹配
-        if (matchToRoads && roadMatcher != null) {
+        // 强制进行道路匹配
+        if (roadMatcher != null) {
             try {
                 trajectoryPoints = performRoadMatching(trajectoryPoints);
             } catch (Exception e) {
@@ -365,7 +369,7 @@ public class JavaTrajectoryProcessor {
         }
         
         // 创建轨迹文档
-        Document trajectoryDoc = createTrajectoryDocument(plateNumber, trajectoryPoints, matchToRoads, sourceCollectionName);
+        Document trajectoryDoc = createTrajectoryDocument(plateNumber, trajectoryPoints, true, sourceCollectionName);
         
         if (trajectoryDoc == null) {
             return;
@@ -555,14 +559,9 @@ public class JavaTrajectoryProcessor {
      * 主方法
      */
     public static void main(String[] args) {
-        boolean matchToRoads = true; // 默认进行道路匹配
-        
-        if (args.length > 0) {
-            matchToRoads = Boolean.parseBoolean(args[0]);
-        }
-        
-        System.out.println("Java轨迹处理器启动，道路匹配: " + matchToRoads);
-        
+        // 强制进行道路匹配
+        boolean matchToRoads = true;
+        System.out.println("Java轨迹处理器启动，道路匹配: true");
         JavaTrajectoryProcessor processor = new JavaTrajectoryProcessor();
         processor.processAllCollections(matchToRoads);
     }
