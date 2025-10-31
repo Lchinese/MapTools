@@ -302,10 +302,10 @@ public class TrajectoryCorrector {
     
     private static final double EARTH_RADIUS = 6371000.0; // 地球半径（米）
     
-    // 决策阈值（基于GraphHopper标准）
-    private static final double ACCEPT_THRESHOLD = 0.60;  // 接收阈值
-    private static final double REJECT_THRESHOLD = 0.30;  // 丢弃阈值
-    // 0.30 ~ 0.60 之间的点需要重匹配
+    // 决策阈值（更严格的筛选）
+    private static final double ACCEPT_THRESHOLD = 0.70;  // 接收阈值（提高到0.70）
+    private static final double REJECT_THRESHOLD = 0.30;  // 丢弃阈值（提高到0.30）
+    // 0.30 ~ 0.70 之间的点需要重匹配
     
     private MongoClient mongoClient;
     private HmmModel hmmModel;
@@ -459,9 +459,11 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
      * 基于HMM的异常点检测（三维互补检测系统）
      * 
      * 检测维度（职责分离，避免重复评估）：
-     * 1. HMM概率：速度统计特征（基于高斯分布）
-     * 2. 道路切换概率：物理可行性（距离、速度、时间合理性）
-     * 3. 相邻一致性：几何连续性（方向、曲率、直线跨越）
+     * 1. HMM概率：速度统计特征（基于高斯分布）- 权重 50%
+     * 2. 道路切换概率：物理可行性（距离约束）- 权重 30%
+     * 3. 相邻一致性：几何连续性（方向、曲率、直线跨越）- 权重 20%
+     * 
+     * 综合评分 = 速度统计×0.5 + 物理约束×0.3 + 几何一致性×0.2
      */
     private List<Map<String, Object>> hmmBasedAnomalyDetection(List<Map<String, Object>> points, TrajectoryStats stats) {
         if (points.size() < 2) {
@@ -473,20 +475,23 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
             TrajectoryMetrics metrics = precomputeTrajectoryMetrics(points);
             
             // 维度1：HMM速度统计检测
-        double[] probabilities = hmmModel.calculatePointProbabilitiesFromMetrics(metrics);
+            double[] probabilities = hmmModel.calculatePointProbabilitiesFromMetrics(metrics);
         
             // 维度2：道路切换物理可行性检测
             double[] roadTransitionProbabilities = calculateRoadTransitionProbabilities(points, metrics);
             
             // 维度3：几何一致性检测（方向、曲率）
-            double[] adjacencyConsistency = calculateAdjacencyConsistency(points, metrics);
+            // 改进：使用考虑置信度的相邻一致性计算
+            double[] adjacencyConsistency = calculateAdjacencyConsistencyWithConfidence(points, metrics, probabilities);
             
-            // 综合判定：三维评分相乘（职责互补，无重复）
+            // 综合判定：三维评分加权和（更合理的评分方式）
             List<Map<String, Object>> filteredPoints = new ArrayList<>();
             int lastAcceptedIndex = -1;
-        for (int i = 0; i < points.size(); i++) {
-                // 综合评分 = 速度统计 × 物理可行性 × 几何一致性
-                double combinedScore = probabilities[i] * roadTransitionProbabilities[i] * adjacencyConsistency[i];
+            for (int i = 0; i < points.size(); i++) {
+                // 综合评分 = 速度统计×0.5 + 物理约束×0.3 + 几何一致性×0.2
+                double combinedScore = probabilities[i] * 0.5 
+                                     + roadTransitionProbabilities[i] * 0.3 
+                                     + adjacencyConsistency[i] * 0.2;
                 if (Double.isNaN(combinedScore) || Double.isInfinite(combinedScore)) {
                     combinedScore = 0.0;
                 }
@@ -496,7 +501,7 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
 
                 // 三档决策：接收/重匹配/丢弃（基于GraphHopper标准）
                 if (combinedScore > ACCEPT_THRESHOLD) { // 直接接收
-                filteredPoints.add(points.get(i));
+                    filteredPoints.add(points.get(i));
                     lastAcceptedIndex = filteredPoints.size() - 1;
                 } else if (combinedScore < REJECT_THRESHOLD) { // 直接丢弃
                     totalAnomalousPointsRemoved.incrementAndGet();
@@ -507,16 +512,16 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
                         lastAcceptedIndex = filteredPoints.size() - 1;
                         totalRematchedPoints.incrementAndGet();
                         stats.rematchSuccess++; // 局部统计
-            } else {
+                    } else {
                         // 无法有效重匹配则丢弃
                         totalRematchFailures.incrementAndGet();
-                totalAnomalousPointsRemoved.incrementAndGet();
+                        totalAnomalousPointsRemoved.incrementAndGet();
                         stats.rematchFailure++; // 局部统计
                     }
+                }
             }
-        }
         
-        return filteredPoints;
+            return filteredPoints;
         } catch (Exception e) {
             // 如果HMM处理失败，返回原始点（保守策略）
             System.err.println("HMM anomaly detection failed, returning original trajectory: " + e.getMessage());
@@ -526,6 +531,7 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
     
     /**
      * 计算道路切换概率（使用预计算指标）
+     * 职责：只检查距离和时间合理性，速度检查已由HMM负责
      */
     private double[] calculateRoadTransitionProbabilities(List<Map<String, Object>> points, TrajectoryMetrics metrics) {
         double[] probabilities = new double[points.size()];
@@ -534,14 +540,13 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
         probabilities[0] = 1.0;
         
         for (int i = 1; i < points.size(); i++) {
-            // 直接使用预计算的速度、距离、时间
-            double speed = metrics.speeds[i];
+            // 直接使用预计算的距离、时间
             double distance = metrics.distances[i];
             long timeDiff = metrics.timeDiffs[i];
             
             if (timeDiff > 0 && timeDiff != Long.MAX_VALUE) {
-                // 道路切换概率计算（只考虑速度、距离、时间，方向检测已整合到HMM中）
-                double roadTransitionProb = calculateRoadTransitionProbability(speed, distance, timeDiff);
+                // 道路切换概率计算（只考虑距离和时间，速度检查已在HMM中完成）
+                double roadTransitionProb = calculateRoadTransitionProbability(distance, timeDiff);
                 probabilities[i] = roadTransitionProb;
             } else {
                 // 时间解析失败，使用保守概率
@@ -553,13 +558,9 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
     }
     
     /**
-     * 计算相邻一致性（IVMM风格，使用预计算指标）：
-     * - heading 连续性（相邻点方向差小则高分）
-     * - 曲率连续性（连续三点转角平滑则高分）
-     * - 直线跨越惩罚（长距离/短时间的直线段给惩罚）
+     * 计算相邻一致性（IVMM风格，使用预计算指标）
      * 
-     * 注意：此模块专门负责几何一致性检测（方向、曲率），
-     *      与HMM的速度统计检测、roadTransition的物理可行性检测互补
+     * 注意：此方法保留为了向后兼容，新逻辑使用calculateAdjacencyConsistencyWithConfidence
      */
     private double[] calculateAdjacencyConsistency(List<Map<String, Object>> points, TrajectoryMetrics metrics) {
         int n = points.size();
@@ -601,6 +602,125 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
             result[i] = Math.max(0.2, Math.min(1.0, combined));
         }
         return result;
+    }
+
+    /**
+     * 计算相邻一致性（IVMM风格，改进版）：
+     * - heading 连续性（相邻点方向差小则高分）
+     * - 曲率连续性（连续三点转角平滑则高分）
+     * - 直线跨越惩罚（长距离/短时间的直线段给惩罚）
+     * 
+     * 改进：考虑前点置信度，低置信度时扩大比较范围
+     * 
+     * 注意：此模块专门负责几何一致性检测（方向、曲率），
+     *      与HMM的速度统计检测、roadTransition的物理可行性检测互补
+     */
+    private double[] calculateAdjacencyConsistencyWithConfidence(List<Map<String, Object>> points, 
+                                                             TrajectoryMetrics metrics,
+                                                             double[] pointConfidences) {
+        int n = points.size();
+        double[] result = new double[n];
+        if (n == 0) return result;
+        result[0] = 1.0; // 第一个点默认为高分
+        if (n == 1) return result;
+        
+        for (int i = 1; i < n; i++) {
+            // 查找最近的高置信度点作为参考点
+            int referenceIndex = findReferencePoint(i, pointConfidences);
+            
+            // 使用与参考点的比较代替与直接前点的比较
+            double headingDiff = calculateHeadingDifference(points, metrics, referenceIndex, i);
+            double headingScore = headingDiff <= 180 ? Math.exp(-headingDiff / 60.0) : 0.2;
+            
+            // 曲率（需要前后点）
+            double curvatureScore = 1.0;
+            if (referenceIndex >= 1 && i >= 2) {
+                // 计算相对于参考点的方向变化
+                double refHeadingDiff = calculateHeadingDifference(points, metrics, referenceIndex-1, referenceIndex);
+                double currentHeadingDiff = headingDiff;
+                double curvatureChange = Math.abs(currentHeadingDiff - refHeadingDiff);
+                curvatureScore = Math.exp(-curvatureChange / 60.0);
+            }
+            
+            // 直线跨越惩罚：使用预计算的距离和速度
+            double distance = metrics.distances[i];
+            double speed = metrics.speeds[i];
+            long dt = metrics.timeDiffs[i];
+            
+            double straightPenalty = 1.0;
+            if (dt > 0 && dt != Long.MAX_VALUE) {
+                // 长距离且速度异常高时，认为可能是直线跨越（130 km/h阈值）
+                if (distance > 300 && speed > 130) {
+                    straightPenalty = Math.exp(- (distance - 300) / 500.0);
+                }
+            }
+            
+            // 考虑参考点的距离衰减因子
+            double distanceDecay = calculateDistanceDecayFactor(i, referenceIndex, metrics);
+            
+            double combined = headingScore * curvatureScore * straightPenalty * distanceDecay;
+            // 保底，避免完全归零
+            result[i] = Math.max(0.2, Math.min(1.0, combined));
+        }
+        return result;
+    }
+
+    /**
+     * 查找参考点（最近的高置信度点）
+     */
+    private int findReferencePoint(int currentIndex, double[] confidences) {
+        // 置信度阈值
+        final double CONFIDENCE_THRESHOLD = 0.6;
+        
+        // 向前查找最近的高置信度点
+        for (int i = currentIndex - 1; i >= 0; i--) {
+            if (confidences[i] >= CONFIDENCE_THRESHOLD) {
+                return i;
+            }
+        }
+        
+        // 如果没有找到高置信度点，则使用直接前点
+        return Math.max(0, currentIndex - 1);
+    }
+
+    /**
+     * 计算两点间的方向差
+     */
+    private double calculateHeadingDifference(List<Map<String, Object>> points, 
+                                         TrajectoryMetrics metrics, 
+                                         int fromIndex, int toIndex) {
+        if (fromIndex == toIndex) {
+            return 0.0;
+        }
+        
+        // 优先使用预计算的方向变化
+        if (toIndex < metrics.headingDiffs.length) {
+            return metrics.headingDiffs[toIndex];
+        }
+        
+        // 回退到直接计算
+        double fromHeading = metrics.headings[fromIndex];
+        double toHeading = metrics.headings[toIndex];
+        double headingDiff = Math.abs(toHeading - fromHeading);
+        if (headingDiff > 180) {
+            headingDiff = 360 - headingDiff;
+        }
+        return headingDiff;
+    }
+
+    /**
+     * 计算距离衰减因子（随着参考点距离增加而降低评分）
+     */
+    private double calculateDistanceDecayFactor(int currentIndex, int referenceIndex, TrajectoryMetrics metrics) {
+        int distanceInPoints = currentIndex - referenceIndex;
+        
+        // 如果使用直接前点，不衰减
+        if (distanceInPoints <= 1) {
+            return 1.0;
+        }
+        
+        // 指数衰减因子
+        return Math.exp(-(distanceInPoints - 1) / 3.0);
     }
 
     /**
@@ -749,10 +869,10 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
             );
             score += dirScore * 0.3;
             
-            // 3. 距离惩罚 (20%) - 与原始点接近更好
+            // 3. 距离惩罚 (20%) - 与原始点接近更好（放宽距离容忍度）
             double distToOriginal = calculateDistance(curLon, curLat, 
                                                      candidate.longitude, candidate.latitude);
-            double distScore = Math.exp(-distToOriginal / 50.0); // 50米为衰减尺度
+            double distScore = Math.exp(-distToOriginal / 100.0); // 提高到100米为衰减尺度（更宽松）
             score += distScore * 0.2;
             
             // 4. 道路约束评分 (10%)
@@ -776,8 +896,8 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
             }
         }
         
-        // 如果最优候选点评分不够高（<0.5），返回null
-        if (bestCandidate != null && bestCandidate.score < 0.5) {
+        // 如果最优候选点评分不够高（降低到0.35，更宽松），返回null
+        if (bestCandidate != null && bestCandidate.score < 0.35) {
             return null;
         }
         
@@ -800,23 +920,26 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
         
         double speed = (distance / 1000.0) / (timeDiff / 3600000.0); // km/h
         
-        // 速度合理性：20-80 km/h 为最优，超出范围递减
+        // 速度合理性：20-140 km/h 为可接受范围
         double speedScore;
-        if (speed >= 20 && speed <= 80) {
+        if (speed >= 20 && speed <= 100) { // 20-100: 最优速度范围
             speedScore = 1.0;
-        } else if (speed < 20) {
-            speedScore = speed / 20.0;
-        } else if (speed <= 120) {
-            speedScore = 1.0 - (speed - 80) / 80.0;
+        } else if (speed < 10) {
+            speedScore = 0.3 + (speed / 10.0) * 0.7; // 0-10: 0.3→1.0 线性增长（最低0.3）
+        } else if (speed >= 10 && speed < 20) {
+            speedScore = 0.5 + (speed - 10) / 20.0; // 10-20: 0.5→1.0 过渡
+        } else if (speed > 100 && speed <= 140) {
+            speedScore = 1.0 - (speed - 100) / 40.0 * 0.7; // 100-140: 1.0→0.3 线性下降（最低0.3）
         } else {
-            speedScore = Math.exp(-(speed - 120) / 40.0);
+            // 140 km/h 以上：直接判定为异常，最低0.3
+            speedScore = 0.3;
         }
         
         return Math.max(0.0, Math.min(1.0, speedScore));
     }
     
     /**
-     * 评估方向一致性
+     * 评估方向一致性（更宽松的标准）
      */
     private double evaluateDirectionConsistency(double prevHeading, double candHeading) {
         double headingDiff = Math.abs(candHeading - prevHeading);
@@ -824,13 +947,13 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
             headingDiff = 360 - headingDiff;
         }
         
-        // 方向差越小，分数越高
-        if (headingDiff <= 30) {
+        // 方向差越小，分数越高（放宽角度容忍度）
+        if (headingDiff <= 45) { // 提高到45度
             return 1.0;
-        } else if (headingDiff <= 90) {
-            return 1.0 - (headingDiff - 30) / 60.0;
+        } else if (headingDiff <= 120) { // 扩大到120度
+            return 1.0 - (headingDiff - 45) / 90.0;
         } else {
-            return Math.exp(-(headingDiff - 90) / 60.0);
+            return Math.exp(-(headingDiff - 120) / 80.0); // 衰减更慢
         }
     }
     
@@ -864,7 +987,7 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
                                                   double curLon, double curLat) {
         try {
             double distance = calculateDistance(prevLon, prevLat, curLon, curLat);
-            if (distance < 10 || distance > 500) {
+            if (distance < 5 || distance > 1000) { // 放宽距离限制（5m~1km）
                 return null; // 距离太近或太远，不适合方向投影
             }
             
@@ -996,8 +1119,8 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
             // 计算投影距离（偏离道路的距离）
             double projectionDistance = calculateDistance(curLon, curLat, projectedLon, projectedLat);
             
-            // 如果投影距离合理（不超过100米），使用投影点
-            if (projectionDistance < 100.0) {
+            // 如果投影距离合理（放宽到200米），使用投影点
+            if (projectionDistance < 200.0) {
                 // 计算投影点处的道路方向
                 double roadHeading = calculateRoadHeadingAtPoint(projectedLon, projectedLat, coordinates);
                 
@@ -1173,33 +1296,19 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
     }
 
     /**
-     * 计算道路切换概率（基于Valhalla Meili和GraphHopper标准）
+     * 计算道路切换概率（只检查距离，速度已由HMM负责）
      */
-    private double calculateRoadTransitionProbability(double speed, double distance, long timeDiff) {
-        // 基于速度的道路切换概率（参考GraphHopper标准）
-        double speedProb = 1.0;
-        if (speed > 130) { // 130 km/h是城市道路异常速度阈值（业界标准）
-            speedProb = Math.exp(-(speed - 130) / 40.0); // 速度越高，概率越低
-        } else if (speed < 5) {
-            speedProb = 0.85; // 低速时保持较高概率（略微提高）
-        }
-        
-        // 基于距离的合理性检查（参考Valhalla max_route_distance=2500m）
+    private double calculateRoadTransitionProbability(double distance, long timeDiff) {
+        // 基于距离的合理性检查（距离阈值调小）
         double distanceProb = 1.0;
-        if (distance > 2500) { // 超过2.5公里认为异常
-            distanceProb = Math.exp(-(distance - 2500) / 1500.0);
+        if (distance > 2000) { // 降到2公里认为异常
+            distanceProb = Math.exp(-(distance - 2000) / 1000.0); // 衰减尺度1000米
+        } else if (distance > 1000) { // 1-2公里之间，开始衰减
+            distanceProb = 0.8 + 0.2 * (2000 - distance) / 1000.0; // 0.8到1.0线性增长
         }
         
-        // 基于时间间隔的合理性（提高到10分钟，更宽松）
-        double timeProb = 1.0;
-        if (timeDiff > 600000) { // 超过10分钟
-            timeProb = Math.exp(-(timeDiff - 600000) / 600000.0);
-        } else if (timeDiff < 1000) { // 少于1秒
-            timeProb = 0.75; // 时间间隔太短，可能有问题（略微提高）
-        }
-        
-        // 综合概率
-        return speedProb * distanceProb * timeProb;
+        // 不再检查时间，只检查距离
+        return distanceProb;
     }
     
     
