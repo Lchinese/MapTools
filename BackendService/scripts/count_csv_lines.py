@@ -23,7 +23,7 @@ def count_csv_lines(filename):
     return line_count
 
 if __name__ == "__main__":
-    filename = "corrected_trajectories.csv"
+    filename = "../../corrected_trajectories.csv"
     try:
         lines = count_csv_lines(filename)
         print(f"CSV文件 {filename} 总共有 {lines} 行")

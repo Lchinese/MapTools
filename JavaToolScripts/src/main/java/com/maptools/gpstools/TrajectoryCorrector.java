@@ -372,7 +372,6 @@ public class TrajectoryCorrector {
         
         return filteredPoints;
     }
-    
 /**
  * 轨迹统计信息（用于单次处理的统计）
  */
@@ -481,8 +480,8 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
             double[] roadTransitionProbabilities = calculateRoadTransitionProbabilities(points, metrics);
             
             // 维度3：几何一致性检测（方向、曲率）
-            // 改进：使用考虑置信度的相邻一致性计算
-            double[] adjacencyConsistency = calculateAdjacencyConsistencyWithConfidence(points, metrics, probabilities);
+            // 简化：直接使用相邻一致性评分，不依赖高置信度点
+            double[] adjacencyConsistency = calculateAdjacencyConsistency(points, metrics);
             
             // 综合判定：三维评分加权和（更合理的评分方式）
             List<Map<String, Object>> filteredPoints = new ArrayList<>();
@@ -498,7 +497,7 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
                 // 夹紧到[0,1]
                 if (combinedScore < 0.0) combinedScore = 0.0;
                 if (combinedScore > 1.0) combinedScore = 1.0;
-
+                
                 // 三档决策：接收/重匹配/丢弃（基于GraphHopper标准）
                 if (combinedScore > ACCEPT_THRESHOLD) { // 直接接收
                     filteredPoints.add(points.get(i));
@@ -560,7 +559,7 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
     /**
      * 计算相邻一致性（IVMM风格，使用预计算指标）
      * 
-     * 注意：此方法保留为了向后兼容，新逻辑使用calculateAdjacencyConsistencyWithConfidence
+     * 注意：此方法不依赖置信度，用于生成初始的一致性评分
      */
     private double[] calculateAdjacencyConsistency(List<Map<String, Object>> points, TrajectoryMetrics metrics) {
         int n = points.size();
@@ -572,7 +571,7 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
         for (int i = 1; i < n; i++) {
             // 使用预计算的方向变化
             double headingDiff = metrics.headingDiffs[i];
-            double headingScore = headingDiff <= 180 ? Math.exp(-headingDiff / 60.0) : 0.2;
+            double headingScore = headingDiff <= 180 ? Math.max(0.3, Math.exp(-headingDiff / 60.0)) : 0.3;
             
             // 曲率（需要前后点）
             double curvatureScore = 1.0;
@@ -581,7 +580,8 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
                 double diff1 = metrics.headingDiffs[i - 1];
                 double diff2 = metrics.headingDiffs[i];
                 double curvatureChange = Math.abs(diff2 - diff1);
-                curvatureScore = Math.exp(-curvatureChange / 60.0);
+                // 调整曲率计算方式，保持在0.6到1.0之间
+                curvatureScore = 0.6 + 0.4 * Math.exp(-curvatureChange / 60.0);
             }
             
             // 直线跨越惩罚：使用预计算的距离和速度
@@ -597,8 +597,8 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
                 }
             }
             
-            double combined = headingScore * curvatureScore * straightPenalty;
-            // 保底，避免完全归零
+            // 使用加权而不是相乘
+            double combined = 0.5 * headingScore + 0.3 * curvatureScore + 0.2 * straightPenalty;
             result[i] = Math.max(0.2, Math.min(1.0, combined));
         }
         return result;
@@ -617,7 +617,7 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
      */
     private double[] calculateAdjacencyConsistencyWithConfidence(List<Map<String, Object>> points, 
                                                              TrajectoryMetrics metrics,
-                                                             double[] pointConfidences) {
+                                                             double[] adjacencyConfidences) {
         int n = points.size();
         double[] result = new double[n];
         if (n == 0) return result;
@@ -625,12 +625,13 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
         if (n == 1) return result;
         
         for (int i = 1; i < n; i++) {
-            // 查找最近的高置信度点作为参考点
-            int referenceIndex = findReferencePoint(i, pointConfidences);
+            // 查找最近的高置信度点作为参考点（使用相邻一致性评分作为置信度基准）
+            int referenceIndex = findReferencePoint(i, adjacencyConfidences);
             
             // 使用与参考点的比较代替与直接前点的比较
             double headingDiff = calculateHeadingDifference(points, metrics, referenceIndex, i);
-            double headingScore = headingDiff <= 180 ? Math.exp(-headingDiff / 60.0) : 0.2;
+            // 修改方向评分函数，使180度时评分为0.3而不是接近0
+            double headingScore = headingDiff <= 180 ? (0.3 + 0.7 * Math.exp(-headingDiff / 60.0)) : 0.3;
             
             // 曲率（需要前后点）
             double curvatureScore = 1.0;
@@ -639,7 +640,8 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
                 double refHeadingDiff = calculateHeadingDifference(points, metrics, referenceIndex-1, referenceIndex);
                 double currentHeadingDiff = headingDiff;
                 double curvatureChange = Math.abs(currentHeadingDiff - refHeadingDiff);
-                curvatureScore = Math.exp(-curvatureChange / 60.0);
+                // 调整曲率计算方式，保持在0.6到1.0之间
+                curvatureScore = 0.6 + 0.4 * Math.exp(-curvatureChange / 60.0);
             }
             
             // 直线跨越惩罚：使用预计算的距离和速度
@@ -658,11 +660,25 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
             // 考虑参考点的距离衰减因子
             double distanceDecay = calculateDistanceDecayFactor(i, referenceIndex, metrics);
             
-            double combined = headingScore * curvatureScore * straightPenalty * distanceDecay;
-            // 保底，避免完全归零
+            // 使用加权而不是相乘
+            double combined = 0.4 * headingScore + 0.3 * curvatureScore + 0.2 * straightPenalty + 0.1 * distanceDecay;
             result[i] = Math.max(0.2, Math.min(1.0, combined));
         }
         return result;
+    }
+    
+    /**
+     * 计算相邻一致性（使用自身历史评分作为置信度基准的版本）
+     * 
+     * 该方法首先计算初始的一致性评分，然后使用这些评分作为置信度基准来重新计算
+     */
+    private double[] calculateAdjacencyConsistencyWithSelfConfidence(List<Map<String, Object>> points, 
+                                                             TrajectoryMetrics metrics) {
+        // 首先计算初始的一致性评分
+        double[] initialConsistency = calculateAdjacencyConsistency(points, metrics);
+        
+        // 然后使用这些评分作为置信度基准来重新计算
+        return calculateAdjacencyConsistencyWithConfidence(points, metrics, initialConsistency);
     }
 
     /**
@@ -953,7 +969,8 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
         } else if (headingDiff <= 120) { // 扩大到120度
             return 1.0 - (headingDiff - 45) / 90.0;
         } else {
-            return Math.exp(-(headingDiff - 120) / 80.0); // 衰减更慢
+            // 修改衰减函数，使180度时评分约为0.6
+            return 0.6 + 0.4 * Math.exp(-(headingDiff - 120) / 80.0);
         }
     }
     
