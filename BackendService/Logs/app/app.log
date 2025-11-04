@@ -274,3 +274,36 @@ ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有�
 {"timestamp": "2025-11-01 12:04:43", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
 {"timestamp": "2025-11-01 12:04:43", "logger": "main", "level": "INFO", "file": "main.py", "line": 51, "message": "数据库表创建完成"}
 {"timestamp": "2025-11-01 12:04:43", "logger": "main", "level": "INFO", "file": "main.py", "line": 53, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-11-03 20:03:06", "logger": "main", "level": "INFO", "file": "main.py", "line": 42, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-11-03 20:03:07", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-11-03 20:03:07", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-11-03 20:03:07", "logger": "main", "level": "INFO", "file": "main.py", "line": 51, "message": "数据库表创建完成"}
+{"timestamp": "2025-11-03 20:03:07", "logger": "main", "level": "INFO", "file": "main.py", "line": 53, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-11-04 17:48:24", "logger": "main", "level": "INFO", "file": "main.py", "line": 42, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-11-04 17:48:25", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-11-04 17:48:25", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-11-04 17:48:25", "logger": "main", "level": "INFO", "file": "main.py", "line": 51, "message": "数据库表创建完成"}
+{"timestamp": "2025-11-04 17:48:25", "logger": "main", "level": "INFO", "file": "main.py", "line": 53, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-11-04 21:42:12", "logger": "main", "level": "INFO", "file": "main.py", "line": 42, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-11-04 21:42:12", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-11-04 21:42:12", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-11-04 21:42:12", "logger": "main", "level": "INFO", "file": "main.py", "line": 51, "message": "数据库表创建完成"}
+{"timestamp": "2025-11-04 21:42:12", "logger": "main", "level": "INFO", "file": "main.py", "line": 53, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-11-04 22:01:58", "logger": "asyncio", "level": "ERROR", "file": "base_events.py", "line": 1833, "message": "Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost(None)>"}
+Traceback (most recent call last):
+  File "C:\Users\86187\AppData\Roaming\uv\python\cpython-3.12.11-windows-x86_64-none\Lib\asyncio\events.py", line 88, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Users\86187\AppData\Roaming\uv\python\cpython-3.12.11-windows-x86_64-none\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+    self._sock.shutdown(socket.SHUT_RDWR)
+ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有的连接。
+{"timestamp": "2025-11-04 22:09:39", "logger": "main", "level": "INFO", "file": "main.py", "line": 42, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-11-04 22:09:39", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-11-04 22:09:40", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-11-04 22:09:40", "logger": "main", "level": "INFO", "file": "main.py", "line": 51, "message": "数据库表创建完成"}
+{"timestamp": "2025-11-04 22:09:40", "logger": "main", "level": "INFO", "file": "main.py", "line": 53, "message": "MapTools 后端服务启动成功"}
+{"timestamp": "2025-11-04 22:53:09", "logger": "main", "level": "INFO", "file": "main.py", "line": 42, "message": "MapTools 后端服务启动中..."}
+{"timestamp": "2025-11-04 22:53:09", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 103, "message": "Database connection successful"}
+{"timestamp": "2025-11-04 22:53:09", "logger": "CoreConfig.database", "level": "INFO", "file": "database.py", "line": 76, "message": "All tables already exist, no new tables created"}
+{"timestamp": "2025-11-04 22:53:09", "logger": "main", "level": "INFO", "file": "main.py", "line": 51, "message": "数据库表创建完成"}
+{"timestamp": "2025-11-04 22:53:09", "logger": "main", "level": "INFO", "file": "main.py", "line": 53, "message": "MapTools 后端服务启动成功"}

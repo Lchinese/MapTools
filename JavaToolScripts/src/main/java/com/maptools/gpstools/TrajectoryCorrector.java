@@ -1316,14 +1316,13 @@ private TrajectoryMetrics precomputeTrajectoryMetrics(List<Map<String, Object>> 
      * 计算道路切换概率（只检查距离，速度已由HMM负责）
      */
     private double calculateRoadTransitionProbability(double distance, long timeDiff) {
-        // 基于距离的合理性检查（距离阈值调小）
+        // 基于距离的合理性检查（调整衰减策略，使概率在1.0到0.5之间变化）
         double distanceProb = 1.0;
-        if (distance > 2000) { // 降到2公里认为异常
-            distanceProb = Math.exp(-(distance - 2000) / 1000.0); // 衰减尺度1000米
-        } else if (distance > 1000) { // 1-2公里之间，开始衰减
-            distanceProb = 0.8 + 0.2 * (2000 - distance) / 1000.0; // 0.8到1.0线性增长
+        if (distance > 2000) { // 超过2公里开始指数衰减
+            distanceProb = 0.5 + 0.5 * Math.exp(-(distance - 2000) / 2000.0); // 衰减尺度2000米，最低0.5
+        } else if (distance > 1000) { // 1-2公里之间，线性衰减
+            distanceProb = 0.5 + 0.5 * (2000 - distance) / 1000.0; // 1.0到0.5线性下降
         }
-        
         // 不再检查时间，只检查距离
         return distanceProb;
     }

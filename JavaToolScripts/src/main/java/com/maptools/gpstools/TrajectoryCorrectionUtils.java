@@ -310,7 +310,29 @@ public class TrajectoryCorrectionUtils {
         doc.append("longitude", point.get("longitude"));
         doc.append("latitude", point.get("latitude"));
         doc.append("plate_number", point.get("plate_number"));
-        doc.append("datetime", point.get("datetime"));
+        
+        // 修复时间格式，使其与原始轨迹保持一致
+        Object datetimeObj = point.get("datetime");
+        if (datetimeObj instanceof java.util.Date) {
+            // 如果是Date对象，转换为标准字符串格式
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+            doc.append("datetime", sdf.format((java.util.Date) datetimeObj));
+        } else if (datetimeObj != null) {
+            // 如果是字符串，尝试解析后再格式化，确保格式一致
+            Date parsedDate = parseDateTime(datetimeObj);
+            if (parsedDate != null) {
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                doc.append("datetime", sdf.format(parsedDate));
+            } else {
+                // 如果解析失败，使用原始值
+                doc.append("datetime", datetimeObj.toString());
+            }
+        } else {
+            doc.append("datetime", "");
+        }
+        
         doc.append("speed", point.get("speed"));
         doc.append("heading", point.get("heading"));
         doc.append("is_valid", point.get("is_valid"));

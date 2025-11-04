@@ -594,7 +594,7 @@ async def get_single_vehicle_corrected_trajectory(
         if not trajectory_data:
             raise HTTPException(status_code=404, detail=f"未找到车牌号为 {plate_number} 的修正轨迹数据")
         
-        # 过滤时间范围内的轨迹点
+        # 过滤时间范围内的轨迹点（与原始轨迹使用相同的时间解析逻辑）
         from datetime import datetime
         start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
         end_dt = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
@@ -602,24 +602,11 @@ async def get_single_vehicle_corrected_trajectory(
         filtered_points = []
         for point in trajectory_data:
             try:
-                # 尝试不同的时间格式解析
+                # 尝试不同的时间格式解析（与原始轨迹保持一致）
                 point_datetime = point['datetime']
                 if isinstance(point_datetime, str):
                     # 如果是字符串，尝试解析
-                    if 'CST' in point_datetime or 'GMT' in point_datetime:
-                        # 处理英文格式: Fri Sep 02 07:36:57 CST 2016 (Java Date.toString()格式)
-                        import re
-                        # 直接使用正则表达式手动解析
-                        match = re.match(r'(\w{3})\s+(\w{3})\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\s+\w{3}\s+(\d{4})', point_datetime)
-                        if match:
-                            day_name, month_name, day, hour, minute, second, year = match.groups()
-                            month_map = {'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
-                                       'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12}
-                            point_dt = datetime(int(year), month_map[month_name], int(day), 
-                                              int(hour), int(minute), int(second))
-                        else:
-                            raise ValueError(f"无法解析时间格式: {point_datetime}")
-                    elif 'T' in point_datetime:
+                    if 'T' in point_datetime:
                         point_dt = datetime.fromisoformat(point_datetime.replace('Z', '+00:00'))
                     else:
                         # 尝试标准格式
