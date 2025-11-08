@@ -1,4 +1,4 @@
-package com.maptools.gpstools;
+package com.maptools.gpstools.util;
 
 import org.bson.Document;
 import com.mongodb.client.MongoClient;
@@ -9,6 +9,8 @@ import com.mongodb.client.FindIterable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.Date;
+
+import com.maptools.gpstools.model.GPSDataPoint;
 
 /**
  * 轨迹修正工具类
@@ -326,8 +328,27 @@ public class TrajectoryCorrectionUtils {
                 sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
                 doc.append("datetime", sdf.format(parsedDate));
             } else {
-                // 如果解析失败，使用原始值
-                doc.append("datetime", datetimeObj.toString());
+                // 如果解析失败，使用原始值，但确保格式正确
+                String datetimeStr = datetimeObj.toString();
+                // 检查是否是Date.toString()格式 (EEE MMM dd HH:mm:ss zzz yyyy)
+                // 更宽松的正则表达式匹配日期格式
+                if (datetimeStr.matches("[A-Z][a-z]{2} [A-Z][a-z]{2} \\\\d{1,2} \\\\d{2}:\\\\d{2}:\\\\d{2} [A-Z]{3,4} \\\\d{4}")) {
+                    try {
+                        // 解析Date.toString()格式
+                        java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat("EEE MMM dd HH:mm:ss zzz yyyy", java.util.Locale.ENGLISH);
+                        Date date = inputFormat.parse(datetimeStr);
+                        // 转换为标准格式
+                        java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                        outputFormat.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                        doc.append("datetime", outputFormat.format(date));
+                    } catch (Exception e) {
+                        // 如果解析失败，使用原始值
+                        doc.append("datetime", datetimeStr);
+                    }
+                } else {
+                    // 不是Date.toString()格式，直接使用
+                    doc.append("datetime", datetimeStr);
+                }
             }
         } else {
             doc.append("datetime", "");

@@ -1,4 +1,4 @@
-package com.maptools.gpstools;
+package com.maptools.gpstools.algorithm;
 
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientURI;
@@ -34,6 +34,9 @@ public class JavaRoadMatcher {
     // 使用SoftReference缓存，允许JVM在内存不足时回收
     private Map<String, SoftReference<Map<String, Object>>> cache;
     private final Object cacheLock = new Object();
+    
+    // 限制缓存大小以避免内存溢出
+    private static final int MAX_CACHE_SIZE = 50000;
     
     // 空间网格索引系统 - 极致性能优化
     private static final double GRID_SIZE = 0.001; // 约100米网格
@@ -209,10 +212,13 @@ public class JavaRoadMatcher {
     
     /**
      * 找到最近的道路点 - 极致性能优化版本
+     * 增加方向一致性检查，优先匹配同一侧道路
+     * 考虑前后点尽可能在同一条路同侧
      */
-    public Map<String, Object> findClosestRoad(double longitude, double latitude) {
+    public Map<String, Object> findClosestRoad(double longitude, double latitude, double gpsHeading, 
+                                              List<Map<String, Object>> trajectoryContext, int pointIndex) {
         // 创建缓存键（降低精度减少缓存键数量）
-        String cacheKey = String.format("%.4f,%.4f", longitude, latitude);
+        String cacheKey = String.format("%.4f,%.4f,%.1f,%d", longitude, latitude, gpsHeading, pointIndex);
         
         // 无锁缓存检查
         SoftReference<Map<String, Object>> ref = cache.get(cacheKey);
@@ -221,6 +227,11 @@ public class JavaRoadMatcher {
             if (cached != null) {
                 return cached;
             }
+        }
+        
+        // 控制缓存大小，避免内存溢出
+        if (cache.size() > MAX_CACHE_SIZE) {
+            cache.clear();
         }
         
         if (roads.isEmpty()) {
@@ -238,49 +249,105 @@ public class JavaRoadMatcher {
             return result;
         }
         
-        // 使用快速距离筛选，避免创建复杂几何对象
-        double minDistance = Double.MAX_VALUE;
-        Map<String, Object> closestRoad = null;
-        Coordinate closestPoint = null;
-        
-        for (Map<String, Object> road : nearbyRoads) {
-            LineString geometry = (LineString) road.get("geometry");
-            if (geometry != null) {
-                // 使用超快速距离计算（空间索引已经预筛选）
-                Coordinate[] coords = geometry.getCoordinates();
-                double distance = ultraFastDistanceToLineString(longitude, latitude, coords);
-                
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    closestRoad = road;
-                    // 延迟计算精确投影点
-                    closestPoint = null;
-                }
-            }
-        }
-        
-        Map<String, Object> result;
-        if (closestRoad != null) {
-            // 只有找到最近道路后才计算精确投影点
-            if (closestPoint == null) {
-                LineString geometry = (LineString) closestRoad.get("geometry");
-                closestPoint = findClosestPointOnLineString(longitude, latitude, geometry.getCoordinates());
-            }
-            
-            result = new HashMap<>();
-            result.put("matched_longitude", Double.valueOf(closestPoint.x));
-            result.put("matched_latitude", Double.valueOf(closestPoint.y));
-            result.put("road_id", closestRoad.get("id"));
-            result.put("road_name", closestRoad.get("name"));
-            result.put("road_type", closestRoad.get("type"));
-            result.put("distance_to_road", Double.valueOf(Math.sqrt(minDistance) * 111000)); // 开方后转换为米
-        } else {
-            result = createDefaultMatch(longitude, latitude);
-        }
+        // 使用上下文信息进行智能匹配，而非直接最短距离匹配
+        Map<String, Object> result = performContextAwareMatching(
+            longitude, latitude, gpsHeading, trajectoryContext, pointIndex, nearbyRoads);
         
         // 无锁缓存存储
         cache.put(cacheKey, new SoftReference<>(result));
         return result;
+    }
+    
+    /**
+     * 获取上下文中的道路ID
+     */
+    private String getContextRoadId(List<Map<String, Object>> trajectoryContext, int pointIndex) {
+        if (trajectoryContext == null || trajectoryContext.isEmpty()) {
+            return null;
+        }
+        
+        // 优先考虑更近的点，优先级从高到低：
+        // 1. 前一个点（最高优先级）
+        // 2. 后一个点
+        // 3. 前面的点（按距离递减）
+        // 4. 后面的点（按距离递减）
+        
+        // 查找前一个点
+        if (pointIndex > 0) {
+            Map<String, Object> prevPoint = trajectoryContext.get(pointIndex - 1);
+            if (prevPoint.containsKey("road_id") && !"unknown".equals(prevPoint.get("road_id"))) {
+                return (String) prevPoint.get("road_id");
+            }
+        }
+        
+        // 查找后一个点
+        if (pointIndex < trajectoryContext.size() - 1) {
+            Map<String, Object> nextPoint = trajectoryContext.get(pointIndex + 1);
+            if (nextPoint.containsKey("road_id") && !"unknown".equals(nextPoint.get("road_id"))) {
+                return (String) nextPoint.get("road_id");
+            }
+        }
+        
+        // 查找前后几个点中的道路ID
+        int contextWindow = 3; // 前后各3个点的窗口
+        
+        // 查找前面的点（按距离递增）
+        for (int i = pointIndex - 2; i >= Math.max(0, pointIndex - contextWindow); i--) {
+            Map<String, Object> point = trajectoryContext.get(i);
+            if (point.containsKey("road_id") && !"unknown".equals(point.get("road_id"))) {
+                return (String) point.get("road_id");
+            }
+        }
+        
+        // 查找后面的点（按距离递增）
+        for (int i = pointIndex + 2; i <= Math.min(pointIndex + contextWindow, trajectoryContext.size() - 1); i++) {
+            Map<String, Object> point = trajectoryContext.get(i);
+            if (point.containsKey("road_id") && !"unknown".equals(point.get("road_id"))) {
+                return (String) point.get("road_id");
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 找到最近的道路点 - 重载方法，保持向后兼容
+     */
+    public Map<String, Object> findClosestRoad(double longitude, double latitude, double gpsHeading) {
+        return findClosestRoad(longitude, latitude, gpsHeading, null, -1);
+    }
+    
+    /**
+     * 找到最近的道路点 - 重载方法，保持向后兼容
+     */
+    public Map<String, Object> findClosestRoad(double longitude, double latitude) {
+        return findClosestRoad(longitude, latitude, -1, null, -1); // -1表示没有方向信息
+    }
+    
+    /**
+     * 计算道路方向（基于道路坐标的首尾点）
+     */
+    private double calculateRoadDirection(Coordinate[] coords) {
+        if (coords.length < 2) {
+            return 0.0;
+        }
+        
+        // 使用首尾两个点计算方向
+        Coordinate first = coords[0];
+        Coordinate last = coords[coords.length - 1];
+        
+        double dx = last.x - first.x;
+        double dy = last.y - first.y;
+        
+        // 计算角度（转换为度）
+        double angle = Math.toDegrees(Math.atan2(dy, dx));
+        
+        // 转换为0-360度范围
+        if (angle < 0) {
+            angle += 360;
+        }
+        
+        return angle;
     }
     
     /**
@@ -306,12 +373,29 @@ public class JavaRoadMatcher {
      * 超快速距离计算 - 极致性能优化
      */
     private double ultraFastDistanceToLineString(double longitude, double latitude, Coordinate[] coords) {
+        return ultraFastDistanceToLineString(longitude, latitude, coords, 1);
+    }
+    
+    /**
+     * 超快速距离计算 - 极致性能优化（支持采样步长）
+     */
+    private double ultraFastDistanceToLineString(double longitude, double latitude, Coordinate[] coords, int step) {
         double minDistance = Double.MAX_VALUE;
         
         // 采样策略：对于长道路只检查关键点
-        int step = Math.max(1, coords.length / 10); // 最多检查10个线段
+        step = Math.max(1, step); // 确保步长至少为1
+        
+        // 添加超时检查
+        long startTime = System.currentTimeMillis();
+        final long TIMEOUT_THRESHOLD = 500; // 500毫秒超时
         
         for (int i = 0; i < coords.length - 1; i += step) {
+            // 检查是否超时
+            if (System.currentTimeMillis() - startTime > TIMEOUT_THRESHOLD) {
+                System.err.println("距离计算超时，返回当前最小距离");
+                return minDistance;
+            }
+            
             int nextIndex = Math.min(i + step, coords.length - 1);
             double distance = ultraFastDistanceToSegment(longitude, latitude, 
                 coords[i].x, coords[i].y, coords[nextIndex].x, coords[nextIndex].y);
@@ -410,11 +494,24 @@ public class JavaRoadMatcher {
             return coords[0];
         }
         
+        // 添加超时检查
+        long startTime = System.currentTimeMillis();
+        final long TIMEOUT_THRESHOLD = 1000; // 1秒超时
+        
         double minDistance = Double.MAX_VALUE;
         Coordinate closestPoint = coords[0];
         
+        // 限制处理的坐标点数量，避免在复杂道路上计算过多
+        int maxSegments = Math.min(100, coords.length - 1); // 最多处理100个线段
+        
         // 遍历所有线段
-        for (int i = 0; i < coords.length - 1; i++) {
+        for (int i = 0; i < maxSegments; i++) {
+            // 检查是否超时
+            if (System.currentTimeMillis() - startTime > TIMEOUT_THRESHOLD) {
+                System.err.println("计算最近点超时，返回默认点");
+                return closestPoint;
+            }
+            
             Coordinate p1 = coords[i];
             Coordinate p2 = coords[i + 1];
             
@@ -491,7 +588,8 @@ public class JavaRoadMatcher {
     private List<Map<String, Object>> matchGpsToRoadsSingleThread(List<Map<String, Object>> gpsPoints) {
         List<Map<String, Object>> matchedPoints = new ArrayList<>();
         
-        for (Map<String, Object> gpsPoint : gpsPoints) {
+        for (int i = 0; i < gpsPoints.size(); i++) {
+            Map<String, Object> gpsPoint = gpsPoints.get(i);
             // 安全获取经纬度，处理类型转换
             Object lonObj = gpsPoint.get("longitude");
             Object latObj = gpsPoint.get("latitude");
@@ -517,7 +615,37 @@ public class JavaRoadMatcher {
                 latitude = 0.0;
             }
             
-            Map<String, Object> matchResult = findClosestRoad(longitude, latitude);
+            // 检查是否与前一个点重复，如果重复则跳过
+            if (i > 0) {
+                Map<String, Object> prevPoint = gpsPoints.get(i - 1);
+                double prevLon = getDoubleValue(prevPoint, "longitude");
+                double prevLat = getDoubleValue(prevPoint, "latitude");
+                
+                // 如果经纬度完全相同（精度到约1米），则跳过当前点
+                if (Math.abs(longitude - prevLon) < 1e-5 && Math.abs(latitude - prevLat) < 1e-5) {
+                    continue;
+                }
+            }
+            
+            // 获取GPS方向信息
+            double gpsHeading = -1; // 默认无方向信息
+            Object headingObj = gpsPoint.get("heading");
+            if (headingObj instanceof Double) {
+                gpsHeading = (Double) headingObj;
+            } else if (headingObj instanceof Integer) {
+                gpsHeading = ((Integer) headingObj).doubleValue();
+            } else if (headingObj instanceof Number) {
+                gpsHeading = ((Number) headingObj).doubleValue();
+            }
+            
+            // 如果速度为0，则不参考方向信息
+            Object speedObj = gpsPoint.get("speed");
+            if (speedObj instanceof Number && ((Number) speedObj).doubleValue() == 0) {
+                gpsHeading = -1; // 速度为0时不参考方向
+            }
+            
+            // 考虑前后点的道路上下文进行匹配
+            Map<String, Object> matchResult = findClosestRoad(longitude, latitude, gpsHeading, gpsPoints, i);
             
             Map<String, Object> matchedPoint = new HashMap<>(gpsPoint);
             matchedPoint.put("matched_longitude", matchResult.get("matched_longitude"));
@@ -803,6 +931,248 @@ public class JavaRoadMatcher {
         // 清理道路数据以帮助GC
         if (roads != null) {
             roads.clear();
+        }
+    }
+    
+    /**
+     * 基于上下文的道路匹配方法
+     * 综合考虑上下文信息、方向一致性和距离因素
+     */
+    private Map<String, Object> performContextAwareMatching(double longitude, double latitude, 
+                                                           double gpsHeading,
+                                                           List<Map<String, Object>> trajectoryContext, 
+                                                           int pointIndex,
+                                                           List<Map<String, Object>> nearbyRoads) {
+        // 添加超时检查，避免在复杂计算中卡住
+        long startTime = System.currentTimeMillis();
+        final long TIMEOUT_THRESHOLD = 5000; // 5秒超时
+        
+        // 初始化评分Map
+        Map<Map<String, Object>, Double> roadScores = new HashMap<>();
+        
+        // 获取上下文中的道路ID
+        String contextRoadId = getContextRoadId(trajectoryContext, pointIndex);
+        
+        // 限制参与评分的道路数量，避免在复杂区域计算过多
+        int maxRoadsToConsider = Math.min(50, nearbyRoads.size());
+        final List<Map<String, Object>> roadsToConsider;
+        if (nearbyRoads.size() > maxRoadsToConsider) {
+            // 只考虑距离最近的前50条道路
+            roadsToConsider = new ArrayList<>();
+            Map<Map<String, Object>, Double> distanceMap = new HashMap<>();
+            
+            for (Map<String, Object> road : nearbyRoads) {
+                LineString geometry = (LineString) road.get("geometry");
+                Coordinate[] coords = geometry.getCoordinates();
+                double distance = ultraFastDistanceToLineString(longitude, latitude, coords);
+                distanceMap.put(road, distance);
+            }
+            
+            // 按距离排序并取前50个
+            distanceMap.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue())
+                .limit(maxRoadsToConsider)
+                .map(Map.Entry::getKey)
+                .forEach(roadsToConsider::add);
+        } else {
+            roadsToConsider = nearbyRoads;
+        }
+        
+        // 为每条附近道路计算综合评分
+        int roadIndex = 0;
+        for (Map<String, Object> road : roadsToConsider) {
+            // 检查是否超时
+            if (System.currentTimeMillis() - startTime > TIMEOUT_THRESHOLD) {
+                System.err.println("道路匹配超时，使用默认匹配: lon=" + longitude + ", lat=" + latitude);
+                return createDefaultMatch(longitude, latitude);
+            }
+            
+            // 基础距离评分（距离越近得分越高）
+            LineString geometry = (LineString) road.get("geometry");
+            Coordinate[] coords = geometry.getCoordinates();
+            double distance = ultraFastDistanceToLineString(longitude, latitude, coords);
+            
+            // 如果距离太远，跳过这条道路
+            if (distance > 0.01) { // 约1公里的平方
+                continue;
+            }
+            
+            double distanceScore = 1.0 / (1.0 + Math.sqrt(distance) * 1000); // 距离评分，归一化到0-1之间
+            
+            // 上下文评分（如果与上下文道路相同则加分）
+            double contextScore = 0.0;
+            if (contextRoadId != null && contextRoadId.equals(road.get("id"))) {
+                contextScore = 1.0; // 与上下文道路相同，给予最高分
+            }
+            
+            // 方向一致性评分
+            double directionScore = 0.0;
+            if (gpsHeading >= 0) {
+                double roadDirection = calculateRoadDirection(coords);
+                double directionDiff = Math.abs(gpsHeading - roadDirection);
+                if (directionDiff > 180) {
+                    directionDiff = 360 - directionDiff;
+                }
+                directionScore = 1.0 - (directionDiff / 180.0); // 方向差异越小得分越高
+            }
+            
+            // 综合评分（可以根据需要调整权重）
+            double contextWeight = 0.5;   // 上下文权重
+            double directionWeight = 0.3; // 方向权重
+            double distanceWeight = 0.2;  // 距离权重
+            
+            // 如果没有上下文信息，调整权重
+            if (contextRoadId == null) {
+                contextWeight = 0.0;
+                directionWeight = 0.4;
+                distanceWeight = 0.6;
+            }
+            
+            // 如果没有方向信息，调整权重
+            if (gpsHeading < 0) {
+                contextWeight = 0.6;
+                directionWeight = 0.0;
+                distanceWeight = 0.4;
+            }
+            
+            double totalScore = contextWeight * contextScore + 
+                               directionWeight * directionScore + 
+                               distanceWeight * distanceScore;
+            
+            roadScores.put(road, totalScore);
+            
+            // 限制评分道路数量，避免内存占用过多
+            roadIndex++;
+            if (roadIndex > 100) {
+                break;
+            }
+        }
+        
+        // 找到评分最高的道路
+        Map<String, Object> bestRoad = null;
+        double maxScore = -1.0;
+        
+        for (Map.Entry<Map<String, Object>, Double> entry : roadScores.entrySet()) {
+            if (entry.getValue() > maxScore) {
+                maxScore = entry.getValue();
+                bestRoad = entry.getKey();
+            }
+        }
+        
+        // 在最佳道路上进行精细匹配
+        if (bestRoad != null) {
+            return performPreciseMatchingOnRoad(longitude, latitude, gpsHeading, bestRoad);
+        } else {
+            return createDefaultMatch(longitude, latitude);
+        }
+    }
+    
+    /**
+     * 在指定道路上进行精细匹配
+     */
+    private Map<String, Object> performPreciseMatchingOnRoad(double longitude, double latitude, 
+                                                            double gpsHeading, Map<String, Object> road) {
+        LineString geometry = (LineString) road.get("geometry");
+        Coordinate[] coords = geometry.getCoordinates();
+        
+        // 找到最近点
+        Coordinate closestPoint = findClosestPointOnLineString(longitude, latitude, coords);
+        
+        // 计算距离
+        double dx = longitude - closestPoint.x;
+        double dy = latitude - closestPoint.y;
+        double distance = Math.sqrt(dx * dx + dy * dy) * 111000; // 转换为米
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("matched_longitude", Double.valueOf(closestPoint.x));
+        result.put("matched_latitude", Double.valueOf(closestPoint.y));
+        result.put("road_id", road.get("id"));
+        result.put("road_name", road.get("name"));
+        result.put("road_type", road.get("type"));
+        result.put("distance_to_road", Double.valueOf(distance));
+        return result;
+    }
+    
+    /**
+     * 查找方向一致的道路
+     */
+    private Map<String, Object> findDirectionConsistentRoad(double longitude, double latitude, 
+                                                           double gpsHeading, 
+                                                           List<Map<String, Object>> nearbyRoads) {
+        double minDirectionDiff = Double.MAX_VALUE;
+        Map<String, Object> bestRoad = null;
+        
+        for (Map<String, Object> road : nearbyRoads) {
+            LineString geometry = (LineString) road.get("geometry");
+            if (geometry != null) {
+                Coordinate[] coords = geometry.getCoordinates();
+                
+                // 计算道路方向
+                double roadDirection = calculateRoadDirection(coords);
+                
+                // 计算方向差异
+                double directionDiff = Math.abs(gpsHeading - roadDirection);
+                // 考虑方向循环特性（0度和360度是相同的）
+                if (directionDiff > 180) {
+                    directionDiff = 360 - directionDiff;
+                }
+                
+                if (directionDiff < minDirectionDiff) {
+                    minDirectionDiff = directionDiff;
+                    bestRoad = road;
+                }
+            }
+        }
+        
+        // 如果方向差异小于阈值（例如30度），则认为方向一致
+        if (minDirectionDiff < 30) {
+            return bestRoad;
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 最短距离匹配（作为最后的选择）
+     */
+    private Map<String, Object> performClosestMatching(double longitude, double latitude, 
+                                                      double gpsHeading,
+                                                      List<Map<String, Object>> nearbyRoads) {
+        double minDistance = Double.MAX_VALUE;
+        Map<String, Object> closestRoad = null;
+        Coordinate closestPoint = null;
+        
+        for (Map<String, Object> road : nearbyRoads) {
+            LineString geometry = (LineString) road.get("geometry");
+            if (geometry != null) {
+                Coordinate[] coords = geometry.getCoordinates();
+                double distance = ultraFastDistanceToLineString(longitude, latitude, coords);
+                
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestRoad = road;
+                    closestPoint = null; // 延迟计算精确投影点
+                }
+            }
+        }
+        
+        if (closestRoad != null) {
+            // 只有找到最近道路后才计算精确投影点
+            if (closestPoint == null) {
+                LineString geometry = (LineString) closestRoad.get("geometry");
+                closestPoint = findClosestPointOnLineString(longitude, latitude, geometry.getCoordinates());
+            }
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("matched_longitude", Double.valueOf(closestPoint.x));
+            result.put("matched_latitude", Double.valueOf(closestPoint.y));
+            result.put("road_id", closestRoad.get("id"));
+            result.put("road_name", closestRoad.get("name"));
+            result.put("road_type", closestRoad.get("type"));
+            result.put("distance_to_road", Double.valueOf(Math.sqrt(minDistance) * 111000)); // 开方后转换为米
+            return result;
+        } else {
+            return createDefaultMatch(longitude, latitude);
         }
     }
 }

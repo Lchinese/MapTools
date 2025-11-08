@@ -1,4 +1,4 @@
-package com.maptools.gpstools;
+package com.maptools.gpstools.util;
 
 import java.util.List;
 import java.util.ArrayList;
@@ -22,6 +22,8 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import org.bson.Document;
+
+import com.maptools.gpstools.model.GPSDataPoint;
 
 /**
  * 地理位置筛选器

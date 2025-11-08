@@ -22,10 +22,34 @@ JavaToolScripts/
 │           └── com/
 │               └── maptools/
 │                   └── gpstools/
-│                       ├── GPSDataPoint.java
-│                       ├── GPSDataParser.java
-│                       ├── MongoDataStore.java
-│                       └── GPSDataProcessor.java
+│                       ├── admin/
+│                       │   ├── InitializeAdministrativeAreas.java
+│                       │   └── UpdateAdministrativeAreas.java
+│                       ├── algorithm/
+│                       │   ├── AdjacencyConsistencyModel.java
+│                       │   ├── HmmModel.java
+│                       │   ├── JavaRoadMatcher.java
+│                       │   └── RoadTransitionModel.java
+│                       ├── model/
+│                       │   ├── GPSDataPoint.java
+│                       │   └── TrajectoryMetrics.java
+│                       ├── parser/
+│                       │   └── GPSDataParser.java
+│                       ├── processor/
+│                       │   ├── GPSDataProcessor.java
+│                       │   ├── JavaTrajectoryProcessor.java
+│                       │   └── TrajectoryCorrectionProcessor.java
+│                       ├── service/
+│                       │   ├── RoadMatcherService.java
+│                       │   └── TrajectoryService.java
+│                       ├── storage/
+│                       │   ├── MongoDataStore.java
+│                       │   └── MongoIndexManager.java
+│                       ├── util/
+│                       │   ├── ConfigManager.java
+│                       │   ├── GeoFilter.java
+│                       │   └── TrajectoryCorrectionUtils.java
+│                       └── GPSDataProcessor.java (主处理类)
 ├── pom.xml
 └── target/
     └── gps-data-processor-1.0-SNAPSHOT.jar
@@ -52,16 +76,30 @@ mvn clean package
 
 ## 运行工具
 
-### 使用 Maven 运行:
+### 使用 Maven 运行数据处理:
 ```bash
 cd JavaToolScripts
-mvn exec:java -Dexec.mainClass=com.maptools.gpstools.GPSDataProcessor -Dexec.args="../data/01"
+mvn exec:java -Dexec.mainClass=com.maptools.gpstools.processor.GPSDataProcessor -Dexec.args="../data/01"
+```
+
+### 使用 Maven 运行轨迹生成:
+```bash
+cd JavaToolScripts
+mvn exec:java -Dexec.mainClass=com.maptools.gpstools.processor.JavaTrajectoryProcessor
+```
+
+### 使用 Maven 运行轨迹修正:
+```bash
+cd JavaToolScripts
+mvn exec:java -Dexec.mainClass=com.maptools.gpstools.processor.TrajectoryCorrectionProcessor
 ```
 
 ### 使用 Java 运行 JAR 包:
 ```bash
 cd JavaToolScripts
-java -jar target/gps-data-processor-1.0-SNAPSHOT.jar ../data/01
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.processor.GPSDataProcessor ../data/01
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.processor.JavaTrajectoryProcessor
+java -cp target/gps-data-processor-1.0-SNAPSHOT.jar com.maptools.gpstools.processor.TrajectoryCorrectionProcessor
 ```
 
 ### 使用 Windows 批处理文件:
@@ -76,6 +114,27 @@ scripts\run-all.bat [数据目录]
 如果未指定数据目录，默认使用 `../data`。
 
 ## 数据处理说明
+
+### 多阶段处理流程
+
+Java工具现在包含三个主要处理阶段：
+
+1. **原始数据处理** (`GPSDataProcessor`)
+   - 读取原始GPS数据文件
+   - 解析并验证数据
+   - 存储到MongoDB的`gps_points_XX`集合
+
+2. **轨迹生成** (`JavaTrajectoryProcessor`)
+   - 从`gps_points_XX`集合读取数据
+   - 按车牌号聚合生成轨迹
+   - 进行道路匹配
+   - 存储到`original_trajectories_XX`集合
+
+3. **轨迹修正** (`TrajectoryCorrectionProcessor`)
+   - 从`original_trajectories_XX`集合读取轨迹
+   - 使用HMM模型、道路切换模型和相邻一致性模型进行异常点检测
+   - 过滤异常点并优化轨迹
+   - 存储到`corrected_trajectories_XX`集合
 
 ### 多线程处理
 工具使用多线程处理数据文件，默认线程池大小为10。每个文件由一个独立线程处理，大大提高了处理速度。
@@ -121,9 +180,21 @@ GPS 数据文件包含以下格式的记录：
 
 ## MongoDB 集合
 
-数据从每个子目录将存储在单独的集合中：
+数据处理涉及多个MongoDB集合：
+
+### 原始GPS点集合
 - `data/01/` 目录的数据 -> `gps_points_01` 集合
 - `data/02/` 目录的数据 -> `gps_points_02` 集合
 - `data/03/` 目录的数据 -> `gps_points_03` 集合
+
+### 原始轨迹集合
+- `gps_points_01` 数据 -> `original_trajectories_01` 集合
+- `gps_points_02` 数据 -> `original_trajectories_02` 集合
+- `gps_points_03` 数据 -> `original_trajectories_03` 集合
+
+### 修正轨迹集合
+- `original_trajectories_01` 数据 -> `corrected_trajectories_01` 集合
+- `original_trajectories_02` 数据 -> `corrected_trajectories_02` 集合
+- `original_trajectories_03` 数据 -> `corrected_trajectories_03` 集合
 
 目录中的所有文件数据都会存储在同一个集合中，以提高查询效率。

@@ -1,4 +1,7 @@
-package com.maptools.gpstools;
+package com.maptools.gpstools.parser;
+
+import com.maptools.gpstools.model.GPSDataPoint;
+import com.maptools.gpstools.util.GeoFilter;
 
 import java.io.BufferedReader;
 import java.io.FileReader;

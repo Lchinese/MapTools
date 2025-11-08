@@ -1,4 +1,4 @@
-package com.maptools.gpstools;
+package com.maptools.gpstools.storage;
 
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientURI;

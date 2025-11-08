@@ -1,4 +1,4 @@
-package com.maptools.gpstools;
+package com.maptools.gpstools.storage;
 
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientURI;
@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+
+import com.maptools.gpstools.model.GPSDataPoint;
+import com.maptools.gpstools.util.ConfigManager;
 
 public class MongoDataStore {
     private MongoClient mongoClient;

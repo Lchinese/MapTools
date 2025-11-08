@@ -1,4 +1,4 @@
-package com.maptools.gpstools;
+package com.maptools.gpstools.processor;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -9,6 +9,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import com.maptools.gpstools.parser.GPSDataParser;
+import com.maptools.gpstools.storage.MongoDataStore;
+import com.maptools.gpstools.util.ConfigManager;
+import com.maptools.gpstools.util.GeoFilter;
 
 public class GPSDataProcessor {
     // 减小线程池大小以减少内存占用
@@ -203,11 +207,11 @@ public class GPSDataProcessor {
             int validPointCount = 0;
             
             // 分批处理数据
-            java.util.List<GPSDataPoint> batchPoints = new java.util.ArrayList<>(BATCH_SIZE);
+            java.util.List<com.maptools.gpstools.model.GPSDataPoint> batchPoints = new java.util.ArrayList<>(BATCH_SIZE);
             
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
-                GPSDataPoint point = parser.parseLine(line, lineNumber, fileName);
+                com.maptools.gpstools.model.GPSDataPoint point = parser.parseLine(line, lineNumber, fileName);
                 if (point != null) {
                     totalPoints++;
                     batchPoints.add(point);
@@ -238,10 +242,10 @@ public class GPSDataProcessor {
     /**
      * 处理一批数据
      */
-    private int processBatch(java.util.List<GPSDataPoint> batchPoints, String collectionName, 
+    private int processBatch(java.util.List<com.maptools.gpstools.model.GPSDataPoint> batchPoints, String collectionName, 
                              String fileName, MongoDataStore dataStore) {
         // 如果需要地理筛选，进行筛选
-        java.util.List<GPSDataPoint> pointsToSave = batchPoints;
+        java.util.List<com.maptools.gpstools.model.GPSDataPoint> pointsToSave = batchPoints;
         if (geoFilterEnabled && filterAreaCode != null) {
             pointsToSave = GeoFilter.filterPointsByArea(batchPoints, filterAreaCode);
         }

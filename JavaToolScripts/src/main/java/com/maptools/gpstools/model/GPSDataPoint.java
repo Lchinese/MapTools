@@ -1,4 +1,4 @@
-package com.maptools.gpstools;
+package com.maptools.gpstools.model;
 
 import java.time.LocalDateTime;
 

@@ -1,4 +1,4 @@
-package com.maptools.gpstools;
+package com.maptools.gpstools.processor;
 
 import com.mongodb.MongoClient;
 import com.mongodb.MongoClientURI;
@@ -18,6 +18,10 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
 
+import com.maptools.gpstools.storage.MongoDataStore;
+import com.maptools.gpstools.algorithm.JavaRoadMatcher;
+import com.maptools.gpstools.model.GPSDataPoint;
+
 /**
  * Java轨迹处理器 - 完全重写，参照Python数据结构
  * 支持多线程处理，避免重复存储，修复类型转换问题
@@ -27,7 +31,7 @@ public class JavaTrajectoryProcessor {
     
     private static final String MONGO_CONNECTION_STRING = "mongodb://localhost:27017/?maxPoolSize=10&minPoolSize=2&maxIdleTimeMS=60000&connectTimeoutMS=60000&socketTimeoutMS=60000&serverSelectionTimeoutMS=60000";
     private static final String DATABASE_NAME = "MapTools";
-    private static final int THREAD_POOL_SIZE = 4;  // 减少线程数避免资源竞争
+    private static final int THREAD_POOL_SIZE = 8;  // 增加线程数提高处理速度
     private static final int BATCH_SIZE = 100;      // 减少批量大小
     
     private MongoClient mongoClient;
@@ -122,7 +126,14 @@ public class JavaTrajectoryProcessor {
         MongoCollection<Document> sourceCollection = database.getCollection(sourceCollectionName);
         MongoCollection<Document> targetCollection = database.getCollection(targetCollectionName);
         
-        // 跳过文档数量统计，避免超时
+        // 为源集合创建索引以提高查询性能
+        try {
+            sourceCollection.createIndex(new Document("plate_number", 1));
+            sourceCollection.createIndex(new Document("datetime", 1));
+        } catch (Exception e) {
+            System.err.println("创建源集合索引失败: " + e.getMessage());
+        }
+        
         System.out.println("源集合 " + sourceCollectionName + " 开始处理...");
         
         // 获取所有车牌号
@@ -178,8 +189,6 @@ public class JavaTrajectoryProcessor {
             
             processedCount = endIndex;
             
-            // 批次间强制垃圾回收
-            System.gc();
             System.out.println("批次处理完成，已处理 " + processedCount + "/" + totalPlates + " 个车牌");
         }
         
@@ -361,9 +370,8 @@ public class JavaTrajectoryProcessor {
         // 强制进行道路匹配
         if (roadMatcher != null) {
             try {
-                trajectoryPoints = performRoadMatching(trajectoryPoints);
+                trajectoryPoints = performRoadMatching(trajectoryPoints, plateNumber);
             } catch (Exception e) {
-                System.err.println("道路匹配失败 " + plateNumber + ": " + e.getMessage());
                 return;
             }
         }
@@ -400,39 +408,54 @@ public class JavaTrajectoryProcessor {
     }
     
     /**
-     * 执行道路匹配
+     * 执行道路匹配 - 只使用基础道路匹配，不使用HMM
      */
-    private List<Map<String, Object>> performRoadMatching(List<Map<String, Object>> trajectoryPoints) {
-        List<Map<String, Object>> matchedPoints = new ArrayList<>();
+    private List<Map<String, Object>> performRoadMatching(List<Map<String, Object>> trajectoryPoints, String plateNumber) {
+        // 首先进行去重处理
+        List<Map<String, Object>> deduplicatedPoints = removeDuplicatePoints(trajectoryPoints);
         
-        for (Map<String, Object> point : trajectoryPoints) {
-            // 安全获取经纬度，处理类型转换
-            Object lonObj = point.get("longitude");
-            Object latObj = point.get("latitude");
+        // 进行基础的道路匹配
+        List<Map<String, Object>> matchedPoints = new ArrayList<>();
+        for (int i = 0; i < deduplicatedPoints.size(); i++) {
+            Map<String, Object> point = deduplicatedPoints.get(i);
             
-            double longitude, latitude;
-            if (lonObj instanceof Double) {
-                longitude = (Double) lonObj;
-            } else if (lonObj instanceof Integer) {
-                longitude = ((Integer) lonObj).doubleValue();
-            } else if (lonObj instanceof Number) {
-                longitude = ((Number) lonObj).doubleValue();
-            } else {
-                longitude = 0.0;
+            // 安全获取经纬度，处理类型转换
+            double longitude = getDoubleValue(point, "longitude");
+            double latitude = getDoubleValue(point, "latitude");
+            
+            // 获取GPS方向信息
+            double gpsHeading = -1; // 默认无方向信息
+            Object headingObj = point.get("heading");
+            if (headingObj instanceof Number) {
+                gpsHeading = ((Number) headingObj).doubleValue();
             }
             
-            if (latObj instanceof Double) {
-                latitude = (Double) latObj;
-            } else if (latObj instanceof Integer) {
-                latitude = ((Integer) latObj).doubleValue();
-            } else if (latObj instanceof Number) {
-                latitude = ((Number) latObj).doubleValue();
-            } else {
-                latitude = 0.0;
+            // 如果速度为0，则不参考方向信息
+            Object speedObj = point.get("speed");
+            if (speedObj instanceof Number && ((Number) speedObj).doubleValue() == 0) {
+                gpsHeading = -1; // 速度为0时不参考方向
             }
             
             // 使用道路匹配器进行匹配
-            Map<String, Object> matchResult = roadMatcher.findClosestRoad(longitude, latitude);
+            // 为了提高性能，只传递附近的轨迹点作为上下文，而不是整个列表
+            List<Map<String, Object>> nearbyContext = null;
+            int contextIndex = i; // 在完整列表中的索引
+            
+            if (deduplicatedPoints.size() > 50) {  // 只有在轨迹点足够多时才限制上下文
+                int start = Math.max(0, i - 5);
+                int end = Math.min(deduplicatedPoints.size(), i + 6);
+                nearbyContext = deduplicatedPoints.subList(start, end);
+                contextIndex = i - start; // 计算在子列表中的相对索引
+            } else {
+                nearbyContext = deduplicatedPoints;
+            }
+            
+            // 添加进度输出，便于监控处理进度
+            if (i % 100 == 0) {
+                System.out.println("处理车牌 " + plateNumber + " 的道路匹配: " + i + "/" + deduplicatedPoints.size());
+            }
+            
+            Map<String, Object> matchResult = roadMatcher.findClosestRoad(longitude, latitude, gpsHeading, nearbyContext, contextIndex);
             
             Map<String, Object> matchedPoint = new HashMap<>(point);
             matchedPoint.put("longitude", matchResult.get("matched_longitude"));
@@ -444,16 +467,54 @@ public class JavaTrajectoryProcessor {
             matchedPoint.put("matched", true);
             
             matchedPoints.add(matchedPoint);
-            
-            // 控制内存使用，每处理100个点检查一次内存
-            if (matchedPoints.size() % 100 == 0) {
-                checkMemoryUsage();
-            }
         }
         
+        // 不再使用HMM进行轨迹修正，直接返回匹配结果
         return matchedPoints;
     }
     
+    /**
+     * 移除重复的相邻点
+     */
+    private List<Map<String, Object>> removeDuplicatePoints(List<Map<String, Object>> points) {
+        if (points == null || points.size() <= 1) {
+            return points;
+        }
+        
+        List<Map<String, Object>> result = new ArrayList<>();
+        result.add(points.get(0));
+        
+        for (int i = 1; i < points.size(); i++) {
+            Map<String, Object> prev = points.get(i - 1);
+            Map<String, Object> curr = points.get(i);
+            
+            double prevLon = getDoubleValue(prev, "longitude");
+            double prevLat = getDoubleValue(prev, "latitude");
+            double curLon = getDoubleValue(curr, "longitude");
+            double curLat = getDoubleValue(curr, "latitude");
+            
+            // 如果经纬度差异大于约1米（1e-5），则保留该点
+            if (Math.abs(prevLon - curLon) > 1e-5 || Math.abs(prevLat - curLat) > 1e-5) {
+                result.add(curr);
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 安全获取Double值
+     */
+    private double getDoubleValue(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        if (value instanceof Double) {
+            return (Double) value;
+        } else if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        return 0.0;
+    }
+
     /**
      * 创建轨迹文档
      */
@@ -541,7 +602,6 @@ public class JavaTrajectoryProcessor {
             System.out.println("⚠️  内存使用警告: " + usedPercent + "% 已超过阈值 80%");
             System.gc(); // 建议进行垃圾回收
         }
-        // 移除正常情况下的内存使用输出
     }
     
     /**
@@ -561,7 +621,6 @@ public class JavaTrajectoryProcessor {
     public static void main(String[] args) {
         // 强制进行道路匹配
         boolean matchToRoads = true;
-        System.out.println("Java轨迹处理器启动，道路匹配: true");
         JavaTrajectoryProcessor processor = new JavaTrajectoryProcessor();
         processor.processAllCollections(matchToRoads);
     }

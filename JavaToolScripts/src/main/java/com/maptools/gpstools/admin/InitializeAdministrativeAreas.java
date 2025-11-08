@@ -1,4 +1,4 @@
-package com.maptools.gpstools;
+package com.maptools.gpstools.admin;
 
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -13,6 +13,9 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import org.bson.Document;
+
+import com.maptools.gpstools.util.ConfigManager;
+import com.maptools.gpstools.util.GeoFilter;
 
 /**
  * 初始化行政区划边界数据

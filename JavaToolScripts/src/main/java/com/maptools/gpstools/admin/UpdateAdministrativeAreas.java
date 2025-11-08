@@ -1,4 +1,4 @@
-package com.maptools.gpstools;
+package com.maptools.gpstools.admin;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -14,6 +14,9 @@ import org.geotools.geometry.jts.JTSFactoryFinder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonArray;
+
+import com.maptools.gpstools.util.ConfigManager;
+import com.maptools.gpstools.util.GeoFilter;
 
 /**
  * 更新行政区划边界数据

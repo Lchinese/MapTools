@@ -1,4 +1,4 @@
-package com.maptools.gpstools;
+package com.maptools.gpstools.util;
 
 import java.io.IOException;
 import java.io.InputStream;
