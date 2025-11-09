@@ -56,22 +56,8 @@ public class AdjacencyConsistencyModel {
                     }
                 }
                 
-                // 直线跨越惩罚：使用预计算的距离和速度
-                double distance = metrics.distances[i];
-                double speed = metrics.speeds[i];
-                long dt = metrics.timeDiffs[i];
-                
-                double straightPenalty = 1.0;
-                if (dt > 0 && dt != Long.MAX_VALUE) {
-                    // 加强直线跨越检测条件：距离超过200米且速度超过100 km/h，或距离超过500米且速度超过150 km/h
-                    if ((distance > 200 && speed > 100) || (distance > 500 && speed > 150)) {
-                        // 使用更严格的惩罚函数
-                        straightPenalty = Math.exp(- (distance - 200) / 300.0);
-                    }
-                }
-                
                 // 几何一致性评分
-                double geometricScore = headingScore * 0.4 + curvatureScore * 0.3 + straightPenalty * 0.3;
+                double geometricScore = headingScore * 0.5 + curvatureScore * 0.5;
                 result[i] = Math.max(0.0, Math.min(1.0, geometricScore));
             } else {
                 // 使用参考点进行一致性评估
@@ -93,27 +79,8 @@ public class AdjacencyConsistencyModel {
                 double distanceDecay = calculateDistanceDecayFactor(i, referenceIndex, metrics);
                 double headingScore = validHeading ? (headingDiff <= 180 ? Math.exp(-headingDiff / 60.0) * distanceDecay : 0.0) : 1.0;
                 
-                // 与参考点的距离和时间评估
-                double totalDistance = 0.0;
-                long totalTime = 0L;
-                for (int j = referenceIndex + 1; j <= i; j++) {
-                    totalDistance += metrics.distances[j];
-                    totalTime += metrics.timeDiffs[j];
-                }
-                
-                // 速度合理性检查
-                double avgSpeed = 0.0;
-                if (totalTime > 0 && totalTime != Long.MAX_VALUE) {
-                    avgSpeed = (totalDistance / 1000.0) / (totalTime / 3600000.0);
-                }
-                
-                double speedScore = 1.0;
-                if (avgSpeed > 150 || avgSpeed < 5) {
-                    speedScore = 0.5;
-                }
-                
                 // 几何一致性评分
-                double geometricScore = headingScore * 0.5 + speedScore * 0.3;
+                double geometricScore = headingScore * 0.7 + curvatureScore * 0.3;
                 result[i] = Math.max(0.0, Math.min(1.0, geometricScore));
             }
         }

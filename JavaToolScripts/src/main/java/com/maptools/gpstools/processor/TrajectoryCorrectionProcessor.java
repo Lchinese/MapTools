@@ -471,6 +471,9 @@ public class TrajectoryCorrectionProcessor {
             double distance = metrics.distances[i];
             long timeDiff = metrics.timeDiffs[i];
             
+            // 获取当前点的道路类型
+            String roadType = safeString(points.get(i).get("road_type"));
+            
             // 检查道路一致性 - 综合考虑前后高置信度点的道路信息
             String roadId = safeString(points.get(i).get("road_id"));
             String prevRoadId = (i > 0) ? safeString(points.get(i-1).get("road_id")) : null;
@@ -478,7 +481,7 @@ public class TrajectoryCorrectionProcessor {
             
             if (timeDiff > 0 && timeDiff != Long.MAX_VALUE) {
                 // 道路切换概率计算（只考虑距离和时间，速度检查已在HMM中完成）
-                double roadTransitionProb = roadTransitionModel.calculateRoadTransitionProbability(distance, timeDiff);
+                double roadTransitionProb = roadTransitionModel.calculateRoadTransitionProbability(distance, timeDiff, roadType);
                 // 应用道路一致性因素
                 probabilities[i] = Math.min(1.0, roadTransitionProb * roadConsistencyFactor);
             } else {
