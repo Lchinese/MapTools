@@ -1,48 +1,9 @@
 package com.maptools.gpstools.algorithm;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * HMM GPS数据点类
- */
-class HmmGPSDataPoint {
-    private double longitude;
-    private double latitude;
-    private Date timestamp;
-    private Double heading; // 方向角，可为null
-    
-    public HmmGPSDataPoint(double longitude, double latitude, Date timestamp) {
-        this.longitude = longitude;
-        this.latitude = latitude;
-        this.timestamp = timestamp;
-        this.heading = null;
-    }
-    
-    public HmmGPSDataPoint(double longitude, double latitude, Date timestamp, Double heading) {
-        this.longitude = longitude;
-        this.latitude = latitude;
-        this.timestamp = timestamp;
-        this.heading = heading;
-    }
-    
-    public double getLongitude() { return longitude; }
-    public double getLatitude() { return latitude; }
-    public Date getTimestamp() { return timestamp; }
-    public Double getHeading() { return heading; }
-}
-
-/**
- * HMM输入类
- */
-class HmmInput {
-    private List<HmmGPSDataPoint> observations;
-    
-    public HmmInput(List<HmmGPSDataPoint> observations) {
-        this.observations = observations;
-    }
-    
-    public List<HmmGPSDataPoint> getObservations() { return observations; }
-}
+import com.maptools.gpstools.processor.TrajectoryCorrectionProcessor.TrajectoryMetrics;
 
 /**
  * HMM模型类 - 专注于速度统计特征检测
@@ -59,160 +20,40 @@ public class HmmModel {
     // TRANSITION_BETA = 3.0 - 路由转换参数
     // 这些参数在标准HMM地图匹配中使用，此处保留供未来扩展参考
     
-    // 速度模型参数（城市道路）- 调整参数使筛选更严格
-    private static final double NORMAL_SPEED_MEAN = 35.0; // 降低正常速度均值 (从40.0降到35.0 km/h)
-    private static final double NORMAL_SPEED_VARIANCE = 225.0; // 降低正常速度方差 (从400.0降到225.0，标准差从20降到15 km/h)
+    // 速度模型参数（无名道路，如普通城市道路）
+    private static final double NORMAL_SPEED_MEAN = 20.0; // 正常速度均值 (km/h)
+    private static final double NORMAL_SPEED_VARIANCE = 100.0; // 正常速度方差 (标准差10 km/h)
     
-    private static final double ANOMALY_SPEED_MEAN = 100.0; // 降低异常速度均值 (从120.0降到100.0 km/h)
-    private static final double ANOMALY_SPEED_VARIANCE = 400.0; // 降低异常速度方差 (从900.0降到400.0，标准差从30降到20 km/h)
+    private static final double ANOMALY_SPEED_MEAN = 60.0; // 异常速度均值 (km/h)
+    private static final double ANOMALY_SPEED_VARIANCE = 400.0; // 异常速度方差 (标准差20 km/h)
+    
+    // 有名道路速度模型参数（如高速公路）- 更宽松的标准
+    private static final double HIGHWAY_NORMAL_SPEED_MEAN = 60.0; // 有名道路正常速度均值 (km/h)
+    private static final double HIGHWAY_NORMAL_SPEED_VARIANCE = 900.0; // 有名道路正常速度方差 (标准差30 km/h)
+    
+    private static final double HIGHWAY_ANOMALY_SPEED_MEAN = 150.0; // 有名道路异常速度均值 (km/h)
+    private static final double HIGHWAY_ANOMALY_SPEED_VARIANCE = 3600.0; // 有名道路异常速度方差 (标准差60 km/h)
     
     // 决策阈值（标准筛选）
     private static final double ACCEPT_THRESHOLD = 0.7;  // 接收阈值
     private static final double REJECT_THRESHOLD = 0.3;  // 丢弃阈值
     // 0.3 ~ 0.7 之间的点需要重匹配
     
-    /**
-     * 计算轨迹点的概率（用于异常检测）- 旧版本，保留兼容性
-     */
-    public double[] calculatePointProbabilities(HmmInput input) {
-        List<HmmGPSDataPoint> observations = input.getObservations();
-        int n = observations.size();
-        
-        if (n < 2) {
-            double[] result = new double[n];
-            // 确保第一个点的置信度为1.0
-            if (n > 0) {
-                result[0] = 1.0;
-            }
-            return result;
-        }
-        
-        // 计算每个点的速度和方向特征
-        double[] speeds = calculateSpeeds(observations);
-        double[] directionChanges = calculateDirectionChanges(observations);
-        
-        // 使用简化的HMM前向-后向算法，结合速度和方向
-        double[] probabilities = forwardBackwardAlgorithm(speeds, directionChanges);
-        
-        // 确保第一个点的置信度为1.0
-        if (probabilities.length > 0) {
-            probabilities[0] = 1.0;
-        }
-        
-        return probabilities;
-    }
+    // 依赖的其他模型
+    private RoadTransitionModel roadTransitionModel;
+    private AdjacencyConsistencyModel adjacencyConsistencyModel;
     
-    /**
-     * 计算速度特征（用于HMM模型）
-     */
-    private double[] calculateSpeeds(List<HmmGPSDataPoint> observations) {
-        int n = observations.size();
-        double[] speeds = new double[n];
-        speeds[0] = 0.0; // 第一个点速度为0
-        
-        for (int i = 1; i < n; i++) {
-            HmmGPSDataPoint prev = observations.get(i - 1);
-            HmmGPSDataPoint curr = observations.get(i);
-            
-            // 计算距离（米）
-            double distance = calculateDistance(prev.getLongitude(), prev.getLatitude(), 
-                                              curr.getLongitude(), curr.getLatitude());
-            
-            // 计算时间差（毫秒）
-            long timeDiffMs = curr.getTimestamp().getTime() - prev.getTimestamp().getTime();
-            
-            // 如果时间差为0或负数，速度设为0
-            if (timeDiffMs <= 0) {
-                speeds[i] = 0.0;
-            } else {
-                // 计算速度（km/h）
-                double timeDiffHours = timeDiffMs / (1000.0 * 3600.0);
-                speeds[i] = (distance / 1000.0) / timeDiffHours; // 转换为 km/h
-            }
-        }
-        
-        return speeds;
-    }
-    
-    /**
-     * 计算方向变化特征（用于HMM模型）
-     */
-    private double[] calculateDirectionChanges(List<HmmGPSDataPoint> observations) {
-        int n = observations.size();
-        double[] directionChanges = new double[n];
-        directionChanges[0] = 0.0; // 第一个点方向变化为0
-        
-        for (int i = 1; i < n; i++) {
-            HmmGPSDataPoint prev = observations.get(i - 1);
-            HmmGPSDataPoint curr = observations.get(i);
-            
-            // 优先使用heading字段
-            if (curr.getHeading() != null && prev.getHeading() != null) {
-                double angleDiff = Math.abs(curr.getHeading() - prev.getHeading());
-                if (angleDiff > 180) {
-                    angleDiff = 360 - angleDiff;
-                }
-                directionChanges[i] = angleDiff;
-            } else {
-                // 回退到几何计算
-                double angle1 = calculateBearing(
-                    prev.getLongitude(), prev.getLatitude(),
-                    curr.getLongitude(), curr.getLatitude()
-                );
-                directionChanges[i] = angle1; // 简化处理
-            }
-        }
-        
-        return directionChanges;
-    }
-    
-    /**
-     * 简化的前向-后向算法实现（结合速度和方向）
-     */
-    private double[] forwardBackwardAlgorithm(double[] speeds, double[] directionChanges) {
-        int n = speeds.length;
-        double[] probabilities = new double[n];
-        
-        // 简化的异常检测：基于速度和方向变化的概率分布
-        for (int i = 0; i < n; i++) {
-            double speed = speeds[i];
-            double directionChange = directionChanges[i];
-            
-            // 计算正常状态的概率（基于速度）
-            double normalSpeedProb = gaussianProbability(speed, NORMAL_SPEED_MEAN, NORMAL_SPEED_VARIANCE);
-            
-            // 计算异常状态的概率（基于速度）
-            double anomalySpeedProb = gaussianProbability(speed, ANOMALY_SPEED_MEAN, ANOMALY_SPEED_VARIANCE);
-            
-            // 计算方向变化概率
-            double directionProb = calculateDirectionProbability(directionChange);
-            
-            // 综合概率：速度概率 * 方向概率
-            double normalProb = normalSpeedProb * directionProb;
-            double anomalyProb = anomalySpeedProb * (2.0 - directionProb); // 方向变化大时，异常概率增加
-            
-            // 归一化概率
-            double totalProb = normalProb + anomalyProb;
-            if (totalProb > 0) {
-                probabilities[i] = normalProb / totalProb;
-            } else {
-                probabilities[i] = 0.5; // 默认概率
-            }
-        }
-        
-        // 确保第一个点的置信度为1.0
-        if (probabilities.length > 0) {
-            probabilities[0] = 1.0;
-        }
-        
-        return probabilities;
+    public HmmModel() {
+        this.roadTransitionModel = new RoadTransitionModel();
+        this.adjacencyConsistencyModel = new AdjacencyConsistencyModel();
     }
     
     /**
      * 从预计算的指标计算轨迹点概率（优化版本，避免重复计算）
      * 注意：方向检测已移至adjacencyConsistency，此处只关注速度统计特征
      */
-    public double[] calculatePointProbabilitiesFromMetrics(com.maptools.gpstools.processor.TrajectoryCorrectionProcessor.TrajectoryMetrics metrics) {
+    public double[] calculatePointProbabilitiesFromMetrics(TrajectoryMetrics metrics,
+            List<Map<String, Object>> points) {
         int n = metrics.speeds.length;
         
         if (n < 2) {
@@ -229,18 +70,17 @@ public class HmmModel {
         for (int i = 0; i < n; i++) {
             double speed = metrics.speeds[i];
             
-            // 计算正常状态的概率（基于速度）
-            double normalSpeedProb = gaussianProbability(speed, NORMAL_SPEED_MEAN, NORMAL_SPEED_VARIANCE);
+            // 判断是否为有名道路（存在道路ID）
+            String roadId = safeString(points.get(i).get("road_id"));
+            boolean isNamedRoad = roadId != null && !roadId.isEmpty() && !"null".equals(roadId);
             
-            // 计算异常状态的概率（基于速度）
-            double anomalySpeedProb = gaussianProbability(speed, ANOMALY_SPEED_MEAN, ANOMALY_SPEED_VARIANCE);
-            
-            // 归一化概率
-            double totalProb = normalSpeedProb + anomalySpeedProb;
-            if (totalProb > 0) {
-                probabilities[i] = normalSpeedProb / totalProb;
+            // 使用分段函数计算速度概率
+            if (isNamedRoad) {
+                // 有名道路（如高速公路）使用更高的速度标准
+                probabilities[i] = segmentedSpeedProbabilityForNamedRoads(speed);
             } else {
-                probabilities[i] = 0.5; // 默认概率
+                // 无名道路使用城市道路标准
+                probabilities[i] = segmentedSpeedProbabilityForUnnamedRoads(speed);
             }
         }
         
@@ -250,6 +90,121 @@ public class HmmModel {
         }
         
         return probabilities;
+    }
+
+    /**
+     * 基于HMM的异常点检测（三维互补检测系统）
+     * 结合HMM模型、道路切换模型和相邻一致性模型进行综合评估
+     * 
+     * 检测维度（职责分离，避免重复评估）：
+     * 1. HMM概率：速度统计特征（基于高斯分布）- 权重 40%
+     * 2. 道路切换概率：物理可行性（距离约束）- 权重 20%
+     * 3. 相邻一致性：几何连续性（方向、曲率）- 权重 40%
+     * 
+     * 综合评分 = 速度统计×0.4 + 物理约束×0.2 + 几何一致性×0.4
+     */
+    public List<Map<String, Object>> hmmBasedAnomalyDetection(List<Map<String, Object>> points, 
+            TrajectoryMetrics metrics, AtomicLong totalAnomalousPointsRemoved) {
+        if (points.size() < 2) {
+            return points;
+        }
+        
+        try {
+            // 维度1：HMM速度统计检测
+            double[] probabilities = calculatePointProbabilitiesFromMetrics(metrics, points);
+        
+            // 维度2：道路切换物理可行性检测
+            double[] roadTransitionProbabilities = calculateRoadTransitionProbabilities(points, metrics, probabilities);
+            
+            // 维度3：几何一致性检测（方向、曲率）
+            // 使用基于置信度的相邻一致性评分
+            double[] adjacencyConsistency = calculateAdjacencyConsistencyWithSelfConfidence(points, metrics, probabilities);
+            
+            // 综合判定：三维评分加权和（更合理的评分方式）
+            List<Map<String, Object>> filteredPoints = new ArrayList<>();
+            for (int i = 0; i < points.size(); i++) {
+                // 综合评分 = 速度统计×0.4 + 物理约束×0.2 + 几何一致性×0.4
+                double combinedScore = probabilities[i] * 0.4 
+                                     + roadTransitionProbabilities[i] * 0.2 
+                                     + adjacencyConsistency[i] * 0.4;
+                if (Double.isNaN(combinedScore) || Double.isInfinite(combinedScore)) {
+                    combinedScore = 0.0;
+                }
+                // 夹紧到[0,1]
+                if (combinedScore < 0.0) combinedScore = 0.0;
+                if (combinedScore > 1.0) combinedScore = 1.0;
+                
+                // 两档决策：接收/丢弃（基于阈值）
+                if (combinedScore > 0.6) { // 接收
+                    filteredPoints.add(points.get(i));
+                } else { // 丢弃
+                    totalAnomalousPointsRemoved.incrementAndGet();
+                }
+            }
+        
+            return filteredPoints;
+        } catch (Exception e) {
+            // 如果HMM处理失败，返回原始点（保守策略）
+            System.err.println("HMM anomaly detection failed, returning original trajectory: " + e.getMessage());
+            e.printStackTrace(); // 添加堆栈跟踪以便调试
+            return points;
+        }
+    }
+    
+    /**
+     * 计算道路切换概率（使用预计算指标）
+     * 职责：只检查距离和时间合理性，速度检查已由HMM负责
+     */
+    private double[] calculateRoadTransitionProbabilities(List<Map<String, Object>> points, TrajectoryMetrics metrics, double[] confidences) {
+        double[] probabilities = new double[points.size()];
+        
+        // 第一个点默认为正常
+        probabilities[0] = 1.0;
+        
+        for (int i = 1; i < points.size(); i++) {
+            // 直接使用预计算的距离、时间
+            double distance = metrics.distances[i];
+            long timeDiff = metrics.timeDiffs[i];
+            
+            // 获取当前点的道路类型
+            String roadType = safeString(points.get(i).get("road_type"));
+            
+            // 检查道路一致性 - 综合考虑前后高置信度点的道路信息
+            double roadConsistencyFactor = roadTransitionModel.evaluateRoadConsistencyWithConfidence(points, i, confidences);
+            
+            if (timeDiff > 0 && timeDiff != Long.MAX_VALUE) {
+                // 道路切换概率计算（只考虑距离和时间，速度检查已在HMM中完成）
+                double roadTransitionProb = roadTransitionModel.calculateRoadTransitionProbability(distance, timeDiff, roadType);
+                // 应用道路一致性因素
+                probabilities[i] = Math.min(1.0, roadTransitionProb * roadConsistencyFactor);
+            } else {
+                // 时间解析失败，使用保守概率
+                probabilities[i] = 0.5 * roadConsistencyFactor;
+            }
+        }
+        
+        return probabilities;
+    }
+    
+    /**
+     * 计算相邻一致性（使用自身历史评分作为置信度基准的版本）
+     * 
+     * 该方法首先计算初始的一致性评分，然后使用这些评分作为置信度基准来重新计算
+     */
+    private double[] calculateAdjacencyConsistencyWithSelfConfidence(List<Map<String, Object>> points, 
+                                                         TrajectoryMetrics metrics, double[] confidences) {
+        // 使用传入的置信度数组作为初始一致性
+        return adjacencyConsistencyModel.calculateAdjacencyConsistencyWithConfidence(points, metrics, confidences);
+    }
+    
+    /**
+     * 安全提取String值
+     */
+    private String safeString(Object obj) {
+        if (obj instanceof String) {
+            return (String) obj;
+        }
+        return "";
     }
 
     /**
@@ -263,53 +218,40 @@ public class HmmModel {
     }
     
     /**
-     * 计算两点间距离（米）
+     * 分段速度概率函数 - 用于无名道路
+     * 0-60km/h为正常范围，60-80km/h为异常范围
      */
-    private double calculateDistance(double lon1, double lat1, double lon2, double lat2) {
-        double EARTH_RADIUS = 6371000.0; // 地球半径（米）
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLon = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return EARTH_RADIUS * c;
-    }
-    
-    /**
-     * 计算两点间的方位角（0-360度）
-     */
-    private double calculateBearing(double lon1, double lat1, double lon2, double lat2) {
-        double dLon = Math.toRadians(lon2 - lon1);
-        double lat1Rad = Math.toRadians(lat1);
-        double lat2Rad = Math.toRadians(lat2);
-        
-        double y = Math.sin(dLon) * Math.cos(lat2Rad);
-        double x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - 
-                  Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
-        
-        double bearing = Math.toDegrees(Math.atan2(y, x));
-        return (bearing + 360) % 360; // 转换为0-360度
-    }
-    
-    /**
-     * 根据角度差计算方向变化概率（调整函数使筛选更严格）
-     */
-    private double calculateDirectionProbability(double angleDiff) {
-        // 处理NaN值
-        if (Double.isNaN(angleDiff)) {
-            return 1.0; // 如果方向无效，返回默认概率
-        }
-        
-        // 方向变化概率：角度差越大，概率越低（调整参数使筛选更严格）
-        if (angleDiff > 120) { // 降低阈值（从150度降到120度）认为是掉头/回头
-            return Math.exp(-(angleDiff - 120) / 20.0); // 更快的指数衰减（从30.0降到20.0）
-        } else if (angleDiff > 60) { // 降低阈值（从90度降到60度）认为是急转弯
-            return 0.6 + 0.4 * Math.exp(-(angleDiff - 60) / 40.0); // 调整参数（从0.7降到0.6，从60.0降到40.0）
-        } else if (angleDiff > 30) { // 降低阈值（从45度降到30度）
-            return 0.8; // 降低概率（从0.9降到0.8）
+    private double segmentedSpeedProbabilityForUnnamedRoads(double speed) {
+        if (speed < 0) {
+            return 0.0;
+        } else if (speed <= 60) {
+            // 正常范围：线性从1.0递减到0.8
+            return 1.0 - (speed / 60.0) * 0.2;
+        } else if (speed <= 80) {
+            // 异常范围：线性从0.8递减到0.2
+            return 0.8 - ((speed - 60) / 20.0) * 0.6;
         } else {
-            return 1.0; // 小角度变化，保持高概率
+            // 超异常范围：递减到0.0
+            return Math.max(0.0, 0.2 - (speed - 80) / 80.0);
+        }
+    }
+    
+    /**
+     * 分段速度概率函数 - 用于有名道路
+     * 0-120km/h为正常范围，120-150km/h为异常范围
+     */
+    private double segmentedSpeedProbabilityForNamedRoads(double speed) {
+        if (speed < 0) {
+            return 0.0;
+        } else if (speed <= 120) {
+            // 正常范围：线性从1.0递减到0.7
+            return 1.0 - (speed / 120.0) * 0.3;
+        } else if (speed <= 150) {
+            // 异常范围：线性从0.7递减到0.2
+            return 0.7 - ((speed - 120) / 30.0) * 0.5;
+        } else {
+            // 超异常范围：递减到0.0
+            return Math.max(0.0, 0.2 - (speed - 150) / 150.0);
         }
     }
 }

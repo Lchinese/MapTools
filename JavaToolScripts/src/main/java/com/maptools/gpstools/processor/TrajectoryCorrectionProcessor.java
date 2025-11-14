@@ -415,39 +415,8 @@ public class TrajectoryCorrectionProcessor {
             // 预计算所有指标（避免重复计算）
             TrajectoryMetrics metrics = precomputeTrajectoryMetrics(points);
             
-            // 维度1：HMM速度统计检测
-            double[] probabilities = hmmModel.calculatePointProbabilitiesFromMetrics(metrics);
-        
-            // 维度2：道路切换物理可行性检测
-            double[] roadTransitionProbabilities = calculateRoadTransitionProbabilities(points, metrics);
-            
-            // 维度3：几何一致性检测（方向、曲率）
-            // 使用基于置信度的相邻一致性评分
-            double[] adjacencyConsistency = calculateAdjacencyConsistencyWithSelfConfidence(points, metrics);
-            
-            // 综合判定：三维评分加权和（更合理的评分方式）
-            List<Map<String, Object>> filteredPoints = new ArrayList<>();
-            for (int i = 0; i < points.size(); i++) {
-                // 综合评分 = 速度统计×0.4 + 物理约束×0.2 + 几何一致性×0.4
-                double combinedScore = probabilities[i] * 0.4 
-                                     + roadTransitionProbabilities[i] * 0.2 
-                                     + adjacencyConsistency[i] * 0.4;
-                if (Double.isNaN(combinedScore) || Double.isInfinite(combinedScore)) {
-                    combinedScore = 0.0;
-                }
-                // 夹紧到[0,1]
-                if (combinedScore < 0.0) combinedScore = 0.0;
-                if (combinedScore > 1.0) combinedScore = 1.0;
-                
-                // 两档决策：接收/丢弃（基于阈值）
-                if (combinedScore > 0.6) { // 接收
-                    filteredPoints.add(points.get(i));
-                } else { // 丢弃
-                    totalAnomalousPointsRemoved.incrementAndGet();
-                }
-            }
-        
-            return filteredPoints;
+            // 使用HMM模型进行综合异常点检测
+            return hmmModel.hmmBasedAnomalyDetection(points, metrics, totalAnomalousPointsRemoved);
         } catch (Exception e) {
             // 如果HMM处理失败，返回原始点（保守策略）
             System.err.println("HMM anomaly detection failed, returning original trajectory: " + e.getMessage());
@@ -460,55 +429,55 @@ public class TrajectoryCorrectionProcessor {
      * 计算道路切换概率（使用预计算指标）
      * 职责：只检查距离和时间合理性，速度检查已由HMM负责
      */
-    private double[] calculateRoadTransitionProbabilities(List<Map<String, Object>> points, TrajectoryMetrics metrics) {
-        double[] probabilities = new double[points.size()];
+    // private double[] calculateRoadTransitionProbabilities(List<Map<String, Object>> points, TrajectoryMetrics metrics) {
+    //     double[] probabilities = new double[points.size()];
         
-        // 第一个点默认为正常
-        probabilities[0] = 1.0;
+    //     // 第一个点默认为正常
+    //     probabilities[0] = 1.0;
         
-        for (int i = 1; i < points.size(); i++) {
-            // 直接使用预计算的距离、时间
-            double distance = metrics.distances[i];
-            long timeDiff = metrics.timeDiffs[i];
+    //     for (int i = 1; i < points.size(); i++) {
+    //         // 直接使用预计算的距离、时间
+    //         double distance = metrics.distances[i];
+    //         long timeDiff = metrics.timeDiffs[i];
             
-            // 获取当前点的道路类型
-            String roadType = safeString(points.get(i).get("road_type"));
+    //         // 获取当前点的道路类型
+    //         String roadType = safeString(points.get(i).get("road_type"));
             
-            // 检查道路一致性 - 综合考虑前后高置信度点的道路信息
-            String roadId = safeString(points.get(i).get("road_id"));
-            String prevRoadId = (i > 0) ? safeString(points.get(i-1).get("road_id")) : null;
-            double roadConsistencyFactor = roadTransitionModel.evaluateRoadConsistency(roadId, prevRoadId);
+    //         // 检查道路一致性 - 综合考虑前后高置信度点的道路信息
+    //         String roadId = safeString(points.get(i).get("road_id"));
+    //         String prevRoadId = (i > 0) ? safeString(points.get(i-1).get("road_id")) : null;
+    //         double roadConsistencyFactor = roadTransitionModel.evaluateRoadConsistency(roadId, prevRoadId);
             
-            if (timeDiff > 0 && timeDiff != Long.MAX_VALUE) {
-                // 道路切换概率计算（只考虑距离和时间，速度检查已在HMM中完成）
-                double roadTransitionProb = roadTransitionModel.calculateRoadTransitionProbability(distance, timeDiff, roadType);
-                // 应用道路一致性因素
-                probabilities[i] = Math.min(1.0, roadTransitionProb * roadConsistencyFactor);
-            } else {
-                // 时间解析失败，使用保守概率
-                probabilities[i] = 0.5 * roadConsistencyFactor;
-            }
-        }
+    //         if (timeDiff > 0 && timeDiff != Long.MAX_VALUE) {
+    //             // 道路切换概率计算（只考虑距离和时间，速度检查已在HMM中完成）
+    //             double roadTransitionProb = roadTransitionModel.calculateRoadTransitionProbability(distance, timeDiff, roadType);
+    //             // 应用道路一致性因素
+    //             probabilities[i] = Math.min(1.0, roadTransitionProb * roadConsistencyFactor);
+    //         } else {
+    //             // 时间解析失败，使用保守概率
+    //             probabilities[i] = 0.5 * roadConsistencyFactor;
+    //         }
+    //     }
         
-        return probabilities;
-    }
+    //     return probabilities;
+    // }
     
     /**
      * 计算相邻一致性（使用自身历史评分作为置信度基准的版本）
      * 
      * 该方法首先计算初始的一致性评分，然后使用这些评分作为置信度基准来重新计算
      */
-    private double[] calculateAdjacencyConsistencyWithSelfConfidence(List<Map<String, Object>> points, 
-                                                         TrajectoryMetrics metrics) {
-        // 首先计算初始的一致性评分（使用空数组作为初始一致性）
-        double[] initialConsistency = new double[points.size()];
-        for (int i = 0; i < initialConsistency.length; i++) {
-            initialConsistency[i] = 1.0;
-        }
+    // private double[] calculateAdjacencyConsistencyWithSelfConfidence(List<Map<String, Object>> points, 
+    //                                                      TrajectoryMetrics metrics) {
+    //     // 首先计算初始的一致性评分（使用空数组作为初始一致性）
+    //     double[] initialConsistency = new double[points.size()];
+    //     for (int i = 0; i < initialConsistency.length; i++) {
+    //         initialConsistency[i] = 1.0;
+    //     }
         
-        // 然后使用这些评分作为置信度基准来重新计算
-        return adjacencyConsistencyModel.calculateAdjacencyConsistencyWithConfidence(points, metrics, initialConsistency);
-    }
+    //     // 然后使用这些评分作为置信度基准来重新计算
+    //     return adjacencyConsistencyModel.calculateAdjacencyConsistencyWithConfidence(points, metrics, initialConsistency);
+    // }
     
     /**
      * 移除重复的相邻点
@@ -685,16 +654,58 @@ public class TrajectoryCorrectionProcessor {
     
     /**
      * 计算两点间距离（米）
+     * 使用Vincenty公式进行更精确的计算
      */
     private double calculateDistance(double lon1, double lat1, double lon2, double lat2) {
-        double EARTH_RADIUS = 6371000.0; // 地球半径（米）
-        double dLat = Math.toRadians(lat2 - lat1);
-        double dLon = Math.toRadians(lon2 - lon1);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                   Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
-                   Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return EARTH_RADIUS * c;
+        // WGS-84椭球体参数
+        double a = 6378137.0; // 长半轴
+        double b = 6356752.314245; // 短半轴
+        double f = 1 / 298.257223563; // 扁率
+        
+        double L = Math.toRadians(lon2 - lon1);
+        double U1 = Math.atan((1 - f) * Math.tan(Math.toRadians(lat1)));
+        double U2 = Math.atan((1 - f) * Math.tan(Math.toRadians(lat2)));
+        double sinU1 = Math.sin(U1), cosU1 = Math.cos(U1);
+        double sinU2 = Math.sin(U2), cosU2 = Math.cos(U2);
+        
+        double lambda = L, lambdaP, iterLimit = 100;
+        double cosSqAlpha, sinSigma, cosSigma, sigma, cos2SigmaM;
+        
+        do {
+            double sinLambda = Math.sin(lambda), cosLambda = Math.cos(lambda);
+            sinSigma = Math.sqrt((cosU2 * sinLambda) * (cosU2 * sinLambda) +
+                (cosU1 * sinU2 - sinU1 * cosU2 * cosLambda) * (cosU1 * sinU2 - sinU1 * cosU2 * cosLambda));
+            
+            if (sinSigma == 0) return 0; // 共点
+            
+            cosSigma = sinU1 * sinU2 + cosU1 * cosU2 * cosLambda;
+            sigma = Math.atan2(sinSigma, cosSigma);
+            double sinAlpha = cosU1 * cosU2 * sinLambda / sinSigma;
+            cosSqAlpha = 1 - sinAlpha * sinAlpha;
+            
+            if (cosSqAlpha != 0) {
+                cos2SigmaM = cosSigma - 2 * sinU1 * sinU2 / cosSqAlpha;
+            } else {
+                cos2SigmaM = 0; // 赤道上
+            }
+            
+            double C = f / 16 * cosSqAlpha * (4 + f * (4 - 3 * cosSqAlpha));
+            lambdaP = lambda;
+            lambda = L + (1 - C) * f * sinAlpha *
+                (sigma + C * sinSigma * (cos2SigmaM + C * cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM)));
+        } while (Math.abs(lambda - lambdaP) > 1e-12 && --iterLimit > 0);
+        
+        if (iterLimit == 0) return 0; // 公式不收敛
+        
+        double uSq = cosSqAlpha * (a * a - b * b) / (b * b);
+        double A = 1 + uSq / 16384 * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)));
+        double B = uSq / 1024 * (256 + uSq * (-128 + uSq * (74 - 47 * uSq)));
+        double deltaSigma = B * sinSigma * (cos2SigmaM + B / 4 * (cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM) -
+            B / 6 * cos2SigmaM * (-3 + 4 * sinSigma * sinSigma) * (-3 + 4 * cos2SigmaM * cos2SigmaM)));
+        
+        double s = b * A * (sigma - deltaSigma);
+        
+        return s;
     }
     
     /**

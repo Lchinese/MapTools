@@ -2,6 +2,8 @@ package com.maptools.gpstools.algorithm;
 
 import java.util.Set;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 道路切换模型类
@@ -67,17 +69,38 @@ public class RoadTransitionModel {
         double timeDiffSeconds = timeDiff / 1000.0;
         
         // 根据道路类型和时间差计算合理的最大距离
+        // 针对高速公路适当放宽限制，因为高速行驶时GPS误差会被放大
         double maxReasonableDistance;
         if (isHighway) {
-            // 高速公路假设最大速度为120km/h (33.3m/s)
-            maxReasonableDistance = timeDiffSeconds * 33.3;
-            // 至少3000米，最多根据时间计算
-            maxReasonableDistance = Math.max(3000, maxReasonableDistance);
+            // 高速公路速度范围：80-120 km/h (22.2-33.3 m/s)
+            // 使用平均速度100 km/h (27.8 m/s) 作为基准，但考虑GPS误差适当放宽
+            double avgSpeed = 27.8; // 100 km/h
+            double maxSpeed = 41.7; // 150 km/h (考虑到超速情况)
+            
+            // 基于平均速度计算基础距离，并增加容差
+            maxReasonableDistance = timeDiffSeconds * avgSpeed;
+            
+            // 考虑最大速度情况下的距离
+            double maxDistance = timeDiffSeconds * maxSpeed;
+            
+            // 综合考虑两种速度情况，设置更合理的距离范围
+            // 至少5000米，最多根据时间计算（适度放宽高速公路距离限制）
+            maxReasonableDistance = Math.max(5000, Math.min(maxReasonableDistance * 1.3, maxDistance));
         } else {
-            // 普通道路假设最大速度为60km/h (16.7m/s)
-            maxReasonableDistance = timeDiffSeconds * 16.7;
+            // 普通道路速度范围：30-60 km/h (8.3-16.7 m/s)
+            // 使用平均速度45 km/h (12.5 m/s) 作为基准
+            double avgSpeed = 12.5; // 45 km/h
+            double maxSpeed = 16.7; // 60 km/h
+            
+            // 基于平均速度计算基础距离
+            maxReasonableDistance = timeDiffSeconds * avgSpeed;
+            
+            // 考虑最大速度情况下的距离
+            double maxDistance = timeDiffSeconds * maxSpeed;
+            
+            // 综合考虑两种速度情况，设置更合理的距离范围
             // 至少1500米，最多根据时间计算
-            maxReasonableDistance = Math.max(1500, maxReasonableDistance);
+            maxReasonableDistance = Math.max(1500, Math.min(maxReasonableDistance * 1.2, maxDistance));
         }
         
         // 计算基于距离和时间的评分
@@ -109,7 +132,52 @@ public class RoadTransitionModel {
     }
     
     /**
-     * 评估道路一致性
+     * 评估道路一致性（考虑前后高置信度点）
+     * 
+     * @param points 轨迹点列表
+     * @param currentIndex 当前点索引
+     * @param confidences 置信度数组
+     * @return 道路一致性评分（0.0-1.0）
+     */
+    public double evaluateRoadConsistencyWithConfidence(List<Map<String, Object>> points, int currentIndex, double[] confidences) {
+        if (points == null || points.isEmpty() || currentIndex < 0 || currentIndex >= points.size()) {
+            return 1.0;
+        }
+        
+        // 获取当前点的道路ID
+        String currentRoadId = safeString(points.get(currentIndex).get("road_id"));
+        if (currentRoadId == null || currentRoadId.isEmpty()) {
+            return 1.0; // 如果没有道路ID，返回默认值1.0而不是0.0
+        }
+        
+        // 查找前后高置信度点
+        int prevHighConfidenceIndex = findPreviousHighConfidencePoint(currentIndex, confidences);
+        int nextHighConfidenceIndex = findNextHighConfidencePoint(currentIndex, confidences);
+        
+        // 计算与前一个高置信度点的一致性
+        double prevConsistency = 1.0;
+        if (prevHighConfidenceIndex >= 0) {
+            String prevRoadId = safeString(points.get(prevHighConfidenceIndex).get("road_id"));
+            if (prevRoadId != null && !prevRoadId.equals(currentRoadId)) {
+                prevConsistency = 0.5; // 不同的道路，返回中等评分
+            }
+        }
+        
+        // 计算与后一个高置信度点的一致性
+        double nextConsistency = 1.0;
+        if (nextHighConfidenceIndex >= 0 && nextHighConfidenceIndex < points.size()) {
+            String nextRoadId = safeString(points.get(nextHighConfidenceIndex).get("road_id"));
+            if (nextRoadId != null && !nextRoadId.equals(currentRoadId)) {
+                nextConsistency = 0.5; // 不同的道路，返回中等评分
+            }
+        }
+        
+        // 综合前后一致性评分
+        return (prevConsistency + nextConsistency) / 2.0;
+    }
+    
+    /**
+     * 评估道路一致性（向后兼容）
      * 
      * @param roadId 当前点的道路ID
      * @param prevRoadId 前一点的道路ID
@@ -125,5 +193,57 @@ public class RoadTransitionModel {
         } else {
             return 0.5; // 不同的道路，返回中等评分
         }
+    }
+    
+    /**
+     * 查找前一个高置信度点
+     */
+    private int findPreviousHighConfidencePoint(int currentIndex, double[] confidences) {
+        // 如果置信度数组为null或为空，直接返回前一个点
+        if (confidences == null || confidences.length == 0) {
+            return Math.max(0, currentIndex - 1);
+        }
+        
+        // 向前查找最近的高置信度点
+        for (int i = currentIndex - 1; i >= 0; i--) {
+            // 检查置信度数组元素是否为NaN
+            if (!Double.isNaN(confidences[i]) && confidences[i] >= 0.6) {
+                return i;
+            }
+        }
+        
+        // 如果没有找到高置信度点，则使用直接前点
+        return Math.max(0, currentIndex - 1);
+    }
+    
+    /**
+     * 查找后一个高置信度点
+     */
+    private int findNextHighConfidencePoint(int currentIndex, double[] confidences) {
+        // 如果置信度数组为null或为空，返回-1表示未找到
+        if (confidences == null || confidences.length == 0) {
+            return -1;
+        }
+        
+        // 向后查找最近的高置信度点
+        for (int i = currentIndex + 1; i < confidences.length; i++) {
+            // 检查置信度数组元素是否为NaN
+            if (!Double.isNaN(confidences[i]) && confidences[i] >= 0.6) {
+                return i;
+            }
+        }
+        
+        // 如果没有找到高置信度点，返回-1
+        return -1;
+    }
+    
+    /**
+     * 安全提取String值
+     */
+    private String safeString(Object obj) {
+        if (obj instanceof String) {
+            return (String) obj;
+        }
+        return "";
     }
 }
