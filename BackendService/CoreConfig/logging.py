@@ -32,6 +32,7 @@ def setup_logging():
     (log_dir / "business").mkdir(exist_ok=True)
     (log_dir / "celery").mkdir(exist_ok=True)
     (log_dir / "utils").mkdir(exist_ok=True)
+    (log_dir / "trajectory").mkdir(exist_ok=True)  # 添加轨迹处理日志目录
     
     # 日志配置字典
     logging_config = {
@@ -145,6 +146,15 @@ def setup_logging():
                 "maxBytes": settings.LOG_MAX_SIZE,
                 "backupCount": settings.LOG_BACKUP_COUNT,
                 "encoding": "utf-8"
+            },
+            "trajectory": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "level": "INFO",
+                "formatter": "detailed",
+                "filename": str(log_dir / "trajectory" / "trajectory.log"),
+                "maxBytes": settings.LOG_MAX_SIZE,
+                "backupCount": settings.LOG_BACKUP_COUNT,
+                "encoding": "utf-8"
             }
         },
         "loggers": {
@@ -191,6 +201,11 @@ def setup_logging():
             "performance": {
                 "level": "INFO",
                 "handlers": ["performance"],
+                "propagate": False
+            },
+            "trajectory": {
+                "level": "INFO",
+                "handlers": ["trajectory"],
                 "propagate": False
             }
         }

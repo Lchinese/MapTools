@@ -492,6 +492,8 @@ data/
 # 日志文件夹
 Logs/
 BackendService/Logs/
+shared_logs/
+JavaToolScripts/logs/
 
 # 地图数据文件（大文件）
 *.geojson

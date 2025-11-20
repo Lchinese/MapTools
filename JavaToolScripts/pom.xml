@@ -70,6 +70,13 @@
             <artifactId>jts-core</artifactId>
             <version>1.18.2</version>
         </dependency>
+        
+        <!-- Logstash Logback Encoder for JSON logging -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>7.2</version>
+        </dependency>
     </dependencies>
     
     <dependencyManagement>
@@ -93,6 +100,13 @@
             <releases>
                 <enabled>true</enabled>
             </releases>
+        </repository>
+        
+        <!-- For logstash-logback-encoder -->
+        <repository>
+            <id>central</id>
+            <name>Maven Central</name>
+            <url>https://repo1.maven.org/maven2/</url>
         </repository>
     </repositories>
 

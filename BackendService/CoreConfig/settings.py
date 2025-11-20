@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     
     # 日志配置
     LOG_LEVEL: str = "INFO"
-    LOG_DIR: str = "Logs"
+    LOG_DIR: str = "shared_logs"
     LOG_MAX_SIZE: int = 100 * 1024 * 1024  # 100MB
     LOG_BACKUP_COUNT: int = 10
     

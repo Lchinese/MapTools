@@ -20,11 +20,17 @@ import com.maptools.gpstools.algorithm.RoadTransitionModel;
 import com.maptools.gpstools.algorithm.AdjacencyConsistencyModel;
 import com.maptools.gpstools.util.TrajectoryCorrectionUtils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * 轨迹修正主处理器
  * 多线程处理轨迹修正任务
  */
 public class TrajectoryCorrectionProcessor {
+    
+    private static final Logger logger = LoggerFactory.getLogger(TrajectoryCorrectionProcessor.class);
+    private static final Logger trajectoryLogger = LoggerFactory.getLogger("com.maptools.gpstools.processor.trajectory");
     
     private static final int THREAD_POOL_SIZE = 8;
     private static final int BATCH_SIZE = 100;
@@ -69,9 +75,9 @@ public class TrajectoryCorrectionProcessor {
      * 主处理方法
      */
     public void processTrajectoryCorrection(boolean skipExisting) {
-        System.out.println("==================================================");
-        System.out.println("轨迹修正处理开始");
-        System.out.println("==================================================");
+        logger.info("==================================================");
+        logger.info("轨迹修正处理开始");
+        logger.info("==================================================");
         
         long startTime = System.currentTimeMillis();
         
@@ -82,14 +88,13 @@ public class TrajectoryCorrectionProcessor {
                 String targetCollectionName = TARGET_COLLECTION_PREFIX + String.format("%02d", i);
                 
                 if (database.getCollection(sourceCollectionName).countDocuments() > 0) {
-                    System.out.println("\n处理集合: " + sourceCollectionName + " -> " + targetCollectionName);
+                    logger.info("处理集合: {} -> {}", sourceCollectionName, targetCollectionName);
                     processCollection(sourceCollectionName, targetCollectionName, skipExisting);
                 }
             }
             
         } catch (Exception e) {
-            System.err.println("处理失败: " + e.getMessage());
-            e.printStackTrace();
+            logger.error("处理失败: {}", e.getMessage(), e);
         } finally {
             executorService.shutdown();
             mongoClient.close();
@@ -110,13 +115,13 @@ public class TrajectoryCorrectionProcessor {
         
         // Get all plate numbers (保持原始顺序)
         List<String> plateNumbers = getPlateNumbersInOrder(sourceCollection);
-        System.out.println("找到 " + plateNumbers.size() + " 个车牌号");
+        logger.info("找到 {} 个车牌号", plateNumbers.size());
         
         if (skipExisting) {
             // Skip existing trajectories
             Set<String> existingPlates = getExistingPlateNumbers(targetCollection);
             plateNumbers.removeIf(existingPlates::contains);
-            System.out.println("跳过 " + existingPlates.size() + " 个已存在的轨迹，剩余 " + plateNumbers.size() + " 个");
+            logger.info("跳过 {} 个已存在的轨迹，剩余 {} 个", existingPlates.size(), plateNumbers.size());
         }
         
         // Batch processing
@@ -144,7 +149,7 @@ public class TrajectoryCorrectionProcessor {
             executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            System.err.println("Batch processing interrupted");
+            logger.error("Batch processing interrupted");
         }
     }
     
@@ -164,14 +169,13 @@ public class TrajectoryCorrectionProcessor {
                 
                 long processed = totalProcessed.incrementAndGet();
                 if (processed % 500 == 0) { // 每500个车牌输出一次进度
-                    System.out.println("已处理: " + processed + "/" + totalPlates + 
-                                     " | 保存: " + totalSaved.get() + " | 跳过: " + totalSkipped.get());
+                    trajectoryLogger.info("已处理: {}/{} | 保存: {} | 跳过: {}", 
+                        processed, totalPlates, totalSaved.get(), totalSkipped.get());
                     checkMemoryUsage();
                 }
                 
             } catch (Exception e) {
-                System.err.println("处理车牌号 " + plateNumber + " 时出错: " + e.getMessage());
-                e.printStackTrace(); // 添加详细堆栈跟踪
+                logger.error("处理车牌号 {} 时出错: {}", plateNumber, e.getMessage(), e);
                 totalErrors.incrementAndGet();
             }
         }
@@ -293,12 +297,11 @@ public class TrajectoryCorrectionProcessor {
             int deduplicationRemoved = originalCount - afterDeduplication;
             int hmmRemoved = afterDeduplication - afterHmmFilter;
             
-            System.out.println(String.format(
-                "Trajectory: %d -> %d | Removed: Dup=%d, HMM=%d", 
+            trajectoryLogger.debug("Trajectory: {} -> {} | Removed: Dup={}, HMM={}", 
                 originalCount, filteredPoints.size(), 
                 deduplicationRemoved,
                 hmmRemoved
-            ));
+            );
         }
         
         return filteredPoints;
@@ -419,8 +422,7 @@ public class TrajectoryCorrectionProcessor {
             return hmmModel.hmmBasedAnomalyDetection(points, metrics, totalAnomalousPointsRemoved);
         } catch (Exception e) {
             // 如果HMM处理失败，返回原始点（保守策略）
-            System.err.println("HMM anomaly detection failed, returning original trajectory: " + e.getMessage());
-            e.printStackTrace(); // 添加堆栈跟踪以便调试
+            logger.error("HMM anomaly detection failed, returning original trajectory: {}", e.getMessage(), e);
             return points;
         }
     }
@@ -771,7 +773,7 @@ public class TrajectoryCorrectionProcessor {
         long usedPercent = heapUsage.getUsed() * 100 / heapUsage.getMax();
         
         if (usedPercent > 80) {
-            System.out.println("内存使用警告: " + usedPercent + "%");
+            logger.warn("内存使用警告: {}%", usedPercent);
             System.gc();
         }
     }
@@ -780,20 +782,20 @@ public class TrajectoryCorrectionProcessor {
      * 打印最终统计信息
      */
     private void printFinalStats(long duration) {
-        System.out.println("\n==================================================");
-        System.out.println("轨迹修正处理完成统计");
-        System.out.println("==================================================");
-        System.out.println("总处理车牌数: " + totalProcessed.get());
-        System.out.println("总保存轨迹数: " + totalSaved.get());
-        System.out.println("总跳过车牌数: " + totalSkipped.get());
-        System.out.println("总错误数: " + totalErrors.get());
-        System.out.println("处理时间: " + TrajectoryCorrectionUtils.formatDuration(duration));
+        logger.info("==================================================");
+        logger.info("轨迹修正处理完成统计");
+        logger.info("==================================================");
+        logger.info("总处理车牌数: {}", totalProcessed.get());
+        logger.info("总保存轨迹数: {}", totalSaved.get());
+        logger.info("总跳过车牌数: {}", totalSkipped.get());
+        logger.info("总错误数: {}", totalErrors.get());
+        logger.info("处理时间: {}", TrajectoryCorrectionUtils.formatDuration(duration));
         
-        System.out.println("\n轨迹修正统计:");
-        System.out.println("移除重复点数: " + totalDuplicatesRemoved.get());
-        System.out.println("移除异常点数: " + totalAnomalousPointsRemoved.get());
+        logger.info("轨迹修正统计:");
+        logger.info("移除重复点数: {}", totalDuplicatesRemoved.get());
+        logger.info("移除异常点数: {}", totalAnomalousPointsRemoved.get());
         
-        System.out.println("\n✅ 所有轨迹修正处理完成！");
+        logger.info("✅ 所有轨迹修正处理完成！");
     }
     
     /**

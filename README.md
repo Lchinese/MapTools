@@ -361,6 +361,37 @@ cd FrontendApp
 npm test
 ```
 
+## 📚 日志管理
+
+系统使用统一的日志目录和格式，便于集中管理和分析。
+
+### 统一日志目录
+所有日志文件存储在 `shared_logs` 目录下，包含以下子目录：
+- `app/` - 应用日志
+- `error/` - 错误日志
+- `trajectory/` - 轨迹处理日志
+- `business/` - 业务日志
+
+### 日志清理
+使用统一的日志清理脚本处理所有日志：
+
+```bash
+# 查看帮助
+python scripts/unified_log_cleanup.py --help
+
+# 执行日志清理
+python scripts/unified_log_cleanup.py
+
+# 预演日志清理（不实际执行）
+python scripts/unified_log_cleanup.py --dry-run
+
+# 查看日志统计信息
+python scripts/unified_log_cleanup.py stats
+```
+
+### ELK集成
+系统支持JSON格式日志输出，便于与ELK（Elasticsearch, Logstash, Kibana）堆栈集成。
+
 ## 🚨 常见问题
 
 ### 1. 端口冲突
