@@ -52,14 +52,14 @@ const TrajectoryLine = ({ trajectory, color, weight }) => {
 };
 
 // 轨迹点组件
-const TrajectoryPoints = ({ trajectory, color }) => {
+const TrajectoryPoints = ({ trajectory, color, type }) => {
   if (!trajectory || trajectory.length === 0) return null;
 
   return (
     <>
       {trajectory.map((point, index) => (
         <Marker
-          key={`trajectory-point-${index}`}
+          key={`trajectory-point-${type}-${index}`}
           position={[point.latitude, point.longitude]}
           icon={L.divIcon({
             className: 'custom-trajectory-marker',
@@ -77,11 +77,18 @@ const TrajectoryPoints = ({ trajectory, color }) => {
         >
           <Popup>
             <div style={{ fontSize: '12px', minWidth: '200px' }}>
-              <p><strong>时间:</strong> {point.datetime}</p>
+              <p><strong>编号:</strong> {index + 1}</p>
               <p><strong>坐标:</strong> {point.latitude?.toFixed(6)}, {point.longitude?.toFixed(6)}</p>
-              <p><strong>速度:</strong> {point.speed} km/h</p>
-              <p><strong>方向:</strong> {point.heading}°</p>
-      </div>
+              {point.datetime && <p><strong>时间:</strong> {point.datetime}</p>}
+              {point.speed !== undefined && <p><strong>速度:</strong> {point.speed} km/h</p>}
+              {point.heading !== undefined && <p><strong>方向:</strong> {point.heading}°</p>}
+              {point.roadName && <p><strong>道路:</strong> {point.roadName}</p>}
+              {point.originalLatitude && point.originalLongitude && (
+                <>
+                  <p><strong>原始坐标:</strong> {point.originalLatitude?.toFixed(6)}, {point.originalLongitude?.toFixed(6)}</p>
+                </>
+              )}
+            </div>
           </Popup>
         </Marker>
       ))}
@@ -657,6 +664,7 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
           <TrajectoryPoints 
             trajectory={originalTrajectory} 
             color="#ff4d4f"
+            type="original"
           />
         )}
 
@@ -664,6 +672,7 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
           <TrajectoryPoints 
             trajectory={correctedTrajectory} 
             color="#52c41a"
+            type="corrected"
           />
         )}
 
