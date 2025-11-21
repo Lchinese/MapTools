@@ -10,7 +10,7 @@ import com.maptools.gpstools.processor.TrajectoryCorrectionProcessor.TrajectoryM
  * 参数基于GraphHopper和Valhalla Meili等开源地图匹配库的标准值
  * 
  * 职责分离：
- * - HMM：速度统计异常检测（基于高斯分布）
+ * - HMM：速度统计异常检测（基于分段函数）
  * - adjacencyConsistency：几何连续性检测（方向、曲率）
  * - roadTransition：物理可行性检测（距离、时间）
  */
@@ -19,20 +19,6 @@ public class HmmModel {
     // GPS_SIGMA = 4.07m - GPS测量误差标准差（业界标准值）
     // TRANSITION_BETA = 3.0 - 路由转换参数
     // 这些参数在标准HMM地图匹配中使用，此处保留供未来扩展参考
-    
-    // 速度模型参数（无名道路，如普通城市道路）
-    private static final double NORMAL_SPEED_MEAN = 20.0; // 正常速度均值 (km/h)
-    private static final double NORMAL_SPEED_VARIANCE = 100.0; // 正常速度方差 (标准差10 km/h)
-    
-    private static final double ANOMALY_SPEED_MEAN = 60.0; // 异常速度均值 (km/h)
-    private static final double ANOMALY_SPEED_VARIANCE = 400.0; // 异常速度方差 (标准差20 km/h)
-    
-    // 有名道路速度模型参数（如高速公路）- 更宽松的标准
-    private static final double HIGHWAY_NORMAL_SPEED_MEAN = 60.0; // 有名道路正常速度均值 (km/h)
-    private static final double HIGHWAY_NORMAL_SPEED_VARIANCE = 900.0; // 有名道路正常速度方差 (标准差30 km/h)
-    
-    private static final double HIGHWAY_ANOMALY_SPEED_MEAN = 150.0; // 有名道路异常速度均值 (km/h)
-    private static final double HIGHWAY_ANOMALY_SPEED_VARIANCE = 3600.0; // 有名道路异常速度方差 (标准差60 km/h)
     
     // 决策阈值（标准筛选）
     private static final double ACCEPT_THRESHOLD = 0.7;  // 接收阈值
@@ -68,19 +54,49 @@ public class HmmModel {
         // HMM只关注速度统计特征，方向检测交给adjacencyConsistency处理（避免重复）
         double[] probabilities = new double[n];
         for (int i = 0; i < n; i++) {
-            double speed = metrics.speeds[i];
+            // 获取当前点自身的速度属性
+            Object speedObj = points.get(i).get("speed");
+            Double pointSpeed = null;
+            if (speedObj instanceof Number) {
+                pointSpeed = ((Number) speedObj).doubleValue();
+            }
+            
+            // 检查前后点的速度属性
+            boolean hasPrevSpeed = false;
+            boolean hasNextSpeed = false;
+            
+            if (i > 0) {
+                Object prevSpeedObj = points.get(i-1).get("speed");
+                if (prevSpeedObj instanceof Number) {
+                    hasPrevSpeed = true;
+                }
+            }
+            
+            if (i < n-1) {
+                Object nextSpeedObj = points.get(i+1).get("speed");
+                if (nextSpeedObj instanceof Number) {
+                    hasNextSpeed = true;
+                }
+            }
             
             // 判断是否为有名道路（存在道路ID）
             String roadId = safeString(points.get(i).get("road_id"));
             boolean isNamedRoad = roadId != null && !roadId.isEmpty() && !"null".equals(roadId);
             
-            // 使用分段函数计算速度概率
-            if (isNamedRoad) {
-                // 有名道路（如高速公路）使用更高的速度标准
-                probabilities[i] = segmentedSpeedProbabilityForNamedRoads(speed);
+            // 如果当前点自身速度属性为0，且前后点都有速度，则直接给予低概率
+            if (pointSpeed != null && pointSpeed == 0 && hasPrevSpeed && hasNextSpeed) {
+                probabilities[i] = 0.1;
             } else {
-                // 无名道路使用城市道路标准
-                probabilities[i] = segmentedSpeedProbabilityForUnnamedRoads(speed);
+                // 否则使用计算得出的速度进行正常处理
+                double speed = metrics.speeds[i];
+                // 使用分段函数计算速度概率
+                if (isNamedRoad) {
+                    // 有名道路（如高速公路）使用更高的速度标准
+                    probabilities[i] = segmentedSpeedProbabilityForNamedRoads(speed);
+                } else {
+                    // 无名道路使用城市道路标准
+                    probabilities[i] = segmentedSpeedProbabilityForUnnamedRoads(speed);
+                }
             }
         }
         
@@ -97,11 +113,11 @@ public class HmmModel {
      * 结合HMM模型、道路切换模型和相邻一致性模型进行综合评估
      * 
      * 检测维度（职责分离，避免重复评估）：
-     * 1. HMM概率：速度统计特征（基于高斯分布）- 权重 40%
+     * 1. HMM概率：速度统计特征（基于分段函数）- 权重 60%
      * 2. 道路切换概率：物理可行性（距离约束）- 权重 20%
-     * 3. 相邻一致性：几何连续性（方向、曲率）- 权重 40%
+     * 3. 相邻一致性：几何连续性（方向、曲率）- 权重 20%
      * 
-     * 综合评分 = 速度统计×0.4 + 物理约束×0.2 + 几何一致性×0.4
+     * 综合评分 = 速度统计×0.6 + 物理约束×0.2 + 几何一致性×0.2
      */
     public List<Map<String, Object>> hmmBasedAnomalyDetection(List<Map<String, Object>> points, 
             TrajectoryMetrics metrics, AtomicLong totalAnomalousPointsRemoved) {
@@ -123,10 +139,10 @@ public class HmmModel {
             // 综合判定：三维评分加权和（更合理的评分方式）
             List<Map<String, Object>> filteredPoints = new ArrayList<>();
             for (int i = 0; i < points.size(); i++) {
-                // 综合评分 = 速度统计×0.4 + 物理约束×0.2 + 几何一致性×0.4
-                double combinedScore = probabilities[i] * 0.4 
+                // 综合评分 = 速度统计×0.6 + 物理约束×0.2 + 几何一致性×0.2
+                double combinedScore = probabilities[i] * 0.6 
                                      + roadTransitionProbabilities[i] * 0.2 
-                                     + adjacencyConsistency[i] * 0.4;
+                                     + adjacencyConsistency[i] * 0.2;
                 if (Double.isNaN(combinedScore) || Double.isInfinite(combinedScore)) {
                     combinedScore = 0.0;
                 }
@@ -207,16 +223,6 @@ public class HmmModel {
         return "";
     }
 
-    /**
-     * 高斯概率密度函数
-     */
-    private double gaussianProbability(double x, double mean, double variance) {
-        double stdDev = Math.sqrt(variance);
-        double coefficient = 1.0 / (stdDev * Math.sqrt(2 * Math.PI));
-        double exponent = -Math.pow(x - mean, 2) / (2 * variance);
-        return coefficient * Math.exp(exponent);
-    }
-    
     /**
      * 分段速度概率函数 - 用于无名道路
      * 0-60km/h为正常范围，60-80km/h为异常范围
