@@ -1,36 +1,36 @@
 package com.maptools.gpstools.processor;
 
-import org.bson.Document;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
-import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.FindIterable;
+import com.mongodb.client.*;
 import com.mongodb.client.model.Filters;
+import com.mongodb.client.model.IndexOptions;
 import com.mongodb.MongoWriteException;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicLong;
+import org.bson.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryUsage;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.Date;
+
+import static com.mongodb.client.model.Filters.eq;
 
 import com.maptools.gpstools.algorithm.HmmModel;
 import com.maptools.gpstools.algorithm.RoadTransitionModel;
 import com.maptools.gpstools.algorithm.AdjacencyConsistencyModel;
 import com.maptools.gpstools.util.TrajectoryCorrectionUtils;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
- * 轨迹修正主处理器
- * 多线程处理轨迹修正任务
+ * 轨迹修正处理器
+ * 使用HMM模型进行异常点检测和轨迹修正
  */
 public class TrajectoryCorrectionProcessor {
     
     private static final Logger logger = LoggerFactory.getLogger(TrajectoryCorrectionProcessor.class);
-    private static final Logger trajectoryLogger = LoggerFactory.getLogger("com.maptools.gpstools.processor.trajectory");
+    private static final Logger trajectoryLogger = LoggerFactory.getLogger("trajectory");
     
     private static final int THREAD_POOL_SIZE = 8;
     private static final int BATCH_SIZE = 100;
@@ -46,6 +46,7 @@ public class TrajectoryCorrectionProcessor {
     
     // 统计信息
     private AtomicLong totalProcessed = new AtomicLong(0);
+    private AtomicLong totalToProcess = new AtomicLong(0);
     private AtomicLong totalSaved = new AtomicLong(0);
     private AtomicLong totalSkipped = new AtomicLong(0);
     private AtomicLong totalErrors = new AtomicLong(0);
@@ -82,16 +83,31 @@ public class TrajectoryCorrectionProcessor {
         long startTime = System.currentTimeMillis();
         
         try {
+            // 初始化计数器
+            totalToProcess.set(0);
+            totalProcessed.set(0);
+            totalSaved.set(0);
+            totalSkipped.set(0);
+            totalErrors.set(0);
+            
             // Process each original trajectory collection
+            int processedCollections = 0;
             for (int i = 1; i <= 30; i++) {
                 String sourceCollectionName = SOURCE_COLLECTION_PREFIX + String.format("%02d", i);
                 String targetCollectionName = TARGET_COLLECTION_PREFIX + String.format("%02d", i);
                 
-                if (database.getCollection(sourceCollectionName).countDocuments() > 0) {
+                // 检查源集合是否存在且包含数据
+                MongoCollection<Document> sourceCollection = database.getCollection(sourceCollectionName);
+                if (sourceCollection.countDocuments() > 0) {
                     logger.info("处理集合: {} -> {}", sourceCollectionName, targetCollectionName);
                     processCollection(sourceCollectionName, targetCollectionName, skipExisting);
+                    processedCollections++;
+                } else {
+                    logger.debug("跳过空集合: {}", sourceCollectionName);
                 }
             }
+            
+            logger.info("总共处理了 {} 个集合", processedCollections);
             
         } catch (Exception e) {
             logger.error("处理失败: {}", e.getMessage(), e);
@@ -113,48 +129,54 @@ public class TrajectoryCorrectionProcessor {
         MongoCollection<Document> sourceCollection = database.getCollection(sourceCollectionName);
         MongoCollection<Document> targetCollection = database.getCollection(targetCollectionName);
         
+        // 检查源集合是否存在
+        if (sourceCollection.countDocuments() <= 0) {
+            logger.info("源集合 {} 为空，跳过处理", sourceCollectionName);
+            return;
+        }
+        
         // Get all plate numbers (保持原始顺序)
         List<String> plateNumbers = getPlateNumbersInOrder(sourceCollection);
-        logger.info("找到 {} 个车牌号", plateNumbers.size());
+        logger.info("在集合 {} 中找到 {} 个车牌号", sourceCollectionName, plateNumbers.size());
+        
+        // 创建唯一索引以防止重复存储
+        try {
+            targetCollection.createIndex(new Document("plate_number", 1), new IndexOptions().unique(true));
+        } catch (Exception e) {
+            logger.debug("唯一索引已存在或创建失败: {}", e.getMessage());
+        }
         
         if (skipExisting) {
             // Skip existing trajectories
             Set<String> existingPlates = getExistingPlateNumbers(targetCollection);
             plateNumbers.removeIf(existingPlates::contains);
             logger.info("跳过 {} 个已存在的轨迹，剩余 {} 个", existingPlates.size(), plateNumbers.size());
+        } else {
+            // 如果不跳过已存在的轨迹，则清空目标集合
+            long deletedCount = targetCollection.deleteMany(new Document()).getDeletedCount();
+            logger.info("清空目标集合 {}，删除了 {} 条记录", targetCollectionName, deletedCount);
         }
-        
-        // 检查是否已存在相同车牌号的轨迹，避免重复处理
-        Set<String> existingTargetPlates = getExistingPlateNumbers(targetCollection);
-        plateNumbers.removeIf(existingTargetPlates::contains);
-        logger.info("移除目标集合中已存在的 {} 个轨迹，剩余 {} 个待处理", existingTargetPlates.size(), plateNumbers.size());
         
         // Batch processing
         List<String> plateList = plateNumbers;
         int totalPlates = plateList.size();
         
-        for (int i = 0; i < totalPlates; i += BATCH_SIZE) {
-            int endIndex = Math.min(i + BATCH_SIZE, totalPlates);
-            List<String> batch = plateList.subList(i, endIndex);
-            
-                // 静默处理批次
-            
-            // Submit batch processing task
-            final int batchIndex = i + 1;
-            executorService.submit(new Runnable() {
-                @Override
-                public void run() {
-                    processBatch(sourceCollection, targetCollection, batch, batchIndex, totalPlates);
-                }
-            });
-        }
+        // 更新总处理数量
+        totalToProcess.addAndGet(totalPlates);
         
-        // Wait for all tasks to complete
-        try {
-            executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.error("Batch processing interrupted");
+        if (totalPlates > 0) {
+            logger.info("开始处理集合 {}，包含 {} 个轨迹", sourceCollectionName, totalPlates);
+            
+            for (int i = 0; i < totalPlates; i += BATCH_SIZE) {
+                int endIndex = Math.min(i + BATCH_SIZE, totalPlates);
+                List<String> batch = plateList.subList(i, endIndex);
+                
+                // Submit batch processing task
+                final int batchIndex = i + 1;
+                executorService.submit(() -> processBatch(sourceCollection, targetCollection, batch, batchIndex, totalPlates));
+            }
+        } else {
+            logger.info("集合 {} 中没有需要处理的轨迹", sourceCollectionName);
         }
     }
     
@@ -172,10 +194,14 @@ public class TrajectoryCorrectionProcessor {
             try {
                 processPlateNumber(sourceCollection, targetCollection, plateNumber);
                 
-                long processed = totalProcessed.incrementAndGet();
+                // 注意：这里不要增加totalProcessed计数器，因为它在correctTrajectory方法中已经增加了
+                long saved = totalSaved.get();
+                long skipped = totalSkipped.get();
+                long processed = saved + skipped;
+                
                 if (processed % 500 == 0) { // 每500个车牌输出一次进度
-                    trajectoryLogger.info("已处理: {}/{} | 保存: {} | 跳过: {}", 
-                        processed, totalPlates, totalSaved.get(), totalSkipped.get());
+                    trajectoryLogger.info("已处理: {} | 保存: {} | 跳过: {}", 
+                        processed, saved, skipped);
                     checkMemoryUsage();
                 }
                 
@@ -198,6 +224,7 @@ public class TrajectoryCorrectionProcessor {
         if (existingDoc != null) {
             // 如果已存在，则跳过处理
             totalSkipped.incrementAndGet();
+            logger.debug("跳过已存在的轨迹: {} 在集合 {}", plateNumber, targetCollection.getNamespace().getFullName());
             return;
         }
         
@@ -210,6 +237,7 @@ public class TrajectoryCorrectionProcessor {
             .first();
         if (originalDoc == null) {
             totalSkipped.incrementAndGet();
+            logger.debug("未找到匹配的轨迹: {} 在集合 {}", plateNumber, sourceCollection.getNamespace().getFullName());
             return;
         }
         
@@ -249,7 +277,7 @@ public class TrajectoryCorrectionProcessor {
         
         // 创建修正轨迹文档
         Document correctedDoc = TrajectoryCorrectionUtils.createCorrectedTrajectoryDocument(
-            plateNumber, correctedPoints, sourceCollection.getNamespace().getCollectionName());
+            plateNumber, correctedPoints, sourceCollection.getNamespace().getFullName());
         
         if (correctedDoc == null) {
             totalSkipped.incrementAndGet();
@@ -264,9 +292,13 @@ public class TrajectoryCorrectionProcessor {
         } catch (MongoWriteException e) {
             if (e.getError().getCode() == 11000) { // 重复键错误
                 totalSkipped.incrementAndGet();
+                logger.debug("重复键错误，跳过轨迹: {}", plateNumber);
             } else {
                 throw e;
             }
+        } catch (Exception e) {
+            logger.error("保存轨迹时出错: {}", e.getMessage(), e);
+            totalErrors.incrementAndGet();
         } finally {
             // 清理内存
             trajectoryPoints.clear();
@@ -295,6 +327,7 @@ public class TrajectoryCorrectionProcessor {
         
         // 如果去重后点数少于2，直接返回
         if (deduplicatedPoints.size() < 2) {
+            // 注意：这里不增加totalProcessed计数器，因为这只是预处理步骤
             return deduplicatedPoints;
         }
         
@@ -303,6 +336,7 @@ public class TrajectoryCorrectionProcessor {
         List<Map<String, Object>> filteredPoints = hmmBasedAnomalyDetection(deduplicatedPoints, stats);
         int afterHmmFilter = filteredPoints.size();
         
+        // 只有在完成所有处理步骤后才增加计数器
         totalProcessed.incrementAndGet();
         
         // 调试输出：显示点数量变化
@@ -685,6 +719,7 @@ public class TrajectoryCorrectionProcessor {
         
         double lambda = L, lambdaP, iterLimit = 100;
         double cosSqAlpha, sinSigma, cosSigma, sigma, cos2SigmaM;
+        double uSq = 0; // 初始化uSq变量
         
         do {
             double sinLambda = Math.sin(lambda), cosLambda = Math.cos(lambda);
@@ -704,6 +739,7 @@ public class TrajectoryCorrectionProcessor {
                 cos2SigmaM = 0; // 赤道上
             }
             
+            uSq = cosSqAlpha * (a * a - b * b) / (b * b); // 在这里定义uSq
             double C = f / 16 * cosSqAlpha * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)));
             lambdaP = lambda;
             lambda = L + (1 - C) * f * sinAlpha *
@@ -712,7 +748,6 @@ public class TrajectoryCorrectionProcessor {
         
         if (iterLimit == 0) return 0; // 公式不收敛
         
-        double uSq = cosSqAlpha * (a * a - b * b) / (b * b);
         double A = 1 + uSq / 16384 * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)));
         double B = uSq / 1024 * (256 + uSq * (-128 + uSq * (74 - 47 * uSq)));
         double deltaSigma = B * sinSigma * (cos2SigmaM + B / 4 * (cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM) -
@@ -741,6 +776,7 @@ public class TrajectoryCorrectionProcessor {
             }
         }
         
+        logger.debug("从集合 {} 获取到 {} 个不重复的车牌号", collection.getNamespace().getFullName(), plateNumberSet.size());
         return new ArrayList<>(plateNumberSet);
     }
     
@@ -775,6 +811,7 @@ public class TrajectoryCorrectionProcessor {
             }
         }
         
+        logger.debug("在目标集合 {} 中找到 {} 个已存在的车牌号", collection.getNamespace().getFullName(), existingPlates.size());
         return existingPlates;
     }
     
@@ -798,6 +835,7 @@ public class TrajectoryCorrectionProcessor {
         logger.info("==================================================");
         logger.info("轨迹修正处理完成统计");
         logger.info("==================================================");
+        logger.info("总待处理车牌数: {}", totalToProcess.get());
         logger.info("总处理车牌数: {}", totalProcessed.get());
         logger.info("总保存轨迹数: {}", totalSaved.get());
         logger.info("总跳过车牌数: {}", totalSkipped.get());
@@ -816,6 +854,7 @@ public class TrajectoryCorrectionProcessor {
      */
     public Map<String, Long> getStatistics() {
         Map<String, Long> stats = new HashMap<>();
+        stats.put("totalToProcess", totalToProcess.get());
         stats.put("totalProcessed", totalProcessed.get());
         stats.put("totalSkipped", totalSkipped.get());
         stats.put("totalDuplicatesRemoved", totalDuplicatesRemoved.get());
@@ -827,6 +866,7 @@ public class TrajectoryCorrectionProcessor {
      * 重置统计信息
      */
     public void resetStatistics() {
+        totalToProcess.set(0);
         totalProcessed.set(0);
         totalSkipped.set(0);
         totalDuplicatesRemoved.set(0);
