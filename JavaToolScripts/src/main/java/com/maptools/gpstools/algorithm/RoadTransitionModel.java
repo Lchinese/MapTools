@@ -87,10 +87,10 @@ public class RoadTransitionModel {
             // 至少5000米，最多根据时间计算（适度放宽高速公路距离限制）
             maxReasonableDistance = Math.max(5000, Math.min(maxReasonableDistance * 1.3, maxDistance));
         } else {
-            // 普通道路速度范围：30-60 km/h (8.3-16.7 m/s)
-            // 使用平均速度45 km/h (12.5 m/s) 作为基准
-            double avgSpeed = 12.5; // 45 km/h
-            double maxSpeed = 16.7; // 60 km/h
+            // 普通道路速度范围：30-80 km/h (8.3-22.2 m/s)
+            // 使用平均速度55 km/h (15.3 m/s) 作为基准，根据您的要求调整为80km/h上限
+            double avgSpeed = 15.3; // 55 km/h
+            double maxSpeed = 22.2; // 80 km/h
             
             // 基于平均速度计算基础距离
             maxReasonableDistance = timeDiffSeconds * avgSpeed;

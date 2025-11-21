@@ -124,6 +124,11 @@ public class TrajectoryCorrectionProcessor {
             logger.info("跳过 {} 个已存在的轨迹，剩余 {} 个", existingPlates.size(), plateNumbers.size());
         }
         
+        // 检查是否已存在相同车牌号的轨迹，避免重复处理
+        Set<String> existingTargetPlates = getExistingPlateNumbers(targetCollection);
+        plateNumbers.removeIf(existingTargetPlates::contains);
+        logger.info("移除目标集合中已存在的 {} 个轨迹，剩余 {} 个待处理", existingTargetPlates.size(), plateNumbers.size());
+        
         // Batch processing
         List<String> plateList = plateNumbers;
         int totalPlates = plateList.size();
@@ -187,6 +192,14 @@ public class TrajectoryCorrectionProcessor {
     private void processPlateNumber(MongoCollection<Document> sourceCollection,
                                   MongoCollection<Document> targetCollection,
                                   String plateNumber) {
+        
+        // 检查目标集合中是否已存在该车牌号的轨迹
+        Document existingDoc = targetCollection.find(Filters.eq("plate_number", plateNumber)).first();
+        if (existingDoc != null) {
+            // 如果已存在，则跳过处理
+            totalSkipped.incrementAndGet();
+            return;
+        }
         
         // 仅使用道路匹配后的轨迹（不回退到原始轨迹）
         Document originalDoc = sourceCollection
@@ -691,7 +704,7 @@ public class TrajectoryCorrectionProcessor {
                 cos2SigmaM = 0; // 赤道上
             }
             
-            double C = f / 16 * cosSqAlpha * (4 + f * (4 - 3 * cosSqAlpha));
+            double C = f / 16 * cosSqAlpha * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)));
             lambdaP = lambda;
             lambda = L + (1 - C) * f * sinAlpha *
                 (sigma + C * sinSigma * (cos2SigmaM + C * cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM)));
