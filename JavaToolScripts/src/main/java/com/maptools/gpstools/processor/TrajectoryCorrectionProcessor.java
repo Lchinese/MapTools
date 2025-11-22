@@ -321,37 +321,37 @@ public class TrajectoryCorrectionProcessor {
         
         int originalCount = originalPoints.size();
         
-        // 第一步：移除重复的相邻点
-        List<Map<String, Object>> deduplicatedPoints = removeDuplicatePoints(originalPoints);
-        int afterDeduplication = deduplicatedPoints.size();
+        // 第一步：使用HMM进行异常点检测和过滤（返回统计信息）
+        TrajectoryStats stats = new TrajectoryStats();
+        List<Map<String, Object>> filteredPoints = hmmBasedAnomalyDetection(originalPoints, stats);
+        int afterHmmFilter = filteredPoints.size();
         
-        // 如果去重后点数少于2，直接返回
-        if (deduplicatedPoints.size() < 2) {
+        // 如果过滤后点数少于2，直接返回
+        if (filteredPoints.size() < 2) {
             // 注意：这里不增加totalProcessed计数器，因为这只是预处理步骤
-            return deduplicatedPoints;
+            return filteredPoints;
         }
         
-        // 第二步：使用HMM进行异常点检测和过滤（返回统计信息）
-        TrajectoryStats stats = new TrajectoryStats();
-        List<Map<String, Object>> filteredPoints = hmmBasedAnomalyDetection(deduplicatedPoints, stats);
-        int afterHmmFilter = filteredPoints.size();
+        // 第二步：移除重复的相邻点
+        List<Map<String, Object>> deduplicatedPoints = removeDuplicatePoints(filteredPoints);
+        int afterDeduplication = deduplicatedPoints.size();
         
         // 只有在完成所有处理步骤后才增加计数器
         totalProcessed.incrementAndGet();
         
         // 调试输出：显示点数量变化
-        if (originalCount != filteredPoints.size()) {
-            int deduplicationRemoved = originalCount - afterDeduplication;
-            int hmmRemoved = afterDeduplication - afterHmmFilter;
+        if (originalCount != deduplicatedPoints.size()) {
+            int hmmRemoved = originalCount - afterHmmFilter;
+            int deduplicationRemoved = afterHmmFilter - afterDeduplication;
             
-            trajectoryLogger.debug("Trajectory: {} -> {} | Removed: Dup={}, HMM={}", 
-                originalCount, filteredPoints.size(), 
-                deduplicationRemoved,
-                hmmRemoved
+            trajectoryLogger.debug("Trajectory: {} -> {} | Removed: HMM={}, Dup={}", 
+                originalCount, deduplicatedPoints.size(), 
+                hmmRemoved,
+                deduplicationRemoved
             );
         }
         
-        return filteredPoints;
+        return deduplicatedPoints;
     }
     
     /**

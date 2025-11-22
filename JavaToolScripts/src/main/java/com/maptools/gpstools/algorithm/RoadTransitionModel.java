@@ -71,6 +71,7 @@ public class RoadTransitionModel {
         // 根据道路类型和时间差计算合理的最大距离
         // 针对高速公路适当放宽限制，因为高速行驶时GPS误差会被放大
         double maxReasonableDistance;
+        double maxTheoreticalDistance;
         if (isHighway) {
             // 高速公路速度范围：80-120 km/h (22.2-33.3 m/s)
             // 使用平均速度100 km/h (27.8 m/s) 作为基准，但考虑GPS误差适当放宽
@@ -81,11 +82,11 @@ public class RoadTransitionModel {
             maxReasonableDistance = timeDiffSeconds * avgSpeed;
             
             // 考虑最大速度情况下的距离
-            double maxDistance = timeDiffSeconds * maxSpeed;
+            maxTheoreticalDistance = timeDiffSeconds * maxSpeed;
             
             // 综合考虑两种速度情况，设置更合理的距离范围
             // 至少5000米，最多根据时间计算（适度放宽高速公路距离限制）
-            maxReasonableDistance = Math.max(5000, Math.min(maxReasonableDistance * 1.3, maxDistance));
+            maxReasonableDistance = Math.max(5000, Math.min(maxReasonableDistance * 1.3, maxTheoreticalDistance));
         } else {
             // 普通道路速度范围：30-80 km/h (8.3-22.2 m/s)
             // 使用平均速度55 km/h (15.3 m/s) 作为基准，根据您的要求调整为80km/h上限
@@ -96,24 +97,25 @@ public class RoadTransitionModel {
             maxReasonableDistance = timeDiffSeconds * avgSpeed;
             
             // 考虑最大速度情况下的距离
-            double maxDistance = timeDiffSeconds * maxSpeed;
+            maxTheoreticalDistance = timeDiffSeconds * maxSpeed;
             
             // 综合考虑两种速度情况，设置更合理的距离范围
             // 至少1500米，最多根据时间计算
-            maxReasonableDistance = Math.max(1500, Math.min(maxReasonableDistance * 1.2, maxDistance));
+            maxReasonableDistance = Math.max(1500, Math.min(maxReasonableDistance * 1.2, maxTheoreticalDistance));
         }
         
         // 计算基于距离和时间的评分
         double distanceScore;
-        if (distance <= maxReasonableDistance * 0.8) {
-            // 距离小于最大合理距离的80%，概率为1.0
+        if (distance <= maxReasonableDistance) {
+            // 距离小于等于最大合理距离，概率为1.0
             distanceScore = 1.0;
-        } else if (distance <= maxReasonableDistance) {
-            // 距离在最大合理距离的80%到最大合理距离之间，线性下降
-            distanceScore = 1.0 - (distance - maxReasonableDistance * 0.8) / (maxReasonableDistance * 0.2);
+        } else if (distance <= maxTheoreticalDistance) {
+            // 距离在最大合理距离到最大理论距离之间，线性下降到0.6
+            distanceScore = 1.0 - (distance - maxReasonableDistance) / (maxTheoreticalDistance - maxReasonableDistance) * 0.4;
         } else {
-            // 超过最大合理距离，指数衰减但不低于0.3
-            distanceScore = 0.3 + 0.7 * Math.exp(-(distance - maxReasonableDistance) / maxReasonableDistance);
+            // 超过最大理论距离，指数衰减但不低于0.3
+            // 确保线性下降和指数衰减在maxTheoreticalDistance处连续（0.6）
+            distanceScore = 0.6 * Math.exp(-(distance - maxTheoreticalDistance) / maxTheoreticalDistance) + 0.3;
         }
         
         return Math.max(0.0, Math.min(1.0, distanceScore));
