@@ -9,6 +9,7 @@ import { matchingAPI, trajectoryAPI } from '../../Services/api';
 // import { useTrajectoryData } from '../../Hooks/useTrajectory'; // 不再需要，trajectoryData 作为 prop 传入
 import MatchedPoints from './MatchedPoints';
 import RoadNetwork from './RoadNetwork';
+import RoadPoints from './RoadPoints';  // 新增导入
 import 'leaflet/dist/leaflet.css';
 import './MapComponent.css';
 
@@ -678,7 +679,10 @@ const MapComponent = ({ height = 400, showControls = true, trajectoryData = {} }
 
         {/* 道路网络 - 放在最后确保在顶层显示 */}
         <RoadNetwork showRoadNetwork={showRoadNetwork} />
-        </MapContainer>
+        {/* 道路点交互 - 即使道路网络未显示也能交互 */}
+        <RoadPoints showRoadNetwork={showRoadNetwork} />
+
+      </MapContainer>
 
       {/* 重置按钮 - 放在左侧缩放控件下方 */}
       <div style={{
