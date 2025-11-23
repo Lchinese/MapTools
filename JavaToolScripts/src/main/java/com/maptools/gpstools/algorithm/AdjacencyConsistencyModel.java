@@ -29,9 +29,6 @@ public class AdjacencyConsistencyModel {
         result[0] = 1.0;
         if (n == 1) return result;
         
-        // 定义置信度阈值
-        final double CONFIDENCE_THRESHOLD = 0.6;
-        
         for (int i = 1; i < n; i++) {
             // 查找参考点（前一个和后一个高置信度点）
             int prevReferenceIndex = findPreviousHighConfidencePoint(i, confidences);
@@ -60,17 +57,26 @@ public class AdjacencyConsistencyModel {
                 
                 // 几何一致性评分
                 double geometricScore = headingScore * 0.5 + curvatureScore * 0.5;
-                result[i] = Math.max(0.5, Math.min(1.0, geometricScore)); // 调整最低评分为0.5
+                result[i] = Math.max(0.5, Math.min(1.0, geometricScore));
             } else {
                 // 使用前向参考点进行一致性评估
                 double referenceHeading = metrics.headings[prevReferenceIndex];
                 double currentHeading = metrics.headings[i];
                 
-                // 计算与参考点的方向差
+                // 计算基于经纬度的实际方向角
+                double actualBearing = calculateBearing(
+                    safeDouble(points.get(prevReferenceIndex).get("latitude")),
+                    safeDouble(points.get(prevReferenceIndex).get("longitude")),
+                    safeDouble(points.get(i).get("latitude")),
+                    safeDouble(points.get(i).get("longitude"))
+                );
+                
+                // 计算heading与实际方向的差值
                 double headingDiff = 0.0;
                 boolean validHeading = false;
                 if (!Double.isNaN(referenceHeading) && !Double.isNaN(currentHeading)) {
-                    headingDiff = Math.abs(currentHeading - referenceHeading);
+                    // 计算当前点的heading与实际方向的差值
+                    headingDiff = Math.abs(currentHeading - actualBearing);
                     if (headingDiff > 180) {
                         headingDiff = 360 - headingDiff;
                     }
@@ -96,13 +102,23 @@ public class AdjacencyConsistencyModel {
                 double headingScore = validHeading ? (headingDiff <= 180 ? calculateImprovedHeadingScore(headingDiff) * distanceDecay : 0.5) : 1.0;
                 
                 // 如果存在后向高置信度点，也考虑其影响
-                if (nextReferenceIndex != -1 && nextReferenceIndex == i + 1) {
+                if (nextReferenceIndex != -1 && nextReferenceIndex < points.size()) {
                     double nextReferenceHeading = metrics.headings[nextReferenceIndex];
+                    
+                    // 计算到后向参考点的实际方向角
+                    double actualBearingToNext = calculateBearing(
+                        safeDouble(points.get(i).get("latitude")),
+                        safeDouble(points.get(i).get("longitude")),
+                        safeDouble(points.get(nextReferenceIndex).get("latitude")),
+                        safeDouble(points.get(nextReferenceIndex).get("longitude"))
+                    );
+                    
                     double nextHeadingDiff = 0.0;
                     boolean validNextHeading = false;
                     
                     if (!Double.isNaN(nextReferenceHeading) && !Double.isNaN(currentHeading)) {
-                        nextHeadingDiff = Math.abs(currentHeading - nextReferenceHeading);
+                        // 计算当前点的heading与到后向参考点实际方向的差值
+                        nextHeadingDiff = Math.abs(currentHeading - actualBearingToNext);
                         if (nextHeadingDiff > 180) {
                             nextHeadingDiff = 360 - nextHeadingDiff;
                         }
@@ -116,11 +132,46 @@ public class AdjacencyConsistencyModel {
                 
                 // 几何一致性评分
                 double geometricScore = headingScore * 0.7 + curvatureScore * 0.3;
-                result[i] = Math.max(0.5, Math.min(1.0, geometricScore)); // 调整最低评分为0.5
+                result[i] = Math.max(0.5, Math.min(1.0, geometricScore));
             }
         }
         
         return result;
+    }
+    
+    /**
+     * 计算两点之间的方位角（基于经纬度）
+     * 
+     * @param lat1 起点纬度
+     * @param lon1 起点经度
+     * @param lat2 终点纬度
+     * @param lon2 终点经度
+     * @return 方位角（0-360度）
+     */
+    private double calculateBearing(double lat1, double lon1, double lat2, double lon2) {
+        // 将角度转换为弧度
+        double lat1Rad = Math.toRadians(lat1);
+        double lat2Rad = Math.toRadians(lat2);
+        double deltaLonRad = Math.toRadians(lon2 - lon1);
+        
+        // 计算方位角
+        double y = Math.sin(deltaLonRad) * Math.cos(lat2Rad);
+        double x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - 
+                  Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(deltaLonRad);
+        double bearing = Math.toDegrees(Math.atan2(y, x));
+        
+        // 将结果转换为0-360度范围
+        return (bearing + 360) % 360;
+    }
+    
+    /**
+     * 安全提取double值
+     */
+    private double safeDouble(Object obj) {
+        if (obj instanceof Number) {
+            return ((Number) obj).doubleValue();
+        }
+        return 0.0;
     }
     
     /**
@@ -197,19 +248,23 @@ public class AdjacencyConsistencyModel {
         headingDiff = Math.max(0, Math.min(180, headingDiff));
         
         // 使用分段线性函数提供更好的区分度
+        double score;
         if (headingDiff <= 30) {
             // 0-30度: 评分从1.0线性下降到0.9
-            return 1.0 - (headingDiff / 30.0) * 0.1;
+            score = 1.0 - (headingDiff / 30.0) * 0.1;
         } else if (headingDiff <= 90) {
             // 30-90度: 评分从0.9线性下降到0.7
-            return 0.9 - ((headingDiff - 30) / 60.0) * 0.2;
+            score = 0.9 - ((headingDiff - 30) / 60.0) * 0.2;
         } else if (headingDiff <= 150) {
             // 90-150度: 评分从0.7线性下降到0.6
-            return 0.7 - ((headingDiff - 90) / 60.0) * 0.1;
+            score = 0.7 - ((headingDiff - 90) / 60.0) * 0.1;
         } else {
             // 150-180度: 评分从0.6线性下降到0.5
-            return 0.6 - ((headingDiff - 150) / 30.0) * 0.1;
+            score = 0.6 - ((headingDiff - 150) / 30.0) * 0.1;
         }
+        
+        // 确保评分不低于0.5
+        return Math.max(0.5, score);
     }
     
     /**

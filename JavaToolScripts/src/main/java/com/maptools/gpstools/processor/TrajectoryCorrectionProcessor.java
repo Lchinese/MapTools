@@ -38,7 +38,6 @@ public class TrajectoryCorrectionProcessor {
     private static final String TARGET_COLLECTION_PREFIX = "corrected_trajectories_";
     
     private MongoClient mongoClient;
-    private MongoDatabase database;
     private ExecutorService executorService;
     private HmmModel hmmModel;
     private RoadTransitionModel roadTransitionModel;
@@ -65,11 +64,15 @@ public class TrajectoryCorrectionProcessor {
     
     public TrajectoryCorrectionProcessor() {
         this.mongoClient = MongoClients.create("mongodb://localhost:27017");
-        this.database = mongoClient.getDatabase("MapTools");
         this.executorService = Executors.newFixedThreadPool(THREAD_POOL_SIZE);
         this.hmmModel = new HmmModel();
         this.roadTransitionModel = new RoadTransitionModel();
         this.adjacencyConsistencyModel = new AdjacencyConsistencyModel();
+    }
+    
+    // 添加获取数据库连接的方法
+    private MongoDatabase getDatabase() {
+        return mongoClient.getDatabase("MapTools");
     }
     
     /**
@@ -97,7 +100,8 @@ public class TrajectoryCorrectionProcessor {
                 String targetCollectionName = TARGET_COLLECTION_PREFIX + String.format("%02d", i);
                 
                 // 检查源集合是否存在且包含数据
-                MongoCollection<Document> sourceCollection = database.getCollection(sourceCollectionName);
+                MongoDatabase db = getDatabase();
+                MongoCollection<Document> sourceCollection = db.getCollection(sourceCollectionName);
                 if (sourceCollection.countDocuments() > 0) {
                     logger.info("处理集合: {} -> {}", sourceCollectionName, targetCollectionName);
                     processCollection(sourceCollectionName, targetCollectionName, skipExisting);
@@ -112,8 +116,19 @@ public class TrajectoryCorrectionProcessor {
         } catch (Exception e) {
             logger.error("处理失败: {}", e.getMessage(), e);
         } finally {
-            executorService.shutdown();
-            mongoClient.close();
+            try {
+                executorService.shutdown();
+                if (!executorService.awaitTermination(1, TimeUnit.HOURS)) {
+                    executorService.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                executorService.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            
+            if (mongoClient != null) {
+                mongoClient.close();
+            }
         }
         
         long endTime = System.currentTimeMillis();
@@ -126,8 +141,9 @@ public class TrajectoryCorrectionProcessor {
      * 处理单个集合
      */
     private void processCollection(String sourceCollectionName, String targetCollectionName, boolean skipExisting) {
-        MongoCollection<Document> sourceCollection = database.getCollection(sourceCollectionName);
-        MongoCollection<Document> targetCollection = database.getCollection(targetCollectionName);
+        MongoDatabase db = getDatabase();
+        MongoCollection<Document> sourceCollection = db.getCollection(sourceCollectionName);
+        MongoCollection<Document> targetCollection = db.getCollection(targetCollectionName);
         
         // 检查源集合是否存在
         if (sourceCollection.countDocuments() <= 0) {
@@ -173,7 +189,7 @@ public class TrajectoryCorrectionProcessor {
                 
                 // Submit batch processing task
                 final int batchIndex = i + 1;
-                executorService.submit(() -> processBatch(sourceCollection, targetCollection, batch, batchIndex, totalPlates));
+                executorService.submit(() -> processBatch(sourceCollectionName, targetCollectionName, batch, batchIndex, totalPlates));
             }
         } else {
             logger.info("集合 {} 中没有需要处理的轨迹", sourceCollectionName);
@@ -183,31 +199,44 @@ public class TrajectoryCorrectionProcessor {
     /**
      * 处理一批车牌号（按顺序处理）
      */
-    private void processBatch(MongoCollection<Document> sourceCollection, 
-                            MongoCollection<Document> targetCollection,
+    private void processBatch(String sourceCollectionName, 
+                            String targetCollectionName,
                             List<String> plateNumbers, 
                             int batchStart, 
                             int totalPlates) {
-        
-        // 按顺序处理批次内的车牌号
-        for (String plateNumber : plateNumbers) {
-            try {
-                processPlateNumber(sourceCollection, targetCollection, plateNumber);
-                
-                // 注意：这里不要增加totalProcessed计数器，因为它在correctTrajectory方法中已经增加了
-                long saved = totalSaved.get();
-                long skipped = totalSkipped.get();
-                long processed = saved + skipped;
-                
-                if (processed % 500 == 0) { // 每500个车牌输出一次进度
-                    trajectoryLogger.info("已处理: {} | 保存: {} | 跳过: {}", 
-                        processed, saved, skipped);
-                    checkMemoryUsage();
+        // 为每个线程创建独立的MongoDB连接
+        MongoClient threadMongoClient = null;
+        try {
+            threadMongoClient = MongoClients.create("mongodb://localhost:27017");
+            MongoDatabase threadDatabase = threadMongoClient.getDatabase("MapTools");
+            MongoCollection<Document> sourceCollection = threadDatabase.getCollection(sourceCollectionName);
+            MongoCollection<Document> targetCollection = threadDatabase.getCollection(targetCollectionName);
+            
+            // 按顺序处理批次内的车牌号
+            for (String plateNumber : plateNumbers) {
+                try {
+                    processPlateNumber(sourceCollection, targetCollection, plateNumber);
+                    
+                    // 注意：这里不要增加totalProcessed计数器，因为它在correctTrajectory方法中已经增加了
+                    long saved = totalSaved.get();
+                    long skipped = totalSkipped.get();
+                    long processed = saved + skipped;
+                    
+                    if (processed % 500 == 0) { // 每500个车牌输出一次进度
+                        trajectoryLogger.info("已处理: {} | 保存: {} | 跳过: {}", 
+                            processed, saved, skipped);
+                        checkMemoryUsage();
+                    }
+                    
+                } catch (Exception e) {
+                    logger.error("处理车牌号 {} 时出错: {}", plateNumber, e.getMessage(), e);
+                    totalErrors.incrementAndGet();
                 }
-                
-            } catch (Exception e) {
-                logger.error("处理车牌号 {} 时出错: {}", plateNumber, e.getMessage(), e);
-                totalErrors.incrementAndGet();
+            }
+        } finally {
+            // 关闭线程的MongoDB连接
+            if (threadMongoClient != null) {
+                threadMongoClient.close();
             }
         }
     }
@@ -881,15 +910,29 @@ public class TrajectoryCorrectionProcessor {
      * 关闭连接
      */
     public void close() {
-        if (mongoClient != null) {
-            mongoClient.close();
+        try {
+            if (executorService != null && !executorService.isShutdown()) {
+                executorService.shutdown();
+                if (!executorService.awaitTermination(30, TimeUnit.SECONDS)) {
+                    executorService.shutdownNow();
+                }
+            }
+        } catch (InterruptedException e) {
+            if (executorService != null) {
+                executorService.shutdownNow();
+            }
+            Thread.currentThread().interrupt();
+        } finally {
+            if (mongoClient != null) {
+                mongoClient.close();
+            }
+            
+            // 清理缓存
+            distanceCache.clear();
+            timeDiffCache.clear();
+            
+            System.gc();
         }
-        
-        // 清理缓存
-        distanceCache.clear();
-        timeDiffCache.clear();
-        
-        System.gc();
     }
     
     /**
@@ -899,6 +942,10 @@ public class TrajectoryCorrectionProcessor {
         boolean skipExisting = args.length > 0 && "true".equals(args[0]);
         
         TrajectoryCorrectionProcessor processor = new TrajectoryCorrectionProcessor();
-        processor.processTrajectoryCorrection(skipExisting);
+        try {
+            processor.processTrajectoryCorrection(skipExisting);
+        } finally {
+            processor.close();
+        }
     }
 }
